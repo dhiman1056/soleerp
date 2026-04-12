@@ -44,8 +44,8 @@ export default function Dashboard() {
   const { data: notifRes } = useNotificationsQuery();
   const { data: alertsRes } = useLowStockAlertsQuery();
 
-  const notifications = notifRes?.data || [];
-  const lowStock = (alertsRes?.data || []).slice(0, 5);
+  const notifications = Array.isArray(notifRes?.data) ? notifRes.data : [];
+  const lowStock = (Array.isArray(alertsRes?.data) ? alertsRes.data : []).slice(0, 5);
 
   const getChartData = (data, keys) => {
     if (!data?.labels) return [];
@@ -71,7 +71,7 @@ export default function Dashboard() {
   };
 
   // Row 1 Metric Cards Preparation
-  const o = overview || {};
+  const o = (overview && typeof overview === 'object') ? overview : {};
   const upDown = (o.production?.trend === 'UP') ? '↑' : (o.production?.trend === 'DOWN' ? '↓' : '-');
   
   return (
@@ -82,37 +82,37 @@ export default function Dashboard() {
           <>
             <MetricCard 
               title="Production (This Month)" 
-              value={`${o.production?.thisMonth?.received} / ${o.production?.thisMonth?.planned}`} 
+              value={`${o.production?.thisMonth?.received ?? '-'} / ${o.production?.thisMonth?.planned ?? '-'}`} 
               color="blue" 
             />
             <MetricCard 
               title={`Completion Rate (${upDown})`} 
-              value={`${o.production?.thisMonth?.completionRate}%`} 
+              value={`${Number(o.production?.thisMonth?.completionRate) || 0}%`} 
               color={o.production?.trend === 'UP' ? 'green' : 'amber'} 
             />
             <MetricCard 
               title="Total WIP" 
-              value={formatCurrency(o.wip?.totalValue)} 
-              subtitle={`${o.wip?.totalOrders} orders`}
+              value={formatCurrency(Number(o.wip?.totalValue) || 0)} 
+              subtitle={`${o.wip?.totalOrders ?? 0} orders`}
               color="orange" 
             />
             <MetricCard 
               title="Stock Value" 
-              value={formatCurrency(o.inventory?.totalStockValue)} 
-              subtitle={`${o.inventory?.lowStockCount} low stock`}
+              value={formatCurrency(Number(o.inventory?.totalStockValue) || 0)} 
+              subtitle={`${o.inventory?.lowStockCount ?? 0} low stock`}
               color="teal" 
             />
             <MetricCard 
               title="Open POs" 
-              value={o.procurement?.openPOs} 
-              subtitle={formatCurrency(o.procurement?.openPOValue)}
+              value={o.procurement?.openPOs ?? 0} 
+              subtitle={formatCurrency(Number(o.procurement?.openPOValue) || 0)}
               color="purple" 
             />
             <MetricCard 
               title="Unread Alerts" 
-              value={o.notifications?.unread} 
-              subtitle={`${o.notifications?.critical} critical`}
-              color={o.notifications?.critical > 0 ? "red" : "gray"} 
+              value={o.notifications?.unread ?? 0} 
+              subtitle={`${o.notifications?.critical ?? 0} critical`}
+              color={(o.notifications?.critical ?? 0) > 0 ? "red" : "gray"} 
             />
           </>
         )}
@@ -173,7 +173,7 @@ export default function Dashboard() {
               </ResponsiveContainer>
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none mt-[-36px]">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-900">{wipAge?.counts?.reduce((a, b) => a + b, 0)}</p>
+                  <p className="text-2xl font-bold text-gray-900">{(Array.isArray(wipAge?.counts) ? wipAge.counts : []).reduce((a, b) => a + b, 0)}</p>
                   <p className="text-xs text-gray-500">Orders</p>
                 </div>
               </div>
@@ -215,7 +215,7 @@ export default function Dashboard() {
                 <YAxis fontSize={12} stroke="#9CA3AF" tickFormatter={val => `₹${val/1000}k`} />
                 <Tooltip formatter={(value) => formatCurrency(value)} contentStyle={{ borderRadius: '8px' }} />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
-                {matTrend?.materials?.map((m, i) => (
+                {(Array.isArray(matTrend?.materials) ? matTrend.materials : []).map((m, i) => (
                   <Bar key={m} dataKey={m} stackId="a" fill={BAR_COLORS[i % BAR_COLORS.length]} />
                 ))}
               </BarChart>
@@ -233,7 +233,7 @@ export default function Dashboard() {
               <table className="min-w-full text-left text-sm divide-y divide-gray-200">
                 <thead className="bg-gray-50"><tr><th className="px-5 py-3">Supplier</th><th className="px-5 py-3">Value</th><th className="px-5 py-3">On-Time</th></tr></thead>
                 <tbody className="divide-y divide-gray-100">
-                  {suppliers?.suppliers?.slice(0, 5).map(s => (
+                  {(Array.isArray(suppliers?.suppliers) ? suppliers.suppliers : []).slice(0, 5).map(s => (
                     <tr key={s.id}>
                       <td className="px-5 py-3 font-medium text-gray-900 truncate max-w-[150px]">{s.name}</td>
                       <td className="px-5 py-3 text-gray-500">{formatCurrency(s.totalValue)}</td>
@@ -247,7 +247,7 @@ export default function Dashboard() {
                       </td>
                     </tr>
                   ))}
-                  {suppliers?.suppliers?.length === 0 && <tr><td colSpan="3" className="p-4"><EmptyState message="No data" /></td></tr>}
+                  {(Array.isArray(suppliers?.suppliers) ? suppliers.suppliers : []).length === 0 && <tr><td colSpan="3" className="p-4"><EmptyState message="No data" /></td></tr>}
                 </tbody>
               </table>
             </div>
@@ -260,7 +260,7 @@ export default function Dashboard() {
             <button className="text-xs text-blue-600">View All</button>
           </div>
           <div className="divide-y divide-gray-50 p-2">
-            {notifications.slice(0, 5).map(n => (
+            {(Array.isArray(notifications) ? notifications : []).slice(0, 5).map(n => (
               <div key={n.id} className="p-3 flex items-start gap-3 hover:bg-gray-50 rounded-lg">
                 <div className={`mt-0.5 w-2 h-2 rounded-full ${n.severity === 'CRITICAL' ? 'bg-red-500' : 'bg-blue-500'}`}></div>
                 <div>
@@ -280,12 +280,12 @@ export default function Dashboard() {
           </div>
           <div className="divide-y divide-red-50 p-2">
             {lowStock.map(s => {
-              const pct = Math.min(100, Math.max(0, (s.current_qty / s.reorder_level) * 100)) || 0;
+              const pct = Math.min(100, Math.max(0, ((Number(s.current_qty) || 0) / (Number(s.reorder_level) || 1)) * 100));
               return (
                 <div key={s.sku_code} className="p-3 hover:bg-red-50/50 rounded-lg cursor-pointer max-w-full">
                   <div className="flex justify-between items-center mb-1">
                     <p className="text-sm font-semibold text-gray-900 truncate max-w-[120px]">{s.sku_code}</p>
-                    <p className="text-xs font-mono text-red-600">{parseFloat(s.current_qty).toFixed(2)} / {parseFloat(s.reorder_level).toFixed(2)}</p>
+                    <p className="text-xs font-mono text-red-600">{(parseFloat(s.current_qty) || 0).toFixed(2)} / {(parseFloat(s.reorder_level) || 0).toFixed(2)}</p>
                   </div>
                   <p className="text-xs text-gray-500 mb-2 truncate">{s.description}</p>
                   <div className="w-full h-1.5 bg-red-100 rounded-full overflow-hidden">

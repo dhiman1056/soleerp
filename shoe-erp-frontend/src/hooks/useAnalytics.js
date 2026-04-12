@@ -1,12 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import axiosInstance from '../api/axiosInstance';
 
+// All backends return { success: true, data: <payload> }.
+// queryFn must return res.data.data (the actual payload), NOT res.data (the envelope).
+
 export const useAnalyticsOverview = () => {
   return useQuery({
     queryKey: ['analytics', 'overview'],
     queryFn: async () => {
       const res = await axiosInstance.get('/analytics/overview');
-      return res.data;
+      return res.data.data ?? {};
     },
     refetchInterval: 300000, // 5 minutes
   });
@@ -17,7 +20,7 @@ export const useProductionTrend = (period = '30d', group_by = 'day') => {
     queryKey: ['analytics', 'productionTrend', period, group_by],
     queryFn: async () => {
       const res = await axiosInstance.get('/analytics/production-trend', { params: { period, group_by } });
-      return res.data;
+      return res.data.data ?? {};
     },
   });
 };
@@ -27,7 +30,7 @@ export const useMaterialConsumptionTrend = (period = '30d') => {
     queryKey: ['analytics', 'materialConsumptionTrend', period],
     queryFn: async () => {
       const res = await axiosInstance.get('/analytics/material-consumption-trend', { params: { period } });
-      return res.data;
+      return res.data.data ?? {};
     },
   });
 };
@@ -37,7 +40,7 @@ export const useProductMix = (period = '30d') => {
     queryKey: ['analytics', 'productMix', period],
     queryFn: async () => {
       const res = await axiosInstance.get('/analytics/product-mix', { params: { period } });
-      return res.data;
+      return res.data.data ?? {};
     },
   });
 };
@@ -47,7 +50,7 @@ export const useWipByAge = () => {
     queryKey: ['analytics', 'wipByAge'],
     queryFn: async () => {
       const res = await axiosInstance.get('/analytics/wip-by-age');
-      return res.data;
+      return res.data.data ?? {};
     },
   });
 };
@@ -57,7 +60,7 @@ export const useSupplierPerformance = (period = '90d') => {
     queryKey: ['analytics', 'supplierPerformance', period],
     queryFn: async () => {
       const res = await axiosInstance.get('/analytics/supplier-performance', { params: { period } });
-      return res.data;
+      return res.data.data ?? {};
     },
   });
 };

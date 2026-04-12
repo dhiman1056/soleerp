@@ -3,10 +3,10 @@
 const { Router } = require('express');
 const { body } = require('express-validator');
 const ctrl = require('../controllers/rawMaterialController');
+const auth = require('../middleware/authMiddleware');
+const { requireAdmin, requireManagerOrAbove } = require('../middleware/roleMiddleware');
 
 const router = Router();
-const auth = require('../middleware/authMiddleware');
-const roleMiddleware = require('../middleware/roleMiddleware');
 
 // ── Validation chains ─────────────────────────────────────────────────────
 
@@ -56,17 +56,17 @@ router.get('/:sku', auth, ctrl.getRawMaterial);
  * @route  POST /api/raw-materials
  * @body   { sku_code, description, uom, rate? }
  */
-router.post('/', auth, roleMiddleware('admin', 'manager'), createRules, ctrl.createRawMaterial);
+router.post('/', auth, requireManagerOrAbove, createRules, ctrl.createRawMaterial);
 
 /**
  * @route  PUT /api/raw-materials/:sku
  * @body   { description?, uom?, rate? }
  */
-router.put('/:sku', auth, roleMiddleware('admin', 'manager'), updateRules, ctrl.updateRawMaterial);
+router.put('/:sku', auth, requireManagerOrAbove, updateRules, ctrl.updateRawMaterial);
 
 /**
  * @route  DELETE /api/raw-materials/:sku
  */
-router.delete('/:sku', auth, roleMiddleware('admin'), ctrl.deleteRawMaterial);
+router.delete('/:sku', authMiddleware, requireAdmin, ctrl.deleteRawMaterial);
 
 module.exports = router;
