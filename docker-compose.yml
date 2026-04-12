@@ -1,0 +1,49 @@
+services:
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: shoe_erp_postgres
+    environment:
+      POSTGRES_DB: shoe_erp_db
+      POSTGRES_USER: shoe_erp_user
+      POSTGRES_PASSWORD: ShoeERP@2024
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./shoe-erp-backend/db:/docker-entrypoint-initdb.d
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./shoe-erp-backend
+      dockerfile: Dockerfile
+    container_name: shoe_erp_backend
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: shoe_erp_db
+      DB_USER: shoe_erp_user
+      DB_PASSWORD: ShoeERP@2024
+      PORT: 5000
+      JWT_SECRET: ShoeERP_JWT_Secret_2024
+      NODE_ENV: production
+    ports:
+      - "5001:5000"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./shoe-erp-frontend
+      dockerfile: Dockerfile
+    container_name: shoe_erp_frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

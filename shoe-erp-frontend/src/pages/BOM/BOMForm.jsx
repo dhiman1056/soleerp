@@ -1,0 +1,434 @@
+import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from "react";
+import { useNavigate, useParams } from 'react-router-dom'
+import { useForm, useFieldArray, Controller } from 'react-hook-form'
+import { useQuery } from '@tanstack/react-query'
+import Loader from '../../components/common/Loader.jsx'
+import { useBOMQuery, useCreateBOM, useUpdateBOM } from '../../hooks/useBOM.js'
+import { fetchProducts }     from '../../api/productApi.js'
+import { fetchRawMaterials } from '../../api/rawMaterialApi.js'
+import { useSizesQuery }     from '../../hooks/useSizes.js'
+import { formatCurrency }    from '../../utils/formatCurrency.js'
+import { BOM_TYPES, BOM_TYPE_LABELS, BOM_OUTPUT_PRODUCT_TYPE, UOM_OPTIONS } from '../../utils/constants.js'
+
+const emptyLine = { input_sku: '', description: '', consume_qty: 1, uom: 'PCS', rate_at_bom: 0 }
+
+export default function BOMForm() {
+  const navigate  = useNavigate()
+  const { id }    = useParams()
+  const isEdit    = !!id
+
+  const { data: bomData, isLoading: bomLoading } = useBOMQuery(id)
+
+  // Fetch all products & raw materials for dropdowns/auto-fill
+  const { data: productsData } = useQuery({ queryKey: ['products', { limit: 500 }], queryFn: () => fetchProducts({ limit: 500 }) })
+  const { data: rmData }       = useQuery({ queryKey: ['raw-materials', { limit: 500 }], queryFn: () => fetchRawMaterials({ limit: 500 }) })
+  const { data: sizesRes }     = useSizesQuery({ is_active: 'true', limit: 100 })
+
+  const allProducts  = productsData?.data || []
+  const allRMs       = rmData?.data || []
+  const activeSizes  = sizesRes?.data || []
+
+  // Size Variant State: { UK5: { 'RM-01': 2.3 }, UK6: { 'RM-01': 2.4 } }
+  const [useSizeVariants, setUseSizeVariants] = useState(false)
+  const [sizeVariantsMap, setSizeVariantsMap] = useState({})
+
+  const createMut = useCreateBOM()
+  const updateMut = useUpdateBOM()
+  const isBusy    = createMut.isPending || updateMut.isPending
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    reset,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      bom_code:   '',
+      output_sku: '',
+      bom_type:   'SF',
+      output_qty: 1,
+      output_uom: 'PAIR',
+      remarks:    '',
+      lines: [{ ...emptyLine }],
+    },
+  })
+
+  const { fields, append, remove } = useFieldArray({ control, name: 'lines' })
+
+  const watchedBomType = watch('bom_type')
+  const watchedLines   = watch('lines')
+
+  // Output product dropdown — filtered by bom type
+  const outputProducts = useMemo(() => {
+    const expectedType = BOM_OUTPUT_PRODUCT_TYPE[watchedBomType]
+    return allProducts.filter((p) => p.product_type === expectedType)
+  }, [allProducts, watchedBomType])
+
+  // Total material cost (live)
+  const totalCost = useMemo(() => {
+    return (watchedLines || []).reduce((sum, l) => {
+      return sum + (parseFloat(l.consume_qty) || 0) * (parseFloat(l.rate_at_bom) || 0)
+    }, 0)
+  }, [watchedLines])
+
+  // Pre-fill form when editing
+  useEffect(() => {
+    if (isEdit && bomData?.data) {
+      const b = bomData.data
+      reset({
+        bom_code:   b.bom_code,
+        output_sku: b.output_sku,
+        bom_type:   b.bom_type,
+        output_qty: b.output_qty,
+        output_uom: b.output_uom,
+        remarks:    b.remarks || '',
+        lines: b.lines?.length
+          ? b.lines.map((l) => ({
+              input_sku:   l.input_sku,
+              description: l.input_description || '',
+              consume_qty: l.consume_qty,
+              uom:         l.uom,
+              rate_at_bom: l.rate_at_bom,
+            }))
+          : [{ ...emptyLine }],
+      })
+      
+      if (b.sizeVariants && Object.keys(b.sizeVariants).length > 0) {
+         setUseSizeVariants(true)
+         setSizeVariantsMap(b.sizeVariants)
+      } else {
+         setUseSizeVariants(false)
+         setSizeVariantsMap({})
+      }
+    }
+  }, [isEdit, bomData, reset])
+
+  // Auto-fill description, UOM, rate when input_sku is selected
+  const handleInputSkuChange = (index, sku) => {
+    const rm = allRMs.find((r) => r.sku_code === sku)
+    const pm = allProducts.find((p) => p.sku_code === sku)
+    if (rm) {
+      setValue(`lines.${index}.description`, rm.description)
+      setValue(`lines.${index}.uom`, rm.uom)
+      setValue(`lines.${index}.rate_at_bom`, rm.rate)
+    } else if (pm) {
+      setValue(`lines.${index}.description`, pm.description)
+      setValue(`lines.${index}.uom`, pm.uom)
+      setValue(`lines.${index}.rate_at_bom`, 0)
+    }
+  }
+
+  const handleVariantChange = (sizeCode, sku, val) => {
+    setSizeVariantsMap(prev => {
+      const cloned = { ...prev }
+      if (!cloned[sizeCode]) cloned[sizeCode] = {}
+      if (val === '' || isNaN(val)) {
+        delete cloned[sizeCode][sku]
+      } else {
+        cloned[sizeCode][sku] = parseFloat(val)
+      }
+      return cloned
+    })
+  }
+
+  const onSubmit = (values) => {
+    let finalSizeVariants = []
+    
+    if (useSizeVariants) {
+       Object.entries(sizeVariantsMap).forEach(([sizeCode, skusMap]) => {
+          Object.entries(skusMap).forEach(([componentSku, consumeQty]) => {
+             finalSizeVariants.push({
+                sizeCode,
+                componentSku,
+                consumeQty
+             })
+          })
+       })
+    }
+
+    const payload = {
+      bom_code:   values.bom_code.trim().toUpperCase(),
+      output_sku: values.output_sku,
+      bom_type:   values.bom_type,
+      output_qty: parseFloat(values.output_qty),
+      output_uom: values.output_uom,
+      remarks:    values.remarks || null,
+      lines: values.lines.map((l) => ({
+        input_sku:   l.input_sku,
+        consume_qty: parseFloat(l.consume_qty),
+        uom:         l.uom,
+        rate_at_bom: parseFloat(l.rate_at_bom) || 0,
+      })),
+      sizeVariants: finalSizeVariants
+    }
+
+    if (isEdit) {
+      updateMut.mutate({ id, ...payload }, { onSuccess: () => navigate('/bom') })
+    } else {
+      createMut.mutate(payload, { onSuccess: () => navigate('/bom') })
+    }
+  }
+
+  if (isEdit && bomLoading) return <div className="py-16"><Loader /></div>
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-5xl">
+      {/* ── Header section ── */}
+      <div className="card p-6 space-y-5">
+        <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">BOM Header</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-5">
+          {/* BOM Code */}
+          <div>
+            <label className="label">BOM Code *</label>
+            <input
+              {...register('bom_code', { required: 'BOM Code is required', maxLength: { value: 20, message: 'Max 20 chars' } })}
+              disabled={isEdit}
+              placeholder="e.g. BOM-0001"
+              className={`input-field uppercase ${errors.bom_code ? 'input-error' : ''} ${isEdit ? 'bg-gray-50 text-gray-500' : ''}`}
+            />
+            {errors.bom_code && <p className="text-red-500 text-xs mt-1">{errors.bom_code.message}</p>}
+          </div>
+
+          {/* BOM Type */}
+          <div>
+            <label className="label">BOM Type *</label>
+            <select {...register('bom_type', { required: true })} className="input-field">
+              {BOM_TYPES.map((t) => <option key={t} value={t}>{BOM_TYPE_LABELS[t]}</option>)}
+            </select>
+          </div>
+
+          {/* Output Product */}
+          <div>
+            <label className="label">Output Product SKU *</label>
+            <select
+              {...register('output_sku', { required: 'Output SKU is required' })}
+              className={`input-field ${errors.output_sku ? 'input-error' : ''}`}
+            >
+              <option value="">— Select product —</option>
+              {outputProducts.map((p) => (
+                <option key={p.sku_code} value={p.sku_code}>{p.sku_code} — {p.description}</option>
+              ))}
+            </select>
+            {errors.output_sku && <p className="text-red-500 text-xs mt-1">{errors.output_sku.message}</p>}
+          </div>
+
+          {/* Output Qty */}
+          <div>
+            <label className="label">Output Qty *</label>
+            <input
+              type="number" step="0.01" min="0.01"
+              {...register('output_qty', { required: true, min: { value: 0.01, message: 'Must be > 0' }, valueAsNumber: true })}
+              className={`input-field ${errors.output_qty ? 'input-error' : ''}`}
+            />
+            {errors.output_qty && <p className="text-red-500 text-xs mt-1">{errors.output_qty.message}</p>}
+          </div>
+
+          {/* Output UOM */}
+          <div>
+            <label className="label">Output UOM *</label>
+            <select {...register('output_uom', { required: true })} className="input-field">
+              {UOM_OPTIONS.map((u) => <option key={u}>{u}</option>)}
+            </select>
+          </div>
+
+          {/* Remarks */}
+          <div>
+            <label className="label">Remarks</label>
+            <input {...register('remarks')} placeholder="Optional notes…" className="input-field" />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Component Lines ── */}
+      <div className="card p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Component Lines</h2>
+          <button
+            type="button"
+            onClick={() => append({ ...emptyLine })}
+            className="btn-secondary text-xs"
+          >
+            + Add Row
+          </button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-100">
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Input SKU *</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Consume Qty *</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase">UOM</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Rate (₹)</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Value</th>
+                <th className="px-3 py-2 w-8" />
+              </tr>
+            </thead>
+            <tbody>
+              {fields.map((field, index) => {
+                const lineVal = (parseFloat(watchedLines?.[index]?.consume_qty) || 0) * (parseFloat(watchedLines?.[index]?.rate_at_bom) || 0)
+                return (
+                  <tr key={field.id} className="border-b border-gray-50">
+                    {/* Input SKU */}
+                    <td className="px-3 py-2">
+                      <Controller
+                        name={`lines.${index}.input_sku`}
+                        control={control}
+                        rules={{ required: 'Required' }}
+                        render={({ field: f }) => (
+                          <select
+                            {...f}
+                            onChange={(e) => { f.onChange(e); handleInputSkuChange(index, e.target.value) }}
+                            className={`input-field text-xs font-mono ${errors?.lines?.[index]?.input_sku ? 'input-error' : ''}`}
+                          >
+                            <option value="">— Select —</option>
+                            {allProducts.map((p) => (
+                              <option key={p.sku_code} value={p.sku_code}>{p.sku_code}</option>
+                            ))}
+                          </select>
+                        )}
+                      />
+                    </td>
+                    {/* Description (auto-filled, read-only) */}
+                    <td className="px-3 py-2">
+                      <input
+                        {...register(`lines.${index}.description`)}
+                        readOnly
+                        className="input-field text-xs bg-gray-50 text-gray-500 cursor-default"
+                        placeholder="Auto-filled"
+                      />
+                    </td>
+                    {/* Consume Qty */}
+                    <td className="px-3 py-2">
+                      <input
+                        type="number" step="0.0001" min="0.0001"
+                        {...register(`lines.${index}.consume_qty`, { required: true, min: 0.0001, valueAsNumber: true })}
+                        className="input-field text-xs text-right tabular-nums"
+                      />
+                    </td>
+                    {/* UOM (auto-filled) */}
+                    <td className="px-3 py-2">
+                      <select {...register(`lines.${index}.uom`)} className="input-field text-xs text-center font-mono">
+                        {UOM_OPTIONS.map((u) => <option key={u}>{u}</option>)}
+                      </select>
+                    </td>
+                    {/* Rate */}
+                    <td className="px-3 py-2">
+                      <input
+                        type="number" step="0.01" min="0"
+                        {...register(`lines.${index}.rate_at_bom`, { valueAsNumber: true })}
+                        className="input-field text-xs text-right tabular-nums"
+                      />
+                    </td>
+                    {/* Computed value */}
+                    <td className="px-3 py-2 text-right text-xs font-semibold tabular-nums text-gray-700">
+                      {formatCurrency(lineVal)}
+                    </td>
+                    {/* Remove row */}
+                    <td className="px-2 py-2">
+                      {fields.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => remove(index)}
+                          className="p-1 rounded text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                          title="Remove row"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr className="bg-gray-50 border-t-2 border-gray-200">
+                <td colSpan={5} className="px-3 py-3 text-right text-sm font-bold text-gray-700">Total Material Cost</td>
+                <td className="px-3 py-3 text-right text-sm font-bold text-gray-900 tabular-nums">{formatCurrency(totalCost)}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Size-wise Quantity Variants ── */}
+      <div className="card p-6 space-y-4 border border-blue-100 bg-blue-50/20">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">Size-wise Quantity Variants</h2>
+            <p className="text-xs text-gray-500 mt-1">Override material consumption for specific shoe sizes.</p>
+          </div>
+          <div className="flex items-center gap-2 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+            <button type="button" onClick={() => setUseSizeVariants(false)} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${!useSizeVariants ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Same for all sizes</button>
+            <button type="button" onClick={() => setUseSizeVariants(true)} className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors ${useSizeVariants ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Size-specific Quantities</button>
+          </div>
+        </div>
+
+        {useSizeVariants && (
+          <div className="overflow-x-auto bg-white rounded-xl border border-gray-200 shadow-sm">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase sticky left-0 bg-gray-50 z-10 w-48">Component SKU</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-gray-400 uppercase w-24">Default Qty</th>
+                  {activeSizes.map(s => (
+                    <th key={s.size_code} className="px-3 py-3 text-center text-xs font-bold text-blue-700 uppercase min-w-[90px]">{s.size_code}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {watchedLines.filter(l => l.input_sku).map((l, idx) => (
+                  <tr key={idx} className="border-b border-gray-50 hover:bg-blue-50/30 transition-colors">
+                    <td className="px-3 py-2 text-xs font-mono font-semibold text-gray-800 sticky left-0 bg-white group-hover:bg-blue-50/30 line-clamp-1">{l.input_sku} <span className="text-[10px] text-gray-400 block truncate">{l.description}</span></td>
+                    <td className="px-3 py-2 text-xs text-center text-gray-500 tabular-nums">{parseFloat(l.consume_qty).toFixed(3)}</td>
+                    {activeSizes.map(s => {
+                       const vQty = sizeVariantsMap[s.size_code]?.[l.input_sku]
+                       return (
+                         <td key={s.size_code} className="px-2 py-2">
+                           <input 
+                             type="number" step="0.0001" min="0.0001"
+                             placeholder={parseFloat(l.consume_qty).toFixed(3)}
+                             value={vQty !== undefined ? vQty : ''}
+                             onChange={(e) => handleVariantChange(s.size_code, l.input_sku, e.target.value)}
+                             className="input-field text-xs text-right tabular-nums py-1 px-2 w-full border-dashed focus:border-solid focus:border-blue-500"
+                           />
+                         </td>
+                       )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-blue-50/50">
+                   <td colSpan={2} className="px-3 py-2 text-right text-xs font-bold text-gray-700">Effective Size Cost (₹)</td>
+                   {activeSizes.map(s => {
+                      let sizeCost = 0
+                      watchedLines.filter(l => l.input_sku).forEach(l => {
+                        const vQty = sizeVariantsMap[s.size_code]?.[l.input_sku]
+                        const qty = vQty !== undefined ? parseFloat(vQty) : parseFloat(l.consume_qty || 0)
+                        sizeCost += qty * parseFloat(l.rate_at_bom || 0)
+                      })
+                      return <td key={s.size_code} className="px-3 py-2 text-center text-xs font-bold text-gray-900 tabular-nums border-t border-blue-100">{formatCurrency(sizeCost)}</td>
+                   })}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Form Actions ── */}
+      <div className="flex items-center justify-end gap-3">
+        <button type="button" onClick={() => navigate('/bom')} className="btn-secondary">Cancel</button>
+        <button type="submit" className="btn-primary" disabled={isBusy}>
+          {isBusy ? 'Saving…' : isEdit ? 'Update BOM' : 'Create BOM'}
+        </button>
+      </div>
+    </form>
+  )
+}
