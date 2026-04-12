@@ -17,9 +17,9 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const res = await api.post('/auth/login', data)
-      if (res.success) {
-        login(res.data.token, res.data.user)
-        toast.success(`Welcome back, ${res.data.user.name}!`)
+      if (res.data.success) {
+        login(res.data.data.token, res.data.data.user)
+        toast.success(`Welcome back, ${res.data.data.user.name}!`)
         navigate('/')
       }
     } catch (err) {
