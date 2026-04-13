@@ -1,28 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import {
-  fetchWorkOrders, fetchWorkOrder,
-  createWorkOrder, receiveWorkOrder, deleteWorkOrder,
-  fetchWIP, fetchWIPSummary,
-} from '../api/workOrderApi'
+import api from '../api/axiosInstance'
 
 export const useWorkOrdersQuery = (params = {}) =>
   useQuery({
     queryKey: ['work-orders', params],
-    queryFn:  () => fetchWorkOrders(params),
+    queryFn:  async () => {
+      const res = await api.get('/work-orders', { params })
+      return res.data?.data ?? []
+    },
   })
 
 export const useWorkOrderQuery = (id) =>
   useQuery({
     queryKey: ['work-orders', id],
-    queryFn:  () => fetchWorkOrder(id),
+    queryFn:  async () => {
+      const res = await api.get(`/work-orders/${id}`)
+      return res.data?.data ?? null
+    },
     enabled:  !!id,
   })
 
 export const useCreateWorkOrder = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: createWorkOrder,
+    mutationFn: (data) => api.post('/work-orders', data),
     onSuccess:  () => {
       qc.invalidateQueries({ queryKey: ['work-orders'] })
       qc.invalidateQueries({ queryKey: ['wip'] })
@@ -35,7 +37,7 @@ export const useCreateWorkOrder = () => {
 export const useReceiveWorkOrder = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: receiveWorkOrder,
+    mutationFn: ({ id, ...data }) => api.put(`/work-orders/${id}/receive`, data),
     onSuccess:  () => {
       qc.invalidateQueries({ queryKey: ['work-orders'] })
       qc.invalidateQueries({ queryKey: ['wip'] })
@@ -48,7 +50,7 @@ export const useReceiveWorkOrder = () => {
 export const useDeleteWorkOrder = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: deleteWorkOrder,
+    mutationFn: (id) => api.delete(`/work-orders/${id}`),
     onSuccess:  () => {
       qc.invalidateQueries({ queryKey: ['work-orders'] })
       qc.invalidateQueries({ queryKey: ['wip'] })
@@ -60,14 +62,21 @@ export const useDeleteWorkOrder = () => {
 
 export const useWIPQuery = (params = {}) =>
   useQuery({
-    queryKey:       ['wip', params],
-    queryFn:        () => fetchWIP(params),
+    queryKey:        ['wip', params],
+    queryFn:         async () => {
+      const res = await api.get('/work-orders/wip', { params })
+      // WIP grouped endpoint returns an object keyed by wo_type
+      return res.data?.data ?? {}
+    },
     refetchInterval: 30_000,
   })
 
 export const useWIPSummaryQuery = () =>
   useQuery({
-    queryKey:       ['wip', 'summary'],
-    queryFn:        fetchWIPSummary,
+    queryKey:        ['wip', 'summary'],
+    queryFn:         async () => {
+      const res = await api.get('/work-orders/wip/summary')
+      return res.data?.data ?? {}
+    },
     refetchInterval: 30_000,
   })

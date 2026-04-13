@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from "react";
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MetricCard  from '../../components/common/MetricCard.jsx'
-import StatusBadge from '../../components/common/StatusBadge.jsx'
 import Loader      from '../../components/common/Loader.jsx'
 import ReceiveModal from '../WorkOrder/ReceiveModal.jsx'
 import { useWIPQuery, useWIPSummaryQuery } from '../../hooks/useWorkOrders.js'
 import { formatCurrency } from '../../utils/formatCurrency.js'
 import { formatDate }     from '../../utils/formatDate.js'
-import { WO_TYPE_LABELS } from '../../utils/constants.js'
 import { downloadFile }   from '../../utils/downloadFile.js'
 
 const WO_TYPE_SECTIONS = [
@@ -17,7 +15,9 @@ const WO_TYPE_SECTIONS = [
 ]
 
 function WIPSection({ label, color, rows, onReceive }) {
-  if (!rows?.length) return (
+  const safeRows = Array.isArray(rows) ? rows : []
+
+  if (!safeRows.length) return (
     <div className="card p-5">
       <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
         <span className={`w-2 h-2 rounded-full ${color}`} />
@@ -35,7 +35,7 @@ function WIPSection({ label, color, rows, onReceive }) {
           {label}
         </h3>
         <span className="text-xs bg-amber-100 text-amber-700 font-semibold px-2 py-0.5 rounded-full">
-          {rows.length} order{rows.length !== 1 ? 's' : ''}
+          {safeRows.length} order{safeRows.length !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -55,14 +55,14 @@ function WIPSection({ label, color, rows, onReceive }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {safeRows.map((row, i) => (
               <tr key={row.wo_id} className={`border-b border-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                 <td className="px-4 py-3 font-mono font-semibold text-xs text-gray-800">{row.wo_number}</td>
                 <td className="px-4 py-3 font-mono text-xs text-gray-600">{row.bom_code}</td>
                 <td className="px-4 py-3 text-gray-700 max-w-[200px] truncate">{row.output_description}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700">{parseFloat(row.planned_qty).toFixed(2)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-green-700 font-medium">{parseFloat(row.received_qty).toFixed(2)}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-amber-700 font-bold">{parseFloat(row.wip_qty).toFixed(2)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-700">{(Number(row.planned_qty) || 0).toFixed(2)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-green-700 font-medium">{(Number(row.received_qty) || 0).toFixed(2)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-amber-700 font-bold">{(Number(row.wip_qty) || 0).toFixed(2)}</td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{formatCurrency(row.wip_value)}</td>
                 <td className="px-4 py-3 text-gray-500">{formatDate(row.wo_date)}</td>
                 <td className="px-4 py-3">
@@ -83,21 +83,25 @@ function WIPSection({ label, color, rows, onReceive }) {
 }
 
 export default function WIPDashboard() {
-  const navigate          = useNavigate()
+  const navigate = useNavigate()
   const [receiveWO, setReceiveWO] = useState(null)
 
-  const { data: wipGrouped, isLoading: wipLoading }   = useWIPQuery()
+  // Both hooks now return extracted data directly
+  const { data: wipGrouped, isLoading: wipLoading }     = useWIPQuery()
   const { data: wipSummary, isLoading: summaryLoading } = useWIPSummaryQuery()
 
-  const grouped = wipGrouped?.data || {}
-  const overall = wipSummary?.data?.overall || {}
-  const byType  = wipSummary?.data?.by_type || []
+  // wipGrouped is an object keyed by wo_type  e.g. { RM_TO_SF: [...], SF_TO_FG: [...] }
+  const grouped = (wipGrouped && typeof wipGrouped === 'object' && !Array.isArray(wipGrouped)) ? wipGrouped : {}
 
-  const totalWO    = overall?.total_wo_count  || 0
-  const totalQty   = overall?.total_wip_qty   || 0
-  const totalValue = overall?.total_wip_value || 0
+  // wipSummary is the data object from the summary endpoint
+  const overall = (wipSummary && typeof wipSummary === 'object') ? (wipSummary.overall ?? wipSummary) : {}
+  const byType  = Array.isArray(wipSummary?.by_type) ? wipSummary.by_type : []
 
-  // Build a fake "wo" object for ReceiveModal from v_wip row fields
+  const totalWO    = Number(overall.total_wo_count)  || 0
+  const totalQty   = Number(overall.total_wip_qty)   || 0
+  const totalValue = Number(overall.total_wip_value) || 0
+
+  // Build a "wo" object compatible with ReceiveModal from a v_wip row
   const toWOObj = (row) => ({
     id:                 row.wo_id,
     wo_number:          row.wo_number,
@@ -109,15 +113,11 @@ export default function WIPDashboard() {
 
   const isLoading = wipLoading || summaryLoading
 
-  const handleExportExcel = () => {
-    downloadFile('/api/export/wip/excel', 'WIP_Report.xlsx')
-      .catch(err => console.error('Export failed:', err))
-  }
+  const handleExportExcel = () =>
+    downloadFile('/api/export/wip/excel', 'WIP_Report.xlsx').catch(err => console.error('Export failed:', err))
 
-  const handleExportPDF = () => {
-    downloadFile('/api/export/wip/pdf', 'WIP_Report.pdf')
-      .catch(err => console.error('Export failed:', err))
-  }
+  const handleExportPDF = () =>
+    downloadFile('/api/export/wip/pdf', 'WIP_Report.pdf').catch(err => console.error('Export failed:', err))
 
   return (
     <div className="space-y-6">
@@ -125,7 +125,7 @@ export default function WIPDashboard() {
         <h2 className="text-lg font-bold text-gray-800">WIP Dashboard</h2>
         <div className="flex gap-2">
           <button onClick={handleExportExcel} className="btn-secondary text-sm px-3 py-1.5">Export Excel</button>
-          <button onClick={handleExportPDF} className="btn-secondary text-sm px-3 py-1.5">Export PDF</button>
+          <button onClick={handleExportPDF}   className="btn-secondary text-sm px-3 py-1.5">Export PDF</button>
         </div>
       </div>
 
@@ -153,7 +153,7 @@ export default function WIPDashboard() {
         />
         <MetricCard
           title="Total WIP Qty"
-          value={isLoading ? '…' : parseFloat(totalQty).toFixed(2)}
+          value={isLoading ? '…' : totalQty.toFixed(2)}
           sub="Pairs / Units"
           icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>}
           color="blue"
@@ -184,10 +184,7 @@ export default function WIPDashboard() {
         </div>
       )}
 
-      {/* Auto-refresh indicator */}
-      <p className="text-center text-xs text-gray-400">
-        ↻ Auto-refreshing every 30 seconds
-      </p>
+      <p className="text-center text-xs text-gray-400">↻ Auto-refreshing every 30 seconds</p>
 
       {/* Receive Modal */}
       {receiveWO && (

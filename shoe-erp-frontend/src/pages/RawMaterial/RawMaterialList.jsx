@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from "react";
+import React, { useState, useMemo } from 'react'
 import Table         from '../../components/common/Table.jsx'
 import ConfirmDialog from '../../components/common/ConfirmDialog.jsx'
 import RawMaterialForm from './RawMaterialForm.jsx'
@@ -7,24 +7,26 @@ import { formatCurrency } from '../../utils/formatCurrency.js'
 import { useAuth } from '../../hooks/useAuth.js'
 
 export default function RawMaterialList() {
-  const [search,      setSearch]      = useState('')
-  const [page,        setPage]        = useState(1)
-  const [editTarget,  setEditTarget]  = useState(null)   // null = closed, {} = new, row = edit
-  const [deleteTarget, setDeleteTarget] = useState(null) // sku string
+  const [search,       setSearch]      = useState('')
+  const [page,         setPage]        = useState(1)
+  const [editTarget,   setEditTarget]  = useState(null)   // null = closed, {} = new, row = edit
+  const [deleteTarget, setDeleteTarget] = useState(null)  // sku string
 
   const { data, isLoading } = useRawMaterialsQuery({ page, limit: 20, is_active: 'true' })
-  const deleteMut           = useDeleteRawMaterial()
-  const { role }            = useAuth()
+  const deleteMut            = useDeleteRawMaterial()
+  const { role }             = useAuth()
 
-  const records = data?.data || []
-  const meta    = data?.meta || {}
+  // Hook now returns the array directly; data?.data no longer needed
+  const records = Array.isArray(data) ? data : []
+  const meta    = {}  // pagination meta is not yet returned from this hook
 
-  // Client-side filter on what we already loaded (server also supports search param)
   const filtered = useMemo(() => {
     if (!search.trim()) return records
     const q = search.toLowerCase()
     return records.filter(
-      (r) => r.sku_code.toLowerCase().includes(q) || r.description.toLowerCase().includes(q),
+      (r) =>
+        (r.sku_code   || '').toLowerCase().includes(q) ||
+        (r.description || '').toLowerCase().includes(q),
     )
   }, [records, search])
 
@@ -90,9 +92,9 @@ export default function RawMaterialList() {
         empty="No raw materials found."
         pagination={{
           page,
-          pages: meta.pages || 1,
-          total: meta.total || 0,
-          limit: meta.limit || 20,
+          pages: Number(meta.pages) || 1,
+          total: Number(meta.total) || 0,
+          limit: Number(meta.limit) || 20,
           onPageChange: setPage,
         }}
       />

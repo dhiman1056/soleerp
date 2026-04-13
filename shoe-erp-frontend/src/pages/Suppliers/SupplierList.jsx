@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from "react";
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useSuppliersQuery, useUpdateSupplier } from '../../hooks/useSuppliers'
+import { useSuppliersQuery } from '../../hooks/useSuppliers'
 import { useAuth } from '../../hooks/useAuth'
 import { formatCurrency } from '../../utils/formatCurrency'
 import Loader from '../../components/common/Loader'
 import SupplierForm from './SupplierForm'
 
 export default function SupplierList() {
-  const [search, setSearch] = useState('')
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  
-  const { data, isLoading } = useSuppliersQuery({ search })
-  const updateSup = useUpdateSupplier()
-  const { user } = useAuth()
-  const navigate = useNavigate()
+  const [search,       setSearch]       = useState('')
+  const [isModalOpen,  setIsModalOpen]  = useState(false)
 
-  const suppliers = data?.data || []
+  // useSuppliersQuery now returns the array directly
+  const { data, isLoading } = useSuppliersQuery({ search })
+  const { user }   = useAuth()
+  const navigate   = useNavigate()
+
+  const suppliers = Array.isArray(data) ? data : []
 
   return (
     <div className="space-y-6">
@@ -66,19 +66,19 @@ export default function SupplierList() {
                     <td className="px-5 py-3 text-gray-600">{sup.phone || '-'}</td>
                     <td className="px-5 py-3 text-gray-600 truncate max-w-xs">{sup.payment_terms || '-'}</td>
                     <td className="px-5 py-3 text-right font-medium">
-                      <span className={parseFloat(sup.outstanding_balance) > 0 ? 'text-red-600 font-bold' : 'text-gray-600'}>
+                      <span className={(Number(sup.outstanding_balance) || 0) > 0 ? 'text-red-600 font-bold' : 'text-gray-600'}>
                         {formatCurrency(sup.outstanding_balance)}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-center">
-                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${sup.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                         {sup.is_active ? 'Active' : 'Inactive'}
-                       </span>
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${sup.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {sup.is_active ? 'Active' : 'Inactive'}
+                      </span>
                     </td>
                     <td className="px-5 py-3 text-right">
-                       <button onClick={() => navigate(`/suppliers/${sup.id}`)} className="text-blue-600 hover:text-blue-800 font-medium text-xs">
-                         View
-                       </button>
+                      <button onClick={() => navigate(`/suppliers/${sup.id}`)} className="text-blue-600 hover:text-blue-800 font-medium text-xs">
+                        View
+                      </button>
                     </td>
                   </tr>
                 ))}

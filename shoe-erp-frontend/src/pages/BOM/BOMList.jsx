@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from "react";
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Table         from '../../components/common/Table.jsx'
 import ConfirmDialog from '../../components/common/ConfirmDialog.jsx'
-import { useBOMsQuery, useDeleteBOM } from '../../hooks/useBOM.js'
-import { useBOMQuery } from '../../hooks/useBOM.js'
+import { useBOMsQuery, useDeleteBOM, useBOMQuery } from '../../hooks/useBOM.js'
 import { formatCurrency } from '../../utils/formatCurrency.js'
-import { BOM_TYPE_LABELS } from '../../utils/constants.js'
 import { useAuth } from '../../hooks/useAuth.js'
 import { downloadFile } from '../../utils/downloadFile.js'
 import { printBOMSheet } from '../../print/PrintBOMSheet.jsx'
 
 // Inline expandable component detail sub-table
 function BOMLines({ bomId }) {
-  const { data, isLoading } = useBOMQuery(bomId)
-  const bom = data?.data
+  const { data: bom, isLoading } = useBOMQuery(bomId)
+  // useBOMQuery now returns the BOM object directly (res.data.data)
+  const lines = Array.isArray(bom?.lines) ? bom.lines : []
+
   if (isLoading) return <div className="py-4 text-center text-xs text-gray-400">Loading components…</div>
-  if (!bom?.lines?.length) return <div className="py-4 text-center text-xs text-gray-400">No lines found.</div>
+  if (!lines.length) return <div className="py-4 text-center text-xs text-gray-400">No lines found.</div>
 
   return (
     <div className="px-4 pb-4">
@@ -31,7 +31,7 @@ function BOMLines({ bomId }) {
           </tr>
         </thead>
         <tbody>
-          {bom.lines.map((l, i) => (
+          {lines.map((l, i) => (
             <tr key={i} className="border-t border-gray-100">
               <td className="px-3 py-2 font-mono font-semibold text-gray-800">{l.input_sku}</td>
               <td className="px-3 py-2 text-gray-600">{l.input_description}</td>
@@ -43,7 +43,7 @@ function BOMLines({ bomId }) {
           ))}
           <tr className="border-t-2 border-gray-200 bg-gray-100 font-bold">
             <td colSpan={5} className="px-3 py-2 text-right text-gray-700">Total Material Cost</td>
-            <td className="px-3 py-2 text-right text-gray-900 tabular-nums">{formatCurrency(bom.total_material_cost)}</td>
+            <td className="px-3 py-2 text-right text-gray-900 tabular-nums">{formatCurrency(bom?.total_material_cost)}</td>
           </tr>
         </tbody>
       </table>
@@ -53,26 +53,26 @@ function BOMLines({ bomId }) {
 
 export default function BOMList() {
   const navigate = useNavigate()
-  const [page,        setPage]        = useState(1)
-  const [expandedId,  setExpandedId]  = useState(null)
+  const [page,         setPage]        = useState(1)
+  const [expandedId,   setExpandedId]  = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
   const { data, isLoading } = useBOMsQuery({ page, limit: 20 })
-  const deleteMut           = useDeleteBOM()
-  const { role }            = useAuth()
+  const deleteMut            = useDeleteBOM()
+  const { role }             = useAuth()
+
+  // useBOMsQuery now returns array directly
+  const records = Array.isArray(data) ? data : []
 
   const handleExport = () => {
     downloadFile('/api/export/bom/excel', `BOM_Master.xlsx`)
       .catch((err) => console.error('Export failed:', err))
   }
 
-  const records = data?.data || []
-  const meta    = data?.meta || {}
-
   const columns = [
-    { key: 'bom_code',         label: 'BOM Code',    className: 'font-mono text-xs font-semibold text-gray-800' },
-    { key: 'output_sku',       label: 'Output SKU',  className: 'font-mono text-xs' },
-    { key: 'output_description', label: 'Product'  },
+    { key: 'bom_code',           label: 'BOM Code',    className: 'font-mono text-xs font-semibold text-gray-800' },
+    { key: 'output_sku',         label: 'Output SKU',  className: 'font-mono text-xs' },
+    { key: 'output_description', label: 'Product' },
     {
       key: 'bom_type', label: 'Type',
       render: (r) => <span className="text-xs font-semibold text-blue-700">{r.bom_type}</span>,
@@ -136,9 +136,8 @@ export default function BOMList() {
                 <tr><td colSpan={columns.length + 1} className="py-12 text-center text-gray-400 text-sm">No BOMs found. Create your first BOM.</td></tr>
               ) : (
                 records.map((row, i) => (
-                  <>
+                  <React.Fragment key={row.id}>
                     <tr
-                      key={row.id}
                       onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
                       className={`border-b border-gray-50 cursor-pointer transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'} hover:bg-blue-50/40`}
                     >
@@ -158,7 +157,7 @@ export default function BOMList() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </React.Fragment>
                 ))
               )}
             </tbody>

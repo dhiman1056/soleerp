@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from "react";
+import React, { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import Table         from '../../components/common/Table.jsx'
@@ -31,9 +31,18 @@ export default function ProductList() {
     limit: 20,
     ...(typeFilter !== 'All' ? { product_type: typeFilter } : {}),
   }
-  const { data, isLoading } = useQuery({
+
+  const { data: rawData, isLoading } = useQuery({
     queryKey: ['products', params],
-    queryFn:  () => fetchProducts(params),
+    queryFn:  async () => {
+      const res = await fetchProducts(params)
+      // fetchProducts returns axios response; extract data array safely
+      const payload = res?.data ?? res
+      return {
+        records: Array.isArray(payload?.data) ? payload.data : Array.isArray(payload) ? payload : [],
+        meta:    payload?.meta ?? {},
+      }
+    },
   })
 
   const deleteMut = useMutation({
@@ -46,14 +55,16 @@ export default function ProductList() {
     onError: (err) => toast.error(err.message || 'Failed to delete product'),
   })
 
-  const records  = data?.data || []
-  const meta     = data?.meta || {}
+  const records = rawData?.records ?? []
+  const meta    = rawData?.meta    ?? {}
 
   const filtered = useMemo(() => {
     if (!search.trim()) return records
     const q = search.toLowerCase()
     return records.filter(
-      (r) => r.sku_code.toLowerCase().includes(q) || r.description.toLowerCase().includes(q),
+      (r) =>
+        (r.sku_code    || '').toLowerCase().includes(q) ||
+        (r.description || '').toLowerCase().includes(q),
     )
   }, [records, search])
 
@@ -111,7 +122,13 @@ export default function ProductList() {
         data={filtered}
         loading={isLoading}
         empty="No products found."
-        pagination={{ page, pages: meta.pages || 1, total: meta.total || 0, limit: meta.limit || 20, onPageChange: setPage }}
+        pagination={{
+          page,
+          pages: Number(meta.pages) || 1,
+          total: Number(meta.total) || 0,
+          limit: Number(meta.limit) || 20,
+          onPageChange: setPage,
+        }}
       />
 
       <ProductForm

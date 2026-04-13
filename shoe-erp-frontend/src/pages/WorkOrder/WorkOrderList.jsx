@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } from "react";
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Table          from '../../components/common/Table.jsx'
 import StatusBadge    from '../../components/common/StatusBadge.jsx'
@@ -26,16 +26,17 @@ export default function WorkOrderList() {
     ...(statusFilter ? { status: statusFilter } : {}),
     ...(typeFilter   ? { wo_type: typeFilter }  : {}),
   }
-  const { data, isLoading } = useWorkOrdersQuery(params)
-  const deleteMut           = useDeleteWorkOrder()
-  const { role }            = useAuth()
 
-  const records = data?.data || []
-  const meta    = data?.meta || {}
+  // useWorkOrdersQuery now returns the array directly
+  const { data, isLoading } = useWorkOrdersQuery(params)
+  const deleteMut            = useDeleteWorkOrder()
+  const { role }             = useAuth()
+
+  const records = Array.isArray(data) ? data : []
 
   const columns = [
-    { key: 'wo_number',  label: 'WO No.',     className: 'font-mono font-semibold text-xs text-gray-800' },
-    { key: 'bom_code',   label: 'BOM',        className: 'font-mono text-xs' },
+    { key: 'wo_number',          label: 'WO No.',  className: 'font-mono font-semibold text-xs text-gray-800' },
+    { key: 'bom_code',           label: 'BOM',     className: 'font-mono text-xs' },
     { key: 'output_description', label: 'Product' },
     {
       key: 'wo_type', label: 'Type',
@@ -47,7 +48,7 @@ export default function WorkOrderList() {
     {
       key: 'wip_qty', label: 'WIP Qty', align: 'right',
       render: (r) => {
-        const w = parseFloat(r.planned_qty) - parseFloat(r.received_qty)
+        const w = (Number(r.planned_qty) || 0) - (Number(r.received_qty) || 0)
         return <span className={`tabular-nums font-semibold ${w > 0 ? 'text-amber-700' : 'text-gray-400'}`}>{w.toFixed(2)}</span>
       },
     },
@@ -78,11 +79,11 @@ export default function WorkOrderList() {
         <div className="flex items-center gap-2 flex-wrap">
           <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="input-field w-auto">
             <option value="">All Statuses</option>
-            {WO_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            {(Array.isArray(WO_STATUSES) ? WO_STATUSES : []).map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1) }} className="input-field w-auto">
             <option value="">All Types</option>
-            {WO_TYPES.map((t) => <option key={t} value={t}>{WO_TYPE_SHORT[t]}</option>)}
+            {(Array.isArray(WO_TYPES) ? WO_TYPES : []).map((t) => <option key={t} value={t}>{WO_TYPE_SHORT[t]}</option>)}
           </select>
         </div>
         <button onClick={() => setShowForm(true)} className="btn-primary">+ New Work Order</button>
@@ -94,7 +95,7 @@ export default function WorkOrderList() {
         loading={isLoading}
         empty="No work orders found."
         onRowClick={(row) => navigate(`/work-orders/${row.id}`)}
-        pagination={{ page, pages: meta.pages || 1, total: meta.total || 0, limit: meta.limit || 20, onPageChange: setPage }}
+        pagination={{ page, pages: 1, total: records.length, limit: 20, onPageChange: setPage }}
       />
 
       <WorkOrderForm isOpen={showForm} onClose={() => setShowForm(false)} />

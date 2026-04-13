@@ -1,24 +1,30 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import { fetchBOMs, fetchBOM, createBOM, updateBOM, deleteBOM } from '../api/bomApi'
+import api from '../api/axiosInstance'
 
 export const useBOMsQuery = (params = {}) =>
   useQuery({
     queryKey: ['boms', params],
-    queryFn:  () => fetchBOMs(params),
+    queryFn:  async () => {
+      const res = await api.get('/bom', { params })
+      return res.data?.data ?? []
+    },
   })
 
 export const useBOMQuery = (id) =>
   useQuery({
     queryKey: ['boms', id],
-    queryFn:  () => fetchBOM(id),
+    queryFn:  async () => {
+      const res = await api.get(`/bom/${id}`)
+      return res.data?.data ?? null
+    },
     enabled:  !!id,
   })
 
 export const useCreateBOM = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: createBOM,
+    mutationFn: (data) => api.post('/bom', data),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['boms'] }); toast.success('BOM created successfully!') },
     onError:    (err) => toast.error(err.message || 'Failed to create BOM'),
   })
@@ -27,7 +33,7 @@ export const useCreateBOM = () => {
 export const useUpdateBOM = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: updateBOM,
+    mutationFn: ({ id, ...data }) => api.put(`/bom/${id}`, data),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['boms'] }); toast.success('BOM updated successfully!') },
     onError:    (err) => toast.error(err.message || 'Failed to update BOM'),
   })
@@ -36,7 +42,7 @@ export const useUpdateBOM = () => {
 export const useDeleteBOM = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: deleteBOM,
+    mutationFn: (id) => api.delete(`/bom/${id}`),
     onSuccess:  () => { qc.invalidateQueries({ queryKey: ['boms'] }); toast.success('BOM deactivated.') },
     onError:    (err) => toast.error(err.message || 'Failed to deactivate BOM'),
   })
