@@ -93,12 +93,24 @@ const createRawMaterial = async (req, res, next) => {
   try {
     validate(req);
     const { sku_code, description, uom, rate = 0 } = req.body;
+    const cleanSku  = sku_code.trim().toUpperCase();
+    const cleanDesc = description.trim();
+    const cleanUom  = uom.trim().toUpperCase();
 
     const result = await query(
       `INSERT INTO raw_material_master (sku_code, description, uom, rate)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [sku_code.trim().toUpperCase(), description.trim(), uom.trim().toUpperCase(), rate]
+      [cleanSku, cleanDesc, cleanUom, rate]
+    );
+
+    // Auto-sync to product_master
+    await query(
+      `INSERT INTO product_master (sku_code, description, product_type, uom)
+       VALUES ($1, $2, 'RAW_MATERIAL', $3)
+       ON CONFLICT (sku_code) DO UPDATE
+       SET description = EXCLUDED.description, uom = EXCLUDED.uom`,
+      [cleanSku, cleanDesc, cleanUom]
     );
 
     return res.status(201).json({ success: true, data: result.rows[0] });
@@ -134,6 +146,21 @@ const updateRawMaterial = async (req, res, next) => {
     );
 
     if (!result.rows.length) throw createError(404, `Raw material '${sku}' not found.`);
+
+    // Auto-sync description / uom changes to product_master
+    if (description !== undefined || uom !== undefined) {
+      await query(
+        `UPDATE product_master
+         SET    description = COALESCE($1, description),
+                uom         = COALESCE($2, uom)
+         WHERE  sku_code = $3`,
+        [
+          description !== undefined ? description.trim()           : null,
+          uom         !== undefined ? uom.trim().toUpperCase()     : null,
+          sku,
+        ]
+      );
+    }
 
     return res.status(200).json({ success: true, data: result.rows[0] });
   } catch (err) {
