@@ -1,33 +1,41 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import * as api from '../api/sizeApi'
+import api from '../api/axiosInstance'
 
-export const useSizesQuery = (params) => {
+// ── Primary exports (new naming convention) ──────────────────────────────────
+
+export const useSizes = (params = {}) => {
   return useQuery({
     queryKey: ['sizes', params],
-    queryFn: () => api.fetchSizes(params),
+    queryFn: async () => {
+      const res = await api.get('/sizes', { params })
+      return res.data?.data ?? []
+    },
   })
 }
 
 export const useCreateSize = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: api.createSize,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sizes'] })
+    mutationFn: (data) => api.post('/sizes', data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sizes'] }),
   })
 }
 
 export const useUpdateSize = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }) => api.updateSize(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sizes'] })
+    mutationFn: ({ id, data }) => api.put(`/sizes/${id}`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sizes'] }),
   })
 }
 
 export const useDeleteSize = () => {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: api.deleteSize,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sizes'] })
+    mutationFn: (id) => api.delete(`/sizes/${id}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sizes'] }),
   })
 }
+
+// ── Backward-compatible alias ─────────────────────────────────────────────────
+export const useSizesQuery = useSizes

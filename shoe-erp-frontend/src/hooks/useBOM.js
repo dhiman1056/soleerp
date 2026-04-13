@@ -1,32 +1,39 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import toast from 'react-hot-toast'
 import api from '../api/axiosInstance'
+import toast from 'react-hot-toast'
 
-export const useBOMsQuery = (params = {}) =>
-  useQuery({
+// ── Primary exports (new naming convention) ──────────────────────────────────
+
+export const useBOMs = (params = {}) => {
+  return useQuery({
     queryKey: ['boms', params],
-    queryFn:  async () => {
+    queryFn: async () => {
       const res = await api.get('/bom', { params })
       return res.data?.data ?? []
     },
   })
+}
 
-export const useBOMQuery = (id) =>
-  useQuery({
+export const useBOMById = (id) => {
+  return useQuery({
     queryKey: ['boms', id],
-    queryFn:  async () => {
+    queryFn: async () => {
       const res = await api.get(`/bom/${id}`)
       return res.data?.data ?? null
     },
-    enabled:  !!id,
+    enabled: !!id,
   })
+}
 
 export const useCreateBOM = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data) => api.post('/bom', data),
-    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['boms'] }); toast.success('BOM created successfully!') },
-    onError:    (err) => toast.error(err.message || 'Failed to create BOM'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['boms'] })
+      toast.success('BOM created successfully!')
+    },
+    onError: (err) => toast.error(err.message || 'Failed to create BOM'),
   })
 }
 
@@ -34,8 +41,11 @@ export const useUpdateBOM = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, ...data }) => api.put(`/bom/${id}`, data),
-    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['boms'] }); toast.success('BOM updated successfully!') },
-    onError:    (err) => toast.error(err.message || 'Failed to update BOM'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['boms'] })
+      toast.success('BOM updated successfully!')
+    },
+    onError: (err) => toast.error(err.message || 'Failed to update BOM'),
   })
 }
 
@@ -43,7 +53,14 @@ export const useDeleteBOM = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id) => api.delete(`/bom/${id}`),
-    onSuccess:  () => { qc.invalidateQueries({ queryKey: ['boms'] }); toast.success('BOM deactivated.') },
-    onError:    (err) => toast.error(err.message || 'Failed to deactivate BOM'),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['boms'] })
+      toast.success('BOM deactivated.')
+    },
+    onError: (err) => toast.error(err.message || 'Failed to deactivate BOM'),
   })
 }
+
+// ── Backward-compatible aliases ───────────────────────────────────────────────
+export const useBOMsQuery = useBOMs
+export const useBOMQuery  = useBOMById

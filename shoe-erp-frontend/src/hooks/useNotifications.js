@@ -1,39 +1,54 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import * as api from '../api/notificationApi'
+import api from '../api/axiosInstance'
 
-export const useNotificationsQuery = (params) => {
+// ── Primary exports (new naming convention) ──────────────────────────────────
+
+export const useNotifications = (params = {}) => {
   return useQuery({
     queryKey: ['notifications', params],
-    queryFn: () => api.fetchNotifications(params),
+    queryFn: async () => {
+      const res = await api.get('/notifications', { params })
+      return res.data?.data ?? []
+    },
+    refetchInterval: 60000,
   })
 }
 
-export const useNotificationCountQuery = () => {
+export const useNotificationCount = () => {
   return useQuery({
     queryKey: ['notification-count'],
-    queryFn: api.fetchNotificationCount,
-    refetchInterval: 60000 // Poll every 60 seconds
+    queryFn: async () => {
+      const res = await api.get('/notifications/count')
+      return res.data?.data ?? { total: 0, unread: 0, critical: 0 }
+    },
+    refetchInterval: 60000,
   })
 }
 
-export const useMarkNotificationRead = () => {
+export const useMarkAsRead = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: api.markAsRead,
+    mutationFn: (id) => api.put(`/notifications/${id}/read`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['notifications'] })
       qc.invalidateQueries({ queryKey: ['notification-count'] })
-    }
+    },
   })
 }
 
-export const useMarkAllRead = () => {
+export const useMarkAllAsRead = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: api.markAllRead,
+    mutationFn: () => api.put('/notifications/read-all'),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['notifications'] })
       qc.invalidateQueries({ queryKey: ['notification-count'] })
-    }
+    },
   })
 }
+
+// ── Backward-compatible aliases ───────────────────────────────────────────────
+export const useNotificationsQuery     = useNotifications
+export const useNotificationCountQuery = useNotificationCount
+export const useMarkNotificationRead   = useMarkAsRead
+export const useMarkAllRead            = useMarkAllAsRead
