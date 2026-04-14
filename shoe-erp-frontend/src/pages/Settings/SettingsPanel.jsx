@@ -41,7 +41,10 @@ export default function SettingsPanel({ groupKey, title }) {
 
   const handleSave = (e) => {
     e.preventDefault();
-    const updates = Object.keys(form).map(k => ({ key: k, value: form[k] }));
+    const updates = Object.keys(form).map(k => ({
+      setting_key:   k,
+      setting_value: form[k],
+    }));
     updateMut.mutate(updates, {
       onSuccess: () => toast.success(`${title} settings saved.`),
     });
