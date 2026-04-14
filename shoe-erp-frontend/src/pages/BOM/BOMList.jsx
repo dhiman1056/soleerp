@@ -14,6 +14,12 @@ function BOMLines({ bomId }) {
   // useBOMQuery now returns the BOM object directly (res.data.data)
   const lines = Array.isArray(bom?.components) ? bom.components : []
 
+  // Compute total from lines directly — getBom endpoint doesn't include total_cost
+  const totalCost = lines.reduce(
+    (sum, l) => sum + (Number(l.value) || Number(l.consume_qty) * Number(l.rate_at_bom) || 0),
+    0
+  )
+
   if (isLoading) return <div className="py-4 text-center text-xs text-gray-400">Loading components…</div>
   if (!lines.length) return <div className="py-4 text-center text-xs text-gray-400">No lines found.</div>
 
@@ -43,7 +49,7 @@ function BOMLines({ bomId }) {
           ))}
           <tr className="border-t-2 border-gray-200 bg-gray-100 font-bold">
             <td colSpan={5} className="px-3 py-2 text-right text-gray-700">Total Material Cost</td>
-            <td className="px-3 py-2 text-right text-gray-900 tabular-nums">{formatCurrency(bom?.total_cost)}</td>
+            <td className="px-3 py-2 text-right text-gray-900 tabular-nums">{formatCurrency(totalCost)}</td>
           </tr>
         </tbody>
       </table>

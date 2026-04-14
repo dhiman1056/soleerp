@@ -89,7 +89,7 @@ export default function WorkOrderForm({ isOpen, onClose }) {
     return (Number(l.consume_qty) || 0) * plannedQty
   }
 
-  const bomLines = Array.isArray(selectedBom?.lines) ? selectedBom.lines : []
+  const bomLines = Array.isArray(selectedBom?.components) ? selectedBom.components : []
 
   const isInsufficient = bomLines.some(l => {
     const required  = calcRequired(l)
@@ -200,7 +200,7 @@ export default function WorkOrderForm({ isOpen, onClose }) {
                   <option value="">— Choose BOM —</option>
                   {boms.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.bom_code} — {b.output_description} ({b.output_sku})
+                      {b.bom_code} — {b.product_name} ({b.output_sku})
                     </option>
                   ))}
                 </select>
@@ -351,7 +351,7 @@ export default function WorkOrderForm({ isOpen, onClose }) {
                     return (
                       <tr key={i} className="border-t border-blue-100">
                         <td className="py-2 pr-2 font-mono font-semibold text-gray-800">{l.input_sku}</td>
-                        <td className="py-2 pr-2 text-gray-600 line-clamp-1">{l.input_description}</td>
+                        <td className="py-2 pr-2 text-gray-600 line-clamp-1">{l.description}</td>
                         <td className="py-2 text-right tabular-nums">{required.toFixed(3)}</td>
                         <td className="py-2 text-right tabular-nums">{available.toFixed(3)}</td>
                         <td className="py-2 text-center">
@@ -368,7 +368,7 @@ export default function WorkOrderForm({ isOpen, onClose }) {
 
               <div className="mt-2 pt-2 border-t border-blue-100 flex justify-end">
                 <span className="text-xs font-bold text-blue-900">
-                  Est. Total Cost: {formatCurrency((Number(selectedBom?.total_material_cost) || 0) * plannedQty)}
+                  Est. Total Cost: {formatCurrency((Number(selectedBom?.total_cost) || 0) * plannedQty)}
                 </span>
               </div>
             </div>

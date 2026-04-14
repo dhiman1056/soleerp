@@ -15,8 +15,8 @@ export default function WorkOrderDetail() {
   const { id }   = useParams()
   const [receiveOpen, setReceiveOpen] = useState(false)
 
-  const { data, isLoading, error } = useWorkOrderQuery(id)
-  const wo = data?.data
+  // useWorkOrderById returns data directly (already unwrapped in queryFn)
+  const wo = data
 
   if (isLoading) return <div className="py-16"><Loader /></div>
   if (error || !wo)  return (
@@ -52,7 +52,7 @@ export default function WorkOrderDetail() {
               <h1 className="text-2xl font-bold text-gray-900 font-mono">{wo.wo_number}</h1>
               <StatusBadge status={wo.status} />
             </div>
-            <p className="text-gray-500 text-sm">{wo.output_description}</p>
+            <p className="text-gray-500 text-sm">{wo.product_name}</p>
           </div>
           <div className="text-right text-sm text-gray-500 space-y-0.5">
             <p><span className="font-medium text-gray-700">BOM:</span> {wo.bom_code} ({wo.bom_type})</p>
@@ -87,7 +87,7 @@ export default function WorkOrderDetail() {
       </div>
 
       {/* BOM Component Breakdown */}
-      {wo.bom_lines?.length > 0 && (
+      {Array.isArray(wo.lines) && wo.lines.length > 0 && (
         <div className="card overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
             <h2 className="text-sm font-bold text-gray-900">BOM Component Breakdown</h2>
@@ -102,13 +102,13 @@ export default function WorkOrderDetail() {
                 </tr>
               </thead>
               <tbody>
-                {wo.bom_lines.map((l, i) => {
+                {(Array.isArray(wo.lines) ? wo.lines : []).map((l, i) => {
                   const totalQty  = (parseFloat(l.consume_qty) * plannedQty)
                   const totalVal  = totalQty * parseFloat(l.rate_at_bom)
                   return (
                     <tr key={i} className={`border-b border-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-800">{l.input_sku}</td>
-                      <td className="px-4 py-3 text-gray-700">{l.input_description}</td>
+                      <td className="px-4 py-3 text-gray-700">{l.description}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{l.consume_qty} {l.uom}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium">{totalQty.toFixed(4)} {l.uom}</td>
                       <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(l.rate_at_bom)}</td>
@@ -119,7 +119,11 @@ export default function WorkOrderDetail() {
                 <tr className="bg-gray-50 border-t-2 border-gray-200 font-bold">
                   <td colSpan={5} className="px-4 py-3 text-right text-gray-700">Total BOM Material Cost</td>
                   <td className="px-4 py-3 text-right tabular-nums text-gray-900">
-                    {formatCurrency((wo.total_bom_cost_per_unit || 0) * plannedQty)}
+                    {formatCurrency(
+                      (Array.isArray(wo.lines) ? wo.lines : []).reduce(
+                        (sum, l) => sum + (Number(l.consume_qty) || 0) * (Number(l.rate_at_bom) || 0), 0
+                      ) * plannedQty
+                    )}
                   </td>
                 </tr>
               </tbody>

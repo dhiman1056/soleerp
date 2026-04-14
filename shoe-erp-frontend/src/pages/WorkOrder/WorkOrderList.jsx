@@ -37,7 +37,7 @@ export default function WorkOrderList() {
   const columns = [
     { key: 'wo_number',          label: 'WO No.',  className: 'font-mono font-semibold text-xs text-gray-800' },
     { key: 'bom_code',           label: 'BOM',     className: 'font-mono text-xs' },
-    { key: 'output_description', label: 'Product' },
+    { key: 'product_name', label: 'Product' },
     {
       key: 'wo_type', label: 'Type',
       render: (r) => <span className="text-xs font-semibold text-gray-600">{WO_TYPE_SHORT[r.wo_type]}</span>,

@@ -68,7 +68,7 @@ export default function POList() {
                   >
                     <td className="px-5 py-3 font-mono font-bold text-gray-900">{po.po_no}</td>
                     <td className="px-5 py-3 text-gray-600">{formatDate(po.po_date)}</td>
-                    <td className="px-5 py-3 font-semibold text-gray-800">{po.supplier_name}</td>
+                    <td className="px-5 py-3 font-semibold text-gray-800">{po.supplier_name || po.supplier}</td>
                     <td className="px-5 py-3 text-gray-600">{po.expected_delivery_date ? formatDate(po.expected_delivery_date) : '-'}</td>
                     <td className="px-5 py-3 text-right font-medium text-gray-900">{formatCurrency(po.total_value)}</td>
                     <td className="px-5 py-3 text-center">

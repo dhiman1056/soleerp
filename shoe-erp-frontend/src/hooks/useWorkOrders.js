@@ -40,9 +40,15 @@ export const useWIPOrders = (params = {}) => {
   return useQuery({
     queryKey: ['wip', params],
     queryFn: async () => {
-      const res = await api.get('/work-orders/wip', { params })
-      // WIP endpoint returns an object grouped by wo_type
-      return res.data?.data ?? {}
+      const res  = await api.get('/work-orders/wip', { params })
+      const rows = Array.isArray(res.data?.data) ? res.data.data : []
+      // Backend returns a flat array — group by wo_type for WIPDashboard
+      return rows.reduce((acc, row) => {
+        const key = row.wo_type || 'UNKNOWN'
+        if (!acc[key]) acc[key] = []
+        acc[key].push(row)
+        return acc
+      }, {})
     },
     refetchInterval: 30_000,
   })

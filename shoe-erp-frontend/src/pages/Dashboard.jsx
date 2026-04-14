@@ -106,7 +106,7 @@ export default function Dashboard() {
             />
             <MetricCard
               title="Total WIP"
-              value={formatCurrency(Number(o.wip?.totalValue) || 0)}
+              value={`${Number(o.wip?.totalQty) || 0} units`}
               subtitle={`${Number(o.wip?.totalOrders) || 0} orders`}
               color="orange"
             />

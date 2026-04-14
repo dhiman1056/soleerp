@@ -93,7 +93,7 @@ export default function ReceiveModal({ isOpen, onClose, wo }) {
           <span className="text-gray-500">WO Number</span>
           <span className="font-semibold text-gray-900 font-mono">{wo?.wo_number}</span>
           <span className="text-gray-500">Output Product</span>
-          <span className="font-semibold text-gray-900">{wo?.output_description || '—'}</span>
+          <span className="font-semibold text-gray-900">{wo?.product_name || '—'}</span>
           <span className="text-gray-500">Planned Qty</span>
           <span className="font-semibold text-gray-900">{parseFloat(wo?.planned_qty || 0).toFixed(2)}</span>
           <span className="text-gray-500">Received So Far</span>

@@ -59,7 +59,7 @@ function WIPSection({ label, color, rows, onReceive }) {
               <tr key={row.wo_id} className={`border-b border-gray-50 ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                 <td className="px-4 py-3 font-mono font-semibold text-xs text-gray-800">{row.wo_number}</td>
                 <td className="px-4 py-3 font-mono text-xs text-gray-600">{row.bom_code}</td>
-                <td className="px-4 py-3 text-gray-700 max-w-[200px] truncate">{row.output_description}</td>
+                <td className="px-4 py-3 text-gray-700 max-w-[200px] truncate">{row.product_name}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-700">{(Number(row.planned_qty) || 0).toFixed(2)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-green-700 font-medium">{(Number(row.received_qty) || 0).toFixed(2)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-amber-700 font-bold">{(Number(row.wip_qty) || 0).toFixed(2)}</td>
@@ -97,18 +97,21 @@ export default function WIPDashboard() {
   const overall = (wipSummary && typeof wipSummary === 'object') ? (wipSummary.overall ?? wipSummary) : {}
   const byType  = Array.isArray(wipSummary?.by_type) ? wipSummary.by_type : []
 
-  const totalWO    = Number(overall.total_wo_count)  || 0
-  const totalQty   = Number(overall.total_wip_qty)   || 0
-  const totalValue = Number(overall.total_wip_value) || 0
+  const totalWO    = Number(overall.total_wip_orders) || 0
+  const totalQty   = Number(overall.total_wip_qty)    || 0
+  // total_wip_value is not returned by backend — sum it from the grouped rows
+  const totalValue = Object.values(grouped).flat().reduce(
+    (sum, row) => sum + (Number(row.wip_value) || 0), 0
+  )
 
   // Build a "wo" object compatible with ReceiveModal from a v_wip row
   const toWOObj = (row) => ({
-    id:                 row.wo_id,
-    wo_number:          row.wo_number,
-    output_description: row.output_description,
-    planned_qty:        row.planned_qty,
-    received_qty:       row.received_qty,
-    status:             row.status,
+    id:           row.wo_id,
+    wo_number:    row.wo_number,
+    product_name: row.product_name,
+    planned_qty:  row.planned_qty,
+    received_qty: row.received_qty,
+    status:       row.status,
   })
 
   const isLoading = wipLoading || summaryLoading

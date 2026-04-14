@@ -54,7 +54,18 @@ export default function POForm() {
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!form.supplier_id) return toast.error('Please select a supplier')
-    const cleanLines = lines.filter(l => l.sku_code && (Number(l.order_qty) || 0) > 0)
+    const cleanLines = lines
+      .filter(l => l.sku_code && (Number(l.order_qty) || 0) > 0)
+      .map(l => {
+        const mat = materials.find(m => m.sku_code === l.sku_code)
+        return {
+          sku_code:        l.sku_code,
+          sku_description: mat?.description || l.sku_code,
+          uom:             mat?.uom         || 'PCS',
+          ordered_qty:     Number(l.order_qty),
+          rate:            Number(l.unit_price),
+        }
+      })
     if (cleanLines.length === 0) return toast.error('Add at least one valid material line')
 
     createMut.mutate(
