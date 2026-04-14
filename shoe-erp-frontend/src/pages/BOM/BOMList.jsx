@@ -12,7 +12,7 @@ import { printBOMSheet } from '../../print/PrintBOMSheet.jsx'
 function BOMLines({ bomId }) {
   const { data: bom, isLoading } = useBOMQuery(bomId)
   // useBOMQuery now returns the BOM object directly (res.data.data)
-  const lines = Array.isArray(bom?.lines) ? bom.lines : []
+  const lines = Array.isArray(bom?.components) ? bom.components : []
 
   if (isLoading) return <div className="py-4 text-center text-xs text-gray-400">Loading components…</div>
   if (!lines.length) return <div className="py-4 text-center text-xs text-gray-400">No lines found.</div>
@@ -43,7 +43,7 @@ function BOMLines({ bomId }) {
           ))}
           <tr className="border-t-2 border-gray-200 bg-gray-100 font-bold">
             <td colSpan={5} className="px-3 py-2 text-right text-gray-700">Total Material Cost</td>
-            <td className="px-3 py-2 text-right text-gray-900 tabular-nums">{formatCurrency(bom?.total_material_cost)}</td>
+            <td className="px-3 py-2 text-right text-gray-900 tabular-nums">{formatCurrency(bom?.total_cost)}</td>
           </tr>
         </tbody>
       </table>
@@ -72,7 +72,7 @@ export default function BOMList() {
   const columns = [
     { key: 'bom_code',           label: 'BOM Code',    className: 'font-mono text-xs font-semibold text-gray-800' },
     { key: 'output_sku',         label: 'Output SKU',  className: 'font-mono text-xs' },
-    { key: 'output_description', label: 'Product' },
+    { key: 'product_name',       label: 'Product' },
     {
       key: 'bom_type', label: 'Type',
       render: (r) => <span className="text-xs font-semibold text-blue-700">{r.bom_type}</span>,
@@ -81,7 +81,7 @@ export default function BOMList() {
     { key: 'output_uom', label: 'UOM',        align: 'center', className: 'font-mono text-xs' },
     {
       key: 'total_material_cost', label: 'Material Cost', align: 'right',
-      render: (r) => <span className="font-semibold tabular-nums">{formatCurrency(r.total_material_cost)}</span>,
+      render: (r) => <span className="font-semibold tabular-nums">{formatCurrency(r.total_cost)}</span>,
     },
     {
       key: 'is_active', label: 'Status', align: 'center',
