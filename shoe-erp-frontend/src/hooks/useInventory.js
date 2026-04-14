@@ -33,11 +33,12 @@ export const useStockLedger = (params = {}) => {
   })
 }
 
+// ── Purchases — endpoint lives under /inventory/purchases ────────────────────
 export const usePurchases = (params = {}) => {
   return useQuery({
     queryKey: ['purchases', params],
     queryFn: async () => {
-      const res = await api.get('/purchases', { params })
+      const res = await api.get('/inventory/purchases', { params })
       return res.data?.data ?? []
     },
   })
@@ -46,7 +47,7 @@ export const usePurchases = (params = {}) => {
 export const useCreatePurchase = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data) => api.post('/purchases', data),
+    mutationFn: (data) => api.post('/inventory/purchases', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['purchases'] })
       qc.invalidateQueries({ queryKey: ['stockSummary'] })
@@ -59,7 +60,7 @@ export const useCreatePurchase = () => {
 export const useDeletePurchase = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id) => api.delete(`/purchases/${id}`),
+    mutationFn: (id) => api.delete(`/inventory/purchases/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['purchases'] })
       qc.invalidateQueries({ queryKey: ['stockSummary'] })

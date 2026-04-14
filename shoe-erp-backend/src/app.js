@@ -37,6 +37,7 @@ app.use('/api/export',        require('./routes/exportRoutes'))
 app.use('/api/settings',      require('./routes/settingsRoutes'))
 app.use('/api/notifications', require('./routes/notificationRoutes'))
 app.use('/api/sizes',         require('./routes/sizeRoutes'))
+app.use('/api/search',        require('./routes/searchRoutes'))
 
 app.use((err, req, res, next) => {
   console.error(err.stack)
