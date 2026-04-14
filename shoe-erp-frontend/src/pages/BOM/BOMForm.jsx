@@ -109,10 +109,10 @@ export default function BOMForm() {
       output_qty: b.output_qty || 1,
       output_uom: b.output_uom || 'PAIR',
       remarks:    b.remarks    || '',
-      lines: Array.isArray(b.lines) && b.lines.length
-        ? b.lines.map((l) => ({
+      lines: Array.isArray(b.components) && b.components.length
+        ? b.components.map((l) => ({
             input_sku:   l.input_sku   || '',
-            description: l.input_description || '',
+            description: l.description || '',
             consume_qty: l.consume_qty || 1,
             uom:         l.uom        || 'PCS',
             rate_at_bom: l.rate_at_bom || 0,

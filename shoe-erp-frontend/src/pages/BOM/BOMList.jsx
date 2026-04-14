@@ -34,11 +34,11 @@ function BOMLines({ bomId }) {
           {lines.map((l, i) => (
             <tr key={i} className="border-t border-gray-100">
               <td className="px-3 py-2 font-mono font-semibold text-gray-800">{l.input_sku}</td>
-              <td className="px-3 py-2 text-gray-600">{l.input_description}</td>
+              <td className="px-3 py-2 text-gray-600">{l.description}</td>
               <td className="px-3 py-2 text-right tabular-nums">{l.consume_qty}</td>
               <td className="px-3 py-2 text-center font-mono">{l.uom}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(l.rate_at_bom)}</td>
-              <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatCurrency(l.line_cost)}</td>
+              <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatCurrency(l.value)}</td>
             </tr>
           ))}
           <tr className="border-t-2 border-gray-200 bg-gray-100 font-bold">
