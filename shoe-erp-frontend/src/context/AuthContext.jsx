@@ -1,38 +1,44 @@
-import React from 'react';
-import { createContext, useState, useEffect } from 'react'
+import React, { createContext, useState, useEffect } from 'react'
 
 export const AuthContext = createContext({
-  user: null,
-  token: null,
+  user:            null,
+  token:           null,
   isAuthenticated: false,
-  role: null,
-  login: () => {},
-  logout: () => {},
+  loading:         true,   // start true — prevents redirect before localStorage is checked
+  role:            null,
+  login:           () => {},
+  logout:          () => {},
 })
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [token, setToken] = useState(null)
-  
-  // on init, load from localStorage
+  const [user,    setUser]    = useState(null)
+  const [token,   setToken]   = useState(null)
+  const [loading, setLoading] = useState(true)  // block render until hydration done
+
   useEffect(() => {
     const storedToken = localStorage.getItem('token')
-    const storedUser = localStorage.getItem('user')
-    
+    const storedUser  = localStorage.getItem('user')
+
     if (storedToken && storedUser) {
       try {
+        // Decode JWT payload and check expiry without a library
         const payload = JSON.parse(atob(storedToken.split('.')[1]))
         if (payload.exp * 1000 < Date.now()) {
-          // expired
-          logout()
+          // Token expired — clear storage but don't call logout() to avoid
+          // the circular reference on first render
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
         } else {
           setToken(storedToken)
           setUser(JSON.parse(storedUser))
         }
-      } catch (err) {
-        logout()
+      } catch {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
       }
     }
+
+    setLoading(false)  // always mark hydration complete, success or failure
   }, [])
 
   const login = (newToken, newUser) => {
@@ -49,17 +55,16 @@ export function AuthProvider({ children }) {
     setUser(null)
   }
 
-  const value = {
-    user,
-    token,
-    isAuthenticated: !!token,
-    role: user?.role || null,
-    login,
-    logout,
-  }
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{
+      user,
+      token,
+      loading,
+      isAuthenticated: !!token,
+      role:            user?.role ?? null,
+      login,
+      logout,
+    }}>
       {children}
     </AuthContext.Provider>
   )
