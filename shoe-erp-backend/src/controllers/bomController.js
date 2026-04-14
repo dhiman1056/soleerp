@@ -2,6 +2,7 @@
 
 const { query, pool } = require('../config/db');
 
+// ─── GET /api/bom ────────────────────────────────────────────────────────────
 const listBoms = async (req, res) => {
   try {
     const { rows } = await query(`
@@ -17,13 +18,15 @@ const listBoms = async (req, res) => {
       WHERE h.is_active = true
       GROUP BY h.id, h.bom_code, h.output_sku, h.output_qty,
         h.output_uom, h.bom_type, h.is_active, p.description
+      ORDER BY h.bom_code
     `);
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
+// ─── GET /api/bom/:id ────────────────────────────────────────────────────────
 const getBom = async (req, res) => {
   try {
     const { rows } = await query(`
@@ -36,7 +39,7 @@ const getBom = async (req, res) => {
           'uom', l.uom,
           'rate_at_bom', l.rate_at_bom,
           'value', l.consume_qty * l.rate_at_bom
-        )) as components
+        ) ORDER BY l.id) as components
       FROM bom_header h
       JOIN product_master p ON h.output_sku = p.sku_code
       LEFT JOIN bom_lines l ON l.bom_id = h.id
@@ -45,13 +48,14 @@ const getBom = async (req, res) => {
       GROUP BY h.id, p.description
     `, [req.params.id]);
 
-    if (rows.length === 0) return res.status(404).json({ message: 'BOM not found' });
+    if (rows.length === 0) return res.status(404).json({ success: false, message: 'BOM not found' });
     return res.status(200).json({ success: true, data: rows[0] });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
+// ─── POST /api/bom ───────────────────────────────────────────────────────────
 const createBom = async (req, res) => {
   const client = await pool.connect();
   try {
@@ -63,7 +67,7 @@ const createBom = async (req, res) => {
       (bom_code, output_sku, output_qty, output_uom, bom_type, remarks)
       VALUES ($1,$2,$3,$4,$5,$6)
       RETURNING *
-    `, [bom_code || `BOM-${Date.now()}`, output_sku, output_qty, output_uom, bom_type, remarks]);
+    `, [bom_code || `BOM-${Date.now()}`, output_sku, output_qty || 1, output_uom, bom_type, remarks || null]);
 
     const bomId = headerRows[0].id;
 
@@ -72,7 +76,7 @@ const createBom = async (req, res) => {
         await client.query(`
           INSERT INTO bom_lines (bom_id, input_sku, consume_qty, uom, rate_at_bom)
           VALUES ($1,$2,$3,$4,$5)
-        `, [bomId, l.input_sku, l.consume_qty, l.uom, l.rate_at_bom]);
+        `, [bomId, l.input_sku, l.consume_qty, l.uom, l.rate_at_bom || 0]);
       }
     }
 
@@ -80,13 +84,120 @@ const createBom = async (req, res) => {
     return res.status(201).json({ success: true, data: headerRows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   } finally {
     client.release();
   }
 };
 
-const updateBom = async (req, res) => res.status(501).json({ message: 'Not Implemented' });
-const deleteBom = async (req, res) => res.status(501).json({ message: 'Not Implemented' });
+// ─── PUT /api/bom/:id ────────────────────────────────────────────────────────
+const updateBom = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+    const { output_sku, output_qty, output_uom, bom_type, remarks, lines } = req.body;
+
+    // Build dynamic SET clause — only update provided fields
+    const sets   = [];
+    const params = [];
+
+    if (output_sku  !== undefined) { params.push(output_sku);  sets.push(`output_sku  = $${params.length}`); }
+    if (output_qty  !== undefined) { params.push(output_qty);  sets.push(`output_qty  = $${params.length}`); }
+    if (output_uom  !== undefined) { params.push(output_uom);  sets.push(`output_uom  = $${params.length}`); }
+    if (bom_type    !== undefined) { params.push(bom_type);    sets.push(`bom_type    = $${params.length}`); }
+    if (remarks     !== undefined) { params.push(remarks);     sets.push(`remarks     = $${params.length}`); }
+
+    if (sets.length === 0 && !lines) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'No updatable fields provided.' });
+    }
+
+    let headerRow = null;
+
+    if (sets.length > 0) {
+      params.push(id);
+      const headerResult = await client.query(`
+        UPDATE bom_header
+        SET    ${sets.join(', ')}
+        WHERE  id = $${params.length}
+        RETURNING *
+      `, params);
+
+      if (headerResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'BOM not found' });
+      }
+      headerRow = headerResult.rows[0];
+    } else {
+      // Only lines are being updated — fetch header for the response
+      const { rows } = await client.query('SELECT * FROM bom_header WHERE id = $1', [id]);
+      if (rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ success: false, message: 'BOM not found' });
+      }
+      headerRow = rows[0];
+    }
+
+    // Replace lines if provided
+    if (lines !== undefined) {
+      await client.query('DELETE FROM bom_lines WHERE bom_id = $1', [id]);
+
+      if (Array.isArray(lines) && lines.length > 0) {
+        for (const line of lines) {
+          await client.query(`
+            INSERT INTO bom_lines (bom_id, input_sku, consume_qty, uom, rate_at_bom)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [id, line.input_sku, line.consume_qty, line.uom, line.rate_at_bom ?? 0]);
+        }
+      }
+    }
+
+    await client.query('COMMIT');
+
+    // Return updated header + fresh lines (with descriptions)
+    const { rows: updatedLines } = await pool.query(`
+      SELECT bl.id, bl.input_sku, bl.consume_qty, bl.uom, bl.rate_at_bom,
+             (bl.consume_qty * bl.rate_at_bom) as value,
+             pm.description
+      FROM   bom_lines bl
+      JOIN   product_master pm ON bl.input_sku = pm.sku_code
+      WHERE  bl.bom_id = $1
+      ORDER  BY bl.id
+    `, [id]);
+
+    return res.json({
+      success: true,
+      data: { ...headerRow, components: updatedLines },
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ success: false, message: err.message });
+  } finally {
+    client.release();
+  }
+};
+
+// ─── DELETE /api/bom/:id ─────────────────────────────────────────────────────
+// Soft-delete: sets is_active = false
+const deleteBom = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { rows } = await query(
+      'UPDATE bom_header SET is_active = false WHERE id = $1 AND is_active = true RETURNING id, bom_code',
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'BOM not found or already inactive' });
+    }
+
+    return res.json({ success: true, message: `BOM '${rows[0].bom_code}' deactivated.` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 
 module.exports = { listBoms, getBom, createBom, updateBom, deleteBom };
