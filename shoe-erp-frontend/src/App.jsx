@@ -28,8 +28,13 @@ import SupplierDetail from './pages/Suppliers/SupplierDetail.jsx'
 import POList from './pages/PurchaseOrder/POList.jsx'
 import POForm from './pages/PurchaseOrder/POForm.jsx'
 import PODetail from './pages/PurchaseOrder/PODetail.jsx'
-import Settings from './pages/Settings/Settings.jsx'
-import UserManagement from './pages/Users/UserManagement.jsx'
+import Settings            from './pages/Settings/Settings.jsx'
+import SettingsLayout      from './pages/Settings/SettingsLayout.jsx'
+import CompanySettings     from './pages/Settings/CompanySettings.jsx'
+import FinancialSettings   from './pages/Settings/FinancialSettings.jsx'
+import InventorySettings   from './pages/Settings/InventorySettings.jsx'
+import NotificationSettings from './pages/Settings/NotificationSettings.jsx'
+import UserManagement      from './pages/Users/UserManagement.jsx'
 
 export default function App() {
   return (
@@ -61,7 +66,19 @@ export default function App() {
             <Route path="/purchase-orders/:id" element={<PODetail />} />
 
             {/* Settings & Admin */}
+            {/* Legacy flat route kept for backwards compat */}
             <Route path="/settings" element={<Settings />} />
+
+            {/* Tabbed settings layout with sub-routes */}
+            <Route path="/settings-v2" element={<SettingsLayout />}>
+              <Route index element={<CompanySettings />} />
+              <Route path="company"      element={<CompanySettings />} />
+              <Route path="financial"    element={<FinancialSettings />} />
+              <Route path="inventory"    element={<InventorySettings />} />
+              <Route path="notification" element={<NotificationSettings />} />
+              <Route path="users"        element={<UserManagement />} />
+            </Route>
+
             <Route path="/users" element={<UserManagement />} />
 
             {/* Reports */}
