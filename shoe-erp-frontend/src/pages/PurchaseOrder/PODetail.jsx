@@ -18,7 +18,8 @@ export default function PODetail() {
   const sendMut = useSendPO()
 
   if (isLoading) return <Loader />
-  const po = data?.data
+  // usePOQuery already unwraps res.data?.data — data is the PO object directly
+  const po = data
   if (!po) return <div className="p-8">PO not found.</div>
 
   const handleSend = () => {
@@ -27,8 +28,8 @@ export default function PODetail() {
     }
   }
 
-  const isDRAFT = po.status === 'DRAFT'
-  const canReceive = po.status === 'SENT' || po.status === 'PARTIAL_RECEIVED'
+  const isDRAFT   = po.status === 'DRAFT'
+  const canReceive = po.status === 'SENT' || po.status === 'PARTIAL'
 
   return (
     <div className="space-y-6">
@@ -69,14 +70,14 @@ export default function PODetail() {
                          <p className="font-mono text-xs font-bold text-gray-900 mt-1">{l.sku_code}</p>
                          <p className="text-xs text-gray-500">{l.sku_description}</p>
                       </td>
-                      <td className="px-4 py-3 text-right font-medium">{parseFloat(l.order_qty)} {l.uom}</td>
+                      <td className="px-4 py-3 text-right font-medium">{parseFloat(l.ordered_qty)} {l.uom}</td>
                       <td className="px-4 py-3 text-right">
                          <span className={parseFloat(l.received_qty) > 0 ? 'text-green-600 font-bold' : 'text-gray-400'}>
                             {parseFloat(l.received_qty)}
                          </span>
                       </td>
-                      <td className="px-4 py-3 text-right">{formatCurrency(l.unit_price)}</td>
-                      <td className="px-4 py-3 text-right font-bold bg-gray-50/50">{formatCurrency(l.line_total)}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(l.rate)}</td>
+                      <td className="px-4 py-3 text-right font-bold bg-gray-50/50">{formatCurrency(l.line_value)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -150,8 +151,8 @@ export default function PODetail() {
                 <h3 className="text-xs font-bold text-blue-800 uppercase tracking-widest mb-4">Logistics Actions</h3>
                 
                 {isDRAFT && (
-                  <button onClick={handleSend} disabled={sendMut.isLoading} className="btn-primary w-full mb-3 shadow-lg shadow-blue-200">
-                    {sendMut.isLoading ? 'Sending...' : 'Send PO to Supplier'}
+                  <button onClick={handleSend} disabled={sendMut.isPending} className="btn-primary w-full mb-3 shadow-lg shadow-blue-200">
+                    {sendMut.isPending ? 'Sending...' : 'Send PO to Supplier'}
                   </button>
                 )}
 

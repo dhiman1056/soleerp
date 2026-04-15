@@ -297,7 +297,8 @@ const receivePurchaseOrder = async (req, res) => {
         WHERE  id = $3
       `, [newReceived, newPending, line.id]);
 
-      // Credit stock via stock_ledger insert (inventory update)
+      // Credit stock_ledger
+      const valueIn = rcvQty * parseFloat(line.rate)
       await client.query(`
         INSERT INTO stock_ledger (
           transaction_date, sku_code, sku_description, uom,
@@ -312,9 +313,24 @@ const receivePurchaseOrder = async (req, res) => {
         `PO-RECV-${id}`,
         rcvQty,
         parseFloat(line.rate),
-        rcvQty * parseFloat(line.rate),
+        valueIn,
         remarks || `GRN against PO #${id}`,
       ]);
+
+      // Upsert stock_summary (weighted-average costing)
+      await client.query(`
+        INSERT INTO stock_summary (sku_code, sku_description, uom, current_qty, current_value, avg_rate, last_updated)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        ON CONFLICT (sku_code) DO UPDATE
+        SET current_qty   = stock_summary.current_qty   + EXCLUDED.current_qty,
+            current_value = stock_summary.current_value + EXCLUDED.current_value,
+            avg_rate      = CASE
+              WHEN (stock_summary.current_qty + EXCLUDED.current_qty) = 0 THEN 0
+              ELSE (stock_summary.current_value + EXCLUDED.current_value)
+                   / (stock_summary.current_qty + EXCLUDED.current_qty)
+            END,
+            last_updated  = NOW()
+      `, [line.sku_code, line.sku_description, line.uom, rcvQty, valueIn, parseFloat(line.rate)]);
     }
 
     // Recalculate overall PO status
