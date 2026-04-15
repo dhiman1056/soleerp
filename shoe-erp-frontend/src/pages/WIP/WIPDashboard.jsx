@@ -106,7 +106,7 @@ export default function WIPDashboard() {
 
   // Build a "wo" object compatible with ReceiveModal from a v_wip row
   const toWOObj = (row) => ({
-    id:           row.wo_id,
+    id:           row.id,
     wo_number:    row.wo_number,
     product_name: row.product_name,
     planned_qty:  row.planned_qty,
