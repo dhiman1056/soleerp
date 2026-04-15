@@ -96,26 +96,113 @@ const receiveWorkOrder = async (req, res) => {
   try {
     await client.query('BEGIN');
     const woId = req.params.id;
-    const { received_qty, receipt_date, remarks } = req.body;
+    const { received_qty, receipt_date, remarks, from_store, to_store } = req.body;
 
-    const { rows: woRows } = await client.query(`SELECT planned_qty, received_qty FROM work_order_header WHERE id = $1 FOR UPDATE`, [woId]);
+    // ── 1. Load WO + BOM + product info ─────────────────────────────────────
+    const { rows: woRows } = await client.query(`
+      SELECT
+        w.id, w.wo_number, w.bom_id, w.planned_qty, w.received_qty, w.status,
+        b.output_sku, b.output_uom,
+        p.description AS product_name
+      FROM work_order_header w
+      JOIN bom_header     b  ON w.bom_id      = b.id
+      JOIN product_master p  ON b.output_sku  = p.sku_code
+      WHERE w.id = $1 FOR UPDATE
+    `, [woId]);
+
     if (woRows.length === 0) throw new Error('Work Order not found');
+    const wo        = woRows[0];
+    const rcvDate   = receipt_date || new Date().toISOString().slice(0, 10);
+    const rcvQty    = parseFloat(received_qty);
+    const totalRcv  = parseFloat(wo.received_qty) + rcvQty;
 
-    const totalRcv = parseFloat(woRows[0].received_qty) + parseFloat(received_qty);
-
+    // ── 2. Insert receipt line ───────────────────────────────────────────────
     await client.query(`
       INSERT INTO wo_receipt_lines (wo_id, received_qty, receipt_date, remarks)
       VALUES ($1, $2, $3, $4)
-    `, [woId, received_qty, receipt_date || new Date().toISOString().slice(0, 10), remarks]);
+    `, [woId, rcvQty, rcvDate, remarks || null]);
+
+    // ── 3. Update WO header ──────────────────────────────────────────────────
+    await client.query(`
+      UPDATE work_order_header
+      SET received_qty = $1,
+          status = CASE WHEN $1 >= planned_qty THEN 'RECEIVED' ELSE 'PARTIAL' END::wo_status_enum,
+          to_store   = COALESCE($3, to_store),
+          from_store = COALESCE($4, from_store)
+      WHERE id = $2
+    `, [totalRcv, woId, to_store || null, from_store || null]);
+
+    // ── 4. Credit output SKU into stock_summary (WO_RECEIPT) ─────────────────
+    await client.query(`
+      INSERT INTO stock_summary (sku_code, sku_description, uom, current_qty, current_value, avg_rate, last_updated)
+      VALUES ($1, $2, $3, $4, 0, 0, NOW())
+      ON CONFLICT (sku_code) DO UPDATE
+        SET current_qty  = stock_summary.current_qty + EXCLUDED.current_qty,
+            last_updated = NOW()
+    `, [wo.output_sku, wo.product_name, wo.output_uom || 'PCS', rcvQty]);
+
+    const { rows: fgBal } = await client.query(
+      'SELECT current_qty FROM stock_summary WHERE sku_code = $1', [wo.output_sku]
+    );
+    const fgBalance = parseFloat(fgBal[0]?.current_qty || 0);
 
     await client.query(`
-      UPDATE work_order_header 
-      SET received_qty = $1, status = CASE WHEN $1 >= planned_qty THEN 'RECEIVED' ELSE 'PARTIAL' END::wo_status_enum
-      WHERE id = $2
-    `, [totalRcv, woId]);
+      INSERT INTO stock_ledger
+        (transaction_date, sku_code, sku_description, uom,
+         transaction_type, reference_no, reference_type,
+         qty_in, qty_out, rate, value_in, value_out,
+         running_balance, running_value, remarks)
+      VALUES ($1, $2, $3, $4, 'WO_RECEIPT', $5, 'WO', $6, 0, 0, 0, 0, $7, 0, $8)
+    `, [rcvDate, wo.output_sku, wo.product_name, wo.output_uom || 'PCS',
+        wo.wo_number, rcvQty, fgBalance, remarks || `WO Receipt: ${wo.wo_number}`]);
+
+    // ── 5. Deduct each BOM component from stock_summary (WO_ISSUE) ───────────
+    const { rows: bomLines } = await client.query(`
+      SELECT bl.input_sku, bl.consume_qty, bl.uom, bl.rate_at_bom,
+             pm.description
+      FROM   bom_lines      bl
+      JOIN   product_master pm ON bl.input_sku = pm.sku_code
+      WHERE  bl.bom_id = $1
+    `, [wo.bom_id]);
+
+    for (const line of bomLines) {
+      const consumeQty  = parseFloat(line.consume_qty) * rcvQty;
+      const issueValue  = consumeQty * parseFloat(line.rate_at_bom || 0);
+
+      // Deduct from stock_summary (INSERT 0 so row exists, then subtract)
+      await client.query(`
+        INSERT INTO stock_summary (sku_code, sku_description, uom, current_qty, current_value, avg_rate, last_updated)
+        VALUES ($1, $2, $3, 0, 0, 0, NOW())
+        ON CONFLICT (sku_code) DO UPDATE
+          SET current_qty   = stock_summary.current_qty   - $4,
+              current_value = GREATEST(stock_summary.current_value - $5, 0),
+              last_updated  = NOW()
+      `, [line.input_sku, line.description, line.uom, consumeQty, issueValue]);
+
+      const { rows: compBal } = await client.query(
+        'SELECT current_qty, current_value FROM stock_summary WHERE sku_code = $1', [line.input_sku]
+      );
+      const compRunBal = parseFloat(compBal[0]?.current_qty  || 0);
+      const compRunVal = parseFloat(compBal[0]?.current_value || 0);
+
+      await client.query(`
+        INSERT INTO stock_ledger
+          (transaction_date, sku_code, sku_description, uom,
+           transaction_type, reference_no, reference_type,
+           qty_in, qty_out, rate, value_in, value_out,
+           running_balance, running_value, remarks)
+        VALUES ($1, $2, $3, $4, 'WO_ISSUE', $5, 'WO', 0, $6, $7, 0, $8, $9, $10, $11)
+      `, [rcvDate, line.input_sku, line.description, line.uom,
+          wo.wo_number, consumeQty, parseFloat(line.rate_at_bom || 0),
+          issueValue, compRunBal, compRunVal,
+          `WO Issue: ${wo.wo_number}`]);
+    }
 
     await client.query('COMMIT');
-    return res.status(200).json({ success: true, message: 'Work Order received' });
+    return res.status(200).json({
+      success: true,
+      message: `Work Order received. Stock updated (${bomLines.length} components deducted).`,
+    });
   } catch (err) {
     await client.query('ROLLBACK');
     res.status(500).json({ message: err.message });

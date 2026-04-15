@@ -57,3 +57,12 @@ export const BOM_OUTPUT_PRODUCT_TYPE = {
   FG:        'FINISHED',
   FG_DIRECT: 'FINISHED',
 }
+
+// Store / location options used in Work Order and Receipt forms
+export const STORE_OPTIONS = [
+  'Raw Material Store',
+  'WIP Store',
+  'Stitching & Cutting Floor',
+  'Assembly Floor',
+  'Finished Goods Warehouse',
+]
