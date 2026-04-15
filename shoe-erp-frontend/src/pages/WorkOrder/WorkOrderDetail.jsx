@@ -15,6 +15,7 @@ export default function WorkOrderDetail() {
   const { id }   = useParams()
   const [receiveOpen, setReceiveOpen] = useState(false)
 
+  const { data, isLoading, error } = useWorkOrderQuery(id)
   // useWorkOrderById returns data directly (already unwrapped in queryFn)
   const wo = data
 
