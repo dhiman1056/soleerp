@@ -17,9 +17,11 @@ export default function SupplierDetail() {
   const { data: posData } = usePOsQuery({ supplier_id: id })
   const { data: ledgerData } = useSupplierLedgerQuery(id, {})
 
-  const supplier = supData?.data
-  const pos = posData?.data || []
-  const ledger = ledgerData?.data?.transactions || []
+  // Hooks return data directly (already unwrapped in queryFn)
+  const supplier = supData ?? null
+  const pos      = Array.isArray(posData)            ? posData             : []
+  // useSupplierLedger returns { opening_balance, transactions } — backend wraps in data.data
+  const ledger   = Array.isArray(ledgerData?.transactions) ? ledgerData.transactions : []
 
   if (supLoading) return <Loader />
   if (!supplier) return <div className="p-8">Supplier not found.</div>
@@ -208,8 +210,8 @@ function PaymentModal({ supplierId, outstanding, onClose }) {
 
            <div className="flex justify-end gap-3 pt-4">
              <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
-             <button type="submit" disabled={payMut.isLoading} className="btn-primary" style={{backgroundColor: '#10B981'}}>
-               {payMut.isLoading ? 'Recording...' : 'Confirm Payment'}
+             <button type="submit" disabled={payMut.isPending} className="btn-primary" style={{backgroundColor: '#10B981'}}>
+               {payMut.isPending ? 'Recording...' : 'Confirm Payment'}
              </button>
            </div>
         </form>

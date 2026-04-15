@@ -29,7 +29,8 @@ export const useSupplierLedger = (id, params) => {
     queryKey: ['supplier-ledger', id, params],
     queryFn: async () => {
       const res = await api.get(`/suppliers/${id}/ledger`, { params })
-      return res.data?.data ?? []
+      // Backend returns { opening_balance, transactions } — not an array
+      return res.data?.data ?? { opening_balance: 0, transactions: [] }
     },
     enabled: !!id,
   })
