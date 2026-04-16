@@ -39,6 +39,14 @@ export default function ReceiveModal({ isOpen, onClose, wo }) {
   const [sizeMap,        setSizeMap]        = useState({})  // size_code → qty string
   const [fromLocationId, setFromLocationId] = useState('')
   const [toLocationId,   setToLocationId]   = useState('')
+  const [rejectionQty,   setRejectionQty]   = useState(0)
+
+  // ── WO Type → Receive Location auto-mapping ──────────────────────────────────────
+  const WO_TYPE_RECEIVE_LOCATIONS = {
+    RM_TO_SF: { from: 'SF-WIP Store',          to: 'Semi-Finished Store' },
+    SF_TO_FG: { from: 'FG-WIP Store',          to: 'Finished Goods Warehouse' },
+    RM_TO_FG: { from: 'FG-WIP Store',          to: 'Finished Goods Warehouse' },
+  }
 
   // Pre-fill location from WO when modal opens
   useEffect(() => {
@@ -46,14 +54,30 @@ export default function ReceiveModal({ isOpen, onClose, wo }) {
       reset({ received_qty: '', receipt_date: today(), remarks: '' })
       setUseSizeBreakup(false)
       setSizeMap({})
-      // Try to pre-select locations matching the WO's stored store name
-      const fromLoc = allLocations.find(l => l.location_name === wo?.from_store)
-      const toLoc   = allLocations.find(l => l.location_name === wo?.to_store)
-      setFromLocationId(fromLoc ? String(fromLoc.id) : '')
-      setToLocationId(toLoc   ? String(toLoc.id)   : '')
+      setRejectionQty(0)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, reset])
+
+  // Auto-set receive locations based on wo_type
+  useEffect(() => {
+    if (wo?.wo_type && allLocations.length > 0) {
+      const locMap = WO_TYPE_RECEIVE_LOCATIONS[wo.wo_type]
+      if (locMap) {
+        const fromLoc = allLocations.find(l => l.location_name === locMap.from)
+        const toLoc   = allLocations.find(l => l.location_name === locMap.to)
+        if (fromLoc) setFromLocationId(String(fromLoc.id))
+        if (toLoc)   setToLocationId(String(toLoc.id))
+      } else {
+        // Fallback: try to match by stored store name on the WO
+        const fl = allLocations.find(l => l.location_name === wo?.from_store)
+        const tl = allLocations.find(l => l.location_name === wo?.to_store)
+        setFromLocationId(fl ? String(fl.id) : '')
+        setToLocationId(tl   ? String(tl.id) : '')
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wo?.wo_type, allLocations.length])
 
   // ── Derived totals ────────────────────────────────────────────────────────────
   const sizeTotal = Object.values(sizeMap).reduce((s, v) => s + (parseInt(v) || 0), 0)
@@ -92,6 +116,7 @@ export default function ReceiveModal({ isOpen, onClose, wo }) {
       {
         id:              wo.id,
         received_qty:    totalReceived,
+        rejection_qty:   rejectionQty,
         receipt_date:    values.receipt_date,
         remarks:         values.remarks || null,
         from_location_id: fromLocationId ? parseInt(fromLocationId) : undefined,
@@ -272,6 +297,49 @@ export default function ReceiveModal({ isOpen, onClose, wo }) {
               ))}
             </select>
           </div>
+        </div>
+
+        {/* ── Rejection Qty ── */}
+        <div className="bg-red-50 border border-red-100 rounded-xl p-4">
+          <label className="text-xs font-bold text-red-700 uppercase tracking-wide block mb-2">
+            Rejection Qty <span className="font-normal text-red-400">(if any)</span>
+          </label>
+          <input
+            type="number"
+            min="0"
+            max={wipQty}
+            step="0.01"
+            value={rejectionQty}
+            onChange={e => setRejectionQty(parseFloat(e.target.value) || 0)}
+            placeholder="0"
+            className="input-field text-right tabular-nums"
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Rejected qty will be recorded but <strong>not</strong> added to stock.
+          </p>
+          {rejectionQty > 0 && (() => {
+            const displayReceived = useSizeBreakup ? sizeTotal : 0
+            const goodQty = Math.max(0, displayReceived - rejectionQty)
+            const rejPct  = displayReceived > 0
+              ? ((rejectionQty / displayReceived) * 100).toFixed(1)
+              : '—'
+            return (
+              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                  <p className="text-xs text-gray-500">Good Qty (to stock)</p>
+                  <p className="font-bold text-green-700 tabular-nums text-base">
+                    {useSizeBreakup ? goodQty.toFixed(2) : '(enter qty above)'}
+                  </p>
+                </div>
+                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <p className="text-xs text-gray-500">Rejection %</p>
+                  <p className="font-bold text-red-600 tabular-nums text-base">
+                    {useSizeBreakup && sizeTotal > 0 ? `${rejPct}%` : '—'}
+                  </p>
+                </div>
+              </div>
+            )
+          })()}
         </div>
 
         {/* ── Receipt Date ── */}

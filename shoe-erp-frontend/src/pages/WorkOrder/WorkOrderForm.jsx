@@ -86,6 +86,26 @@ export default function WorkOrderForm({ isOpen, onClose }) {
   const [fromLocationId, setFromLocationId] = useState('')
   const [toLocationId,   setToLocationId]   = useState('')
 
+  // ── WO Type → Location auto-mapping ──────────────────────────────────────────
+  const WO_TYPE_LOCATIONS = {
+    RM_TO_SF: { from: 'Raw Material Store', to: 'SF-WIP Store' },
+    SF_TO_FG: { from: 'Semi-Finished Store', to: 'FG-WIP Store' },
+    RM_TO_FG: { from: 'Raw Material Store', to: 'FG-WIP Store' },
+  }
+
+  useEffect(() => {
+    if (selectedType && allLocations.length > 0) {
+      const locMap = WO_TYPE_LOCATIONS[selectedType]
+      if (locMap) {
+        const fromLoc = allLocations.find(l => l.location_name === locMap.from)
+        const toLoc   = allLocations.find(l => l.location_name === locMap.to)
+        if (fromLoc) setFromLocationId(String(fromLoc.id))
+        if (toLoc)   setToLocationId(String(toLoc.id))
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedType, allLocations.length])
+
   // ── Sizes ─────────────────────────────────────────────────────────────────────
   const { data: sizesRaw } = useSizesQuery({ is_active: 'true' })
   const activeSizes = Array.isArray(sizesRaw) ? sizesRaw : []
@@ -107,7 +127,12 @@ export default function WorkOrderForm({ isOpen, onClose }) {
   // Only check first BOM for stock (multi-BOM stock check is aggregated below)
   const firstBomId = bomLines[0]?.bom_id ? Number(bomLines[0].bom_id) : null
   const { data: firstBomDetail } = useBOMQuery(firstBomId)
-  const firstBomComponents = Array.isArray(firstBomDetail?.components) ? firstBomDetail.components : []
+  // Support both .components (new) and .lines (legacy) field names
+  const firstBomComponents = Array.isArray(firstBomDetail?.components)
+    ? firstBomDetail.components
+    : Array.isArray(firstBomDetail?.lines)
+    ? firstBomDetail.lines
+    : []
 
   // ── Total planned qty ─────────────────────────────────────────────────────────
   const totalPlannedQty = useMemo(() => {
@@ -371,6 +396,11 @@ export default function WorkOrderForm({ isOpen, onClose }) {
                   </option>
                 ))}
               </select>
+              {fromLocationId && (
+                <p className="text-xs text-blue-600 mt-1">
+                  Auto-set based on WO type. Override if needed.
+                </p>
+              )}
             </div>
 
             {/* To Location */}

@@ -108,7 +108,11 @@ export default function WIPDashboard() {
   const toWOObj = (row) => ({
     id:           row.id,
     wo_number:    row.wo_number,
+    wo_type:      row.wo_type,       // ← needed for auto-location in ReceiveModal
     product_name: row.product_name,
+    bom_code:     row.bom_code,
+    from_store:   row.from_store,
+    to_store:     row.to_store,
     planned_qty:  row.planned_qty,
     received_qty: row.received_qty,
     status:       row.status,

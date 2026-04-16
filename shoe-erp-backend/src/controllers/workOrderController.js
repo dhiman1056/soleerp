@@ -187,7 +187,16 @@ const receiveWorkOrder = async (req, res) => {
   try {
     await client.query('BEGIN');
     const woId = req.params.id;
-    const { received_qty, receipt_date, remarks, from_store, to_store } = req.body;
+    const {
+      received_qty,
+      rejection_qty = 0,
+      receipt_date,
+      remarks,
+      from_store,
+      to_store,
+      from_location_id,
+      to_location_id,
+    } = req.body;
 
     // ── 1. Load WO + BOM + product info ─────────────────────────────────────
     const { rows: woRows } = await client.query(`
@@ -202,53 +211,97 @@ const receiveWorkOrder = async (req, res) => {
     `, [woId]);
 
     if (woRows.length === 0) throw new Error('Work Order not found');
-    const wo        = woRows[0];
-    const rcvDate   = receipt_date || new Date().toISOString().slice(0, 10);
-    const rcvQty    = parseFloat(received_qty);
-    const totalRcv  = parseFloat(wo.received_qty) + rcvQty;
+    const wo      = woRows[0];
+    const rcvDate = receipt_date || new Date().toISOString().slice(0, 10);
+    const rcvQty  = parseFloat(received_qty);
+    const rejQty  = parseFloat(rejection_qty) || 0;
+    // Only good (non-rejected) qty goes to stock
+    const goodQty = Math.max(0, rcvQty - rejQty);
+    // Total received_qty on WO header tracks all received (including rejected)
+    const totalRcv = parseFloat(wo.received_qty) + rcvQty;
 
-    // ── 2. Insert receipt line ───────────────────────────────────────────────
+    // ── 2. Resolve to-location name for ledger tagging ───────────────────────
+    let toLoc = null;
+    if (to_location_id) {
+      const { rows: locRows } = await client.query(
+        'SELECT id, location_name FROM location_master WHERE id = $1', [to_location_id]
+      );
+      if (locRows.length > 0) toLoc = locRows[0];
+    }
+    let fromLoc = null;
+    if (from_location_id) {
+      const { rows: locRows } = await client.query(
+        'SELECT id, location_name FROM location_master WHERE id = $1', [from_location_id]
+      );
+      if (locRows.length > 0) fromLoc = locRows[0];
+    }
+
+    // ── 3. Insert receipt line (with rejection & location info) ──────────────
     await client.query(`
-      INSERT INTO wo_receipt_lines (wo_id, received_qty, receipt_date, remarks)
-      VALUES ($1, $2, $3, $4)
-    `, [woId, rcvQty, rcvDate, remarks || null]);
+      INSERT INTO wo_receipt_lines
+        (wo_id, received_qty, rejection_qty, receipt_date, remarks,
+         from_location_id, to_location_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [
+      woId, rcvQty, rejQty, rcvDate, remarks || null,
+      from_location_id ? parseInt(from_location_id) : null,
+      to_location_id   ? parseInt(to_location_id)   : null,
+    ]);
 
-    // ── 3. Update WO header ──────────────────────────────────────────────────
+    // ── 4. Update WO header ──────────────────────────────────────────────────
     await client.query(`
       UPDATE work_order_header
       SET received_qty = $1,
           status = CASE WHEN $1 >= planned_qty THEN 'RECEIVED' ELSE 'PARTIAL' END::wo_status_enum,
           to_store   = COALESCE($3, to_store),
-          from_store = COALESCE($4, from_store)
+          from_store = COALESCE($4, from_store),
+          to_location_id   = COALESCE($5, to_location_id),
+          from_location_id = COALESCE($6, from_location_id)
       WHERE id = $2
-    `, [totalRcv, woId, to_store || null, from_store || null]);
+    `, [
+      totalRcv, woId,
+      to_store   || null, from_store   || null,
+      to_location_id   ? parseInt(to_location_id)   : null,
+      from_location_id ? parseInt(from_location_id) : null,
+    ]);
 
-    // ── 4. Credit output SKU into stock_summary (WO_RECEIPT) ─────────────────
-    await client.query(`
-      INSERT INTO stock_summary (sku_code, sku_description, uom, current_qty, current_value, avg_rate, last_updated)
-      VALUES ($1, $2, $3, $4, 0, 0, NOW())
-      ON CONFLICT (sku_code) DO UPDATE
-        SET current_qty  = stock_summary.current_qty + EXCLUDED.current_qty,
-            last_updated = NOW()
-    `, [wo.output_sku, wo.product_name, wo.output_uom || 'PCS', rcvQty]);
+    // ── 5. Credit GOOD qty of output SKU into stock_summary (WO_RECEIPT) ────
+    if (goodQty > 0) {
+      await client.query(`
+        INSERT INTO stock_summary (sku_code, sku_description, uom, current_qty, current_value, avg_rate, last_updated)
+        VALUES ($1, $2, $3, $4, 0, 0, NOW())
+        ON CONFLICT (sku_code) DO UPDATE
+          SET current_qty  = stock_summary.current_qty + EXCLUDED.current_qty,
+              last_updated = NOW()
+      `, [wo.output_sku, wo.product_name, wo.output_uom || 'PCS', goodQty]);
 
-    const { rows: fgBal } = await client.query(
-      'SELECT current_qty FROM stock_summary WHERE sku_code = $1', [wo.output_sku]
-    );
-    const fgBalance = parseFloat(fgBal[0]?.current_qty || 0);
+      const { rows: fgBal } = await client.query(
+        'SELECT current_qty FROM stock_summary WHERE sku_code = $1', [wo.output_sku]
+      );
+      const fgBalance = parseFloat(fgBal[0]?.current_qty || 0);
 
-    await client.query(`
-      INSERT INTO stock_ledger
-        (transaction_date, sku_code, sku_description, uom,
-         transaction_type, reference_no, reference_type,
-         qty_in, qty_out, rate, value_in, value_out,
-         running_balance, running_value, remarks)
-      VALUES ($1, $2, $3, $4, 'WO_RECEIPT', $5, 'WO', $6, 0, 0, 0, 0, $7, 0, $8)
-    `, [rcvDate, wo.output_sku, wo.product_name, wo.output_uom || 'PCS',
-        wo.wo_number, rcvQty, fgBalance, remarks || `WO Receipt: ${wo.wo_number}`]);
+      await client.query(`
+        INSERT INTO stock_ledger
+          (transaction_date, sku_code, sku_description, uom,
+           transaction_type, reference_no, reference_type,
+           qty_in, qty_out, rate, value_in, value_out,
+           running_balance, running_value, remarks,
+           location_id, location_name)
+        VALUES ($1, $2, $3, $4, 'WO_RECEIPT', $5, 'WO', $6, 0, 0, 0, 0, $7, 0, $8, $9, $10)
+      `, [
+        rcvDate, wo.output_sku, wo.product_name, wo.output_uom || 'PCS',
+        wo.wo_number, goodQty, fgBalance,
+        remarks || `WO Receipt: ${wo.wo_number}`,
+        toLoc?.id   || null,
+        toLoc?.location_name || to_store || null,
+      ]);
+    }
 
-    // ── 5. Deduct each BOM component from stock_summary (WO_ISSUE) ───────────
-    const { rows: bomLines } = await client.query(`
+    // ── 6. Deduct each BOM component from stock_summary (WO_ISSUE) ───────────
+    // Component consumption is based on goodQty (rejected units still consumed materials)
+    // Industry standard: deduct on full received_qty (rcvQty), not goodQty.
+    // Change to goodQty below if you prefer "no deduction for rejected units".
+    const { rows: bomLinesRows } = await client.query(`
       SELECT bl.input_sku, bl.consume_qty, bl.uom, bl.rate_at_bom,
              pm.description
       FROM   bom_lines      bl
@@ -256,11 +309,10 @@ const receiveWorkOrder = async (req, res) => {
       WHERE  bl.bom_id = $1
     `, [wo.bom_id]);
 
-    for (const line of bomLines) {
-      const consumeQty  = parseFloat(line.consume_qty) * rcvQty;
-      const issueValue  = consumeQty * parseFloat(line.rate_at_bom || 0);
+    for (const line of bomLinesRows) {
+      const consumeQty = parseFloat(line.consume_qty) * rcvQty;
+      const issueValue = consumeQty * parseFloat(line.rate_at_bom || 0);
 
-      // Deduct from stock_summary (INSERT 0 so row exists, then subtract)
       await client.query(`
         INSERT INTO stock_summary (sku_code, sku_description, uom, current_qty, current_value, avg_rate, last_updated)
         VALUES ($1, $2, $3, 0, 0, 0, NOW())
@@ -281,18 +333,24 @@ const receiveWorkOrder = async (req, res) => {
           (transaction_date, sku_code, sku_description, uom,
            transaction_type, reference_no, reference_type,
            qty_in, qty_out, rate, value_in, value_out,
-           running_balance, running_value, remarks)
-        VALUES ($1, $2, $3, $4, 'WO_ISSUE', $5, 'WO', 0, $6, $7, 0, $8, $9, $10, $11)
-      `, [rcvDate, line.input_sku, line.description, line.uom,
-          wo.wo_number, consumeQty, parseFloat(line.rate_at_bom || 0),
-          issueValue, compRunBal, compRunVal,
-          `WO Issue: ${wo.wo_number}`]);
+           running_balance, running_value, remarks,
+           location_id, location_name)
+        VALUES ($1, $2, $3, $4, 'WO_ISSUE', $5, 'WO', 0, $6, $7, 0, $8, $9, $10, $11, $12, $13)
+      `, [
+        rcvDate, line.input_sku, line.description, line.uom,
+        wo.wo_number, consumeQty, parseFloat(line.rate_at_bom || 0),
+        issueValue, compRunBal, compRunVal,
+        `WO Issue: ${wo.wo_number}`,
+        fromLoc?.id   || null,
+        fromLoc?.location_name || from_store || null,
+      ]);
     }
 
     await client.query('COMMIT');
     return res.status(200).json({
       success: true,
-      message: `Work Order received. Stock updated (${bomLines.length} components deducted).`,
+      message: `Work Order received. Good qty: ${goodQty}, Rejected: ${rejQty}. Stock updated (${bomLinesRows.length} components deducted).`,
+      data: { received_qty: rcvQty, rejection_qty: rejQty, good_qty: goodQty },
     });
   } catch (err) {
     await client.query('ROLLBACK');
