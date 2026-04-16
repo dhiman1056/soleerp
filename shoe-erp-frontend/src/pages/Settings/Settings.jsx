@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAllSettingsQuery, useUpdateSettings } from '../../hooks/useSettings';
 import { useAuth } from '../../hooks/useAuth';
 import Loader from '../../components/common/Loader';
+import LocationMaster from './LocationMaster';
 import toast from 'react-hot-toast';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -38,7 +39,7 @@ function getGroupFields(data, groupKey) {
   return [];
 }
 
-const TABS = ['COMPANY', 'FINANCIAL', 'INVENTORY', 'NOTIFICATION'];
+const TABS = ['COMPANY', 'FINANCIAL', 'INVENTORY', 'NOTIFICATION', 'LOCATIONS'];
 
 // ─── component ───────────────────────────────────────────────────────────────
 
@@ -96,6 +97,12 @@ export default function Settings() {
           ))}
         </div>
 
+        {/* Locations tab renders its own full UI */}
+        {activeTab === 'LOCATIONS' ? (
+          <div className="p-6">
+            <LocationMaster />
+          </div>
+        ) : (
         <form onSubmit={handleSave} className="p-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
             {fields.length === 0 && (
@@ -147,6 +154,7 @@ export default function Settings() {
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

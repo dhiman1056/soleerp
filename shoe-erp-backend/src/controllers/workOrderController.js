@@ -5,19 +5,43 @@ const { query, pool } = require('../config/db');
 const listWorkOrders = async (req, res) => {
   try {
     const { rows } = await query(`
-      SELECT 
-        w.id, w.wo_number, w.bom_id, w.wo_date,
-        w.planned_qty, w.received_qty, w.status, w.wo_type,
+      SELECT
+        w.id, w.wo_number, w.wo_date, w.planned_qty,
+        w.received_qty, w.status, w.wo_type,
         w.from_store, w.to_store,
-        (w.planned_qty - w.received_qty) as wip_qty,
-        b.bom_code, b.output_sku,
-        p.description as product_name
+        (w.planned_qty - w.received_qty) AS wip_qty,
+        fl.location_name AS from_location_name,
+        tl.location_name AS to_location_name,
+        -- Primary BOM (backward compat)
+        bh.bom_code, bh.output_sku,
+        pm.description AS product_name,
+        -- All BOM lines for this WO
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'bom_id',      wbl.bom_id,
+              'bom_code',    wbl.bom_code,
+              'output_sku',  wbl.output_sku,
+              'planned_qty', wbl.planned_qty,
+              'received_qty',wbl.received_qty,
+              'status',      wbl.status,
+              'product_name', pm2.description
+            )
+          ) FILTER (WHERE wbl.id IS NOT NULL),
+          '[]'
+        ) AS bom_lines
       FROM work_order_header w
-      JOIN bom_header b ON w.bom_id = b.id
-      JOIN product_master p ON b.output_sku = p.sku_code
-      ORDER BY w.wo_date DESC
+      LEFT JOIN bom_header     bh  ON w.bom_id          = bh.id
+      LEFT JOIN product_master pm  ON bh.output_sku     = pm.sku_code
+      LEFT JOIN location_master fl ON w.from_location_id = fl.id
+      LEFT JOIN location_master tl ON w.to_location_id   = tl.id
+      LEFT JOIN work_order_bom_lines wbl ON wbl.wo_id    = w.id
+      LEFT JOIN bom_header     bh2 ON wbl.bom_id         = bh2.id
+      LEFT JOIN product_master pm2 ON bh2.output_sku     = pm2.sku_code
+      GROUP BY w.id, bh.bom_code, bh.output_sku, pm.description,
+               fl.location_name, tl.location_name
+      ORDER BY w.wo_date DESC, w.id DESC
     `);
-    
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -66,20 +90,87 @@ const createWorkOrder = async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const { bom_id, wo_date, planned_qty, wo_type, from_store, to_store } = req.body;
+    const {
+      boms,              // NEW: [{ bom_id, planned_qty }]
+      bom_id,            // LEGACY: single BOM
+      wo_date,
+      planned_qty,       // LEGACY: single total qty
+      wo_type,
+      from_store,
+      to_store,
+      from_location_id,
+      to_location_id,
+      notes,
+      sizeBreakup,
+    } = req.body;
 
-    // Generate wo_number
+    // Build canonical boms array (merge legacy + new)
+    const bomsArray = Array.isArray(boms) && boms.length > 0
+      ? boms
+      : bom_id ? [{ bom_id: parseInt(bom_id), planned_qty: parseFloat(planned_qty) || 0 }]
+      : [];
+
+    if (bomsArray.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'At least one BOM is required (use boms[] or bom_id)' });
+    }
+
+    // Validate wo_type
+    const VALID_TYPES = ['RM_TO_SF', 'SF_TO_FG', 'RM_TO_FG'];
+    if (!VALID_TYPES.includes((wo_type || '').toUpperCase())) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: `wo_type must be one of: ${VALID_TYPES.join(', ')}` });
+    }
+
+    const totalPlannedQty = bomsArray.reduce((s, b) => s + parseFloat(b.planned_qty || 0), 0);
+    if (totalPlannedQty <= 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Total planned_qty must be > 0' });
+    }
+
+    // Generate WO number
     const numRes = await client.query(
       `SELECT COALESCE(MAX(CAST(SUBSTRING(wo_number FROM 4) AS INTEGER)), 0) + 1 AS next_num FROM work_order_header`
     );
     const wo_number = `WO-${String(numRes.rows[0].next_num).padStart(4, '0')}`;
 
+    // Primary bom_id for backward-compat header column
+    const primaryBomId = bomsArray[0]?.bom_id || null;
+
     const { rows } = await client.query(`
-      INSERT INTO work_order_header 
-      (wo_number, bom_id, wo_date, planned_qty, received_qty, status, wo_type, from_store, to_store)
-      VALUES ($1, $2, $3, $4, 0, 'ISSUED', $5, $6, $7)
+      INSERT INTO work_order_header
+        (wo_number, bom_id, wo_date, planned_qty, received_qty,
+         status, wo_type, from_store, to_store, from_location_id, to_location_id)
+      VALUES ($1, $2, $3, $4, 0, 'ISSUED', $5, $6, $7, $8, $9)
       RETURNING *
-    `, [wo_number, bom_id, wo_date || new Date().toISOString().slice(0, 10), planned_qty, wo_type, from_store, to_store]);
+    `, [
+      wo_number,
+      primaryBomId,
+      wo_date || new Date().toISOString().slice(0, 10),
+      totalPlannedQty,
+      wo_type.toUpperCase(),
+      from_store  || null,
+      to_store    || null,
+      from_location_id ? parseInt(from_location_id) : null,
+      to_location_id   ? parseInt(to_location_id)   : null,
+    ]);
+
+    const woId = rows[0].id;
+
+    // Insert work_order_bom_lines (one per BOM)
+    for (const bomLine of bomsArray) {
+      const { rows: bomRows } = await client.query(
+        'SELECT bom_code, output_sku FROM bom_header WHERE id = $1', [bomLine.bom_id]
+      );
+      if (!bomRows.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: `BOM id ${bomLine.bom_id} not found` });
+      }
+      await client.query(`
+        INSERT INTO work_order_bom_lines (wo_id, bom_id, planned_qty, received_qty, bom_code, output_sku)
+        VALUES ($1, $2, $3, 0, $4, $5)
+      `, [woId, bomLine.bom_id, parseFloat(bomLine.planned_qty), bomRows[0].bom_code, bomRows[0].output_sku]);
+    }
 
     await client.query('COMMIT');
     return res.status(201).json({ success: true, data: rows[0] });
