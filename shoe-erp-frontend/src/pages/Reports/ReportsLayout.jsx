@@ -8,6 +8,7 @@ const reportLinks = [
   { to: '/reports/cost-sheet', label: 'Cost Sheet' },
   { to: '/reports/wip-aging', label: 'WIP Aging' },
   { to: '/reports/stock-valuation', label: 'Stock Valuation' },
+  { to: '/reports/purchase', label: 'Purchase Report' },
 ]
 
 export default function ReportsLayout() {

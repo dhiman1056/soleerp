@@ -1,48 +1,59 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../api/axiosInstance'
+import toast from 'react-hot-toast'
 
-// ── Primary exports (new naming convention) ──────────────────────────────────
-
-export const useStock = (params = {}) => {
-  return useQuery({
+// ── Stock Summary ─────────────────────────────────────────────────
+export const useStock = (params = {}) =>
+  useQuery({
     queryKey: ['stockSummary', params],
     queryFn: async () => {
       const res = await api.get('/inventory/stock', { params })
       return res.data?.data ?? []
     },
   })
-}
 
-export const useLowStock = () => {
-  return useQuery({
+export const useLowStock = () =>
+  useQuery({
     queryKey: ['lowStockAlerts'],
     queryFn: async () => {
       const res = await api.get('/inventory/alerts/low-stock')
       return res.data?.data ?? []
     },
   })
-}
 
-export const useStockLedger = (params = {}) => {
-  return useQuery({
+export const useStockLedger = (params = {}) =>
+  useQuery({
     queryKey: ['stockLedger', params],
     queryFn: async () => {
       const res = await api.get('/inventory/ledger', { params })
       return res.data?.data ?? []
     },
   })
+
+// ── Opening Stock ──────────────────────────────────────────────────
+export const useAddOpeningStock = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data) => api.post('/inventory/opening-stock', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['stockSummary'] })
+      qc.invalidateQueries({ queryKey: ['stockLedger'] })
+      qc.invalidateQueries({ queryKey: ['lowStockAlerts'] })
+      toast.success('Opening stock added!')
+    },
+    onError: (err) => toast.error(err.response?.data?.message || err.message),
+  })
 }
 
-// ── Purchases — endpoint lives under /inventory/purchases ────────────────────
-export const usePurchases = (params = {}) => {
-  return useQuery({
+// ── Purchases (legacy simple flow) ────────────────────────────────
+export const usePurchases = (params = {}) =>
+  useQuery({
     queryKey: ['purchases', params],
     queryFn: async () => {
       const res = await api.get('/inventory/purchases', { params })
       return res.data?.data ?? []
     },
   })
-}
 
 export const useCreatePurchase = () => {
   const qc = useQueryClient()
@@ -53,7 +64,9 @@ export const useCreatePurchase = () => {
       qc.invalidateQueries({ queryKey: ['stockSummary'] })
       qc.invalidateQueries({ queryKey: ['stockLedger'] })
       qc.invalidateQueries({ queryKey: ['lowStockAlerts'] })
+      toast.success('Purchase recorded!')
     },
+    onError: (err) => toast.error(err.response?.data?.message || err.message),
   })
 }
 
@@ -66,10 +79,13 @@ export const useDeletePurchase = () => {
       qc.invalidateQueries({ queryKey: ['stockSummary'] })
       qc.invalidateQueries({ queryKey: ['stockLedger'] })
       qc.invalidateQueries({ queryKey: ['lowStockAlerts'] })
+      toast.success('Purchase deleted.')
     },
+    onError: (err) => toast.error(err.response?.data?.message || err.message),
   })
 }
 
+// ── Adjustments ───────────────────────────────────────────────────
 export const useCreateAdjustment = () => {
   const qc = useQueryClient()
   return useMutation({
@@ -78,10 +94,13 @@ export const useCreateAdjustment = () => {
       qc.invalidateQueries({ queryKey: ['stockSummary'] })
       qc.invalidateQueries({ queryKey: ['stockLedger'] })
       qc.invalidateQueries({ queryKey: ['lowStockAlerts'] })
+      toast.success('Adjustment recorded!')
     },
+    onError: (err) => toast.error(err.response?.data?.message || err.message),
   })
 }
 
+// ── Reorder Level ─────────────────────────────────────────────────
 export const useUpdateReorderLevel = () => {
   const qc = useQueryClient()
   return useMutation({
@@ -91,11 +110,12 @@ export const useUpdateReorderLevel = () => {
       qc.invalidateQueries({ queryKey: ['stockSummary'] })
       qc.invalidateQueries({ queryKey: ['lowStockAlerts'] })
     },
+    onError: (err) => toast.error(err.response?.data?.message || err.message),
   })
 }
 
-// ── Backward-compatible aliases ───────────────────────────────────────────────
-export const useStockSummaryQuery    = useStock
-export const usePurchasesQuery       = usePurchases
-export const useStockLedgerQuery     = useStockLedger
-export const useLowStockAlertsQuery  = useLowStock
+// ── Aliases ───────────────────────────────────────────────────────
+export const useStockSummaryQuery   = useStock
+export const usePurchasesQuery      = usePurchases
+export const useStockLedgerQuery    = useStockLedger
+export const useLowStockAlertsQuery = useLowStock

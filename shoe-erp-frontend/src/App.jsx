@@ -22,6 +22,7 @@ import MaterialConsumption from './pages/Reports/MaterialConsumption.jsx'
 import CostSheet           from './pages/Reports/CostSheet.jsx'
 import WipAging            from './pages/Reports/WipAging.jsx'
 import StockValuation      from './pages/Reports/StockValuation.jsx'
+import PurchaseReport      from './pages/Reports/PurchaseReport.jsx'
 
 import SupplierList from './pages/Suppliers/SupplierList.jsx'
 import SupplierDetail from './pages/Suppliers/SupplierDetail.jsx'
@@ -89,6 +90,7 @@ export default function App() {
               <Route path="cost-sheet" element={<CostSheet />} />
               <Route path="wip-aging" element={<WipAging />} />
               <Route path="stock-valuation" element={<StockValuation />} />
+              <Route path="purchase" element={<PurchaseReport />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
