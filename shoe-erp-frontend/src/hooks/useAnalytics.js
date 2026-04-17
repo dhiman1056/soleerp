@@ -71,3 +71,21 @@ export const useSupplierPerformance = (period = '90d') => {
 // ── Backward-compatible alias ─────────────────────────────────────────────────
 // Dashboard.jsx uses useWipByAge (lowercase 'ip') — keep both names
 export const useWipByAge = useWIPByAge
+
+export const useStockMovement = (params = {}) =>
+  useQuery({
+    queryKey: ['analytics', 'stockMovement', params],
+    queryFn: async () => {
+      const res = await api.get('/analytics/stock-movement', { params })
+      return res.data?.data ?? []
+    },
+  })
+
+export const useCostTrend = (params = {}) =>
+  useQuery({
+    queryKey: ['analytics', 'costTrend', params],
+    queryFn: async () => {
+      const res = await api.get('/analytics/cost-trend', { params })
+      return res.data?.data ?? []
+    },
+  })

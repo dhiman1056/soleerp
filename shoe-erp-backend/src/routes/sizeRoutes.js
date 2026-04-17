@@ -1,40 +1,23 @@
-const express = require('express')
-const router = express.Router()
-const auth = require('../middleware/authMiddleware')
-const roleMiddleware = require('../middleware/roleMiddleware')
+'use strict';
 
-router.use(auth)
+const express        = require('express');
+const router         = express.Router();
+const auth           = require('../middleware/authMiddleware');
+const roleMiddleware = require('../middleware/roleMiddleware');
+const ctrl           = require('../controllers/sizeController');
 
-router.get('/', async (req, res) => {
-  try {
-    const { query } = require('../config/db')
-    const is_active = req.query.is_active
-    let sql = 'SELECT * FROM size_master'
-    let params = []
-    if (is_active !== undefined) {
-      sql += ' WHERE is_active = $1'
-      params.push(is_active === 'true')
-    }
-    sql += ' ORDER BY sort_order'
-    const result = await query(sql, params)
-    res.json({ success: true, data: result.rows })
-  } catch (err) {
-    res.status(500).json({ message: err.message })
-  }
-})
+router.use(auth);
 
-router.post('/', roleMiddleware('admin'), async (req, res) => {
-  try {
-    const { query } = require('../config/db')
-    const { size_code, size_label, sort_order } = req.body
-    const result = await query(
-      'INSERT INTO size_master (size_code, size_label, sort_order) VALUES ($1,$2,$3) RETURNING *',
-      [size_code, size_label, sort_order || 0]
-    )
-    res.status(201).json({ success: true, data: result.rows[0] })
-  } catch (err) {
-    res.status(500).json({ message: err.message })
-  }
-})
+// GET  /api/sizes          — list all (pass ?is_active=true|false to filter)
+router.get('/',    ctrl.getSizes);
 
-module.exports = router
+// POST /api/sizes          — create a new size (admin only)
+router.post('/',   roleMiddleware('admin'), ctrl.createSize);
+
+// PUT  /api/sizes/:id      — update label / sort_order / is_active (admin only)
+router.put('/:id', roleMiddleware('admin'), ctrl.updateSize);
+
+// DELETE /api/sizes/:id   — soft-delete / deactivate (admin only)
+router.delete('/:id', roleMiddleware('admin'), ctrl.deleteSize);
+
+module.exports = router;

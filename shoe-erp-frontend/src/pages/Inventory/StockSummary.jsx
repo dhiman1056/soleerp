@@ -1,14 +1,48 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Table from '../../components/common/Table'
-import { useStockSummaryQuery, useUpdateReorderLevel, useAddOpeningStock } from '../../hooks/useInventory'
+import {
+  useStock,
+  useUpdateReorderLevel,
+  useAddOpeningStock,
+} from '../../hooks/useInventory'
 import { formatCurrency } from '../../utils/formatCurrency'
 import { downloadFile }   from '../../utils/downloadFile'
 import StockAdjustment    from './StockAdjustment'
 import { useAuth }        from '../../hooks/useAuth'
 import { today }          from '../../utils/formatDate'
 
-// ── Opening/Adjustment Stock Mini-Modal ───────────────────────────
+// ── Debounce hook ─────────────────────────────────────────────────
+function useDebounce(value, delay = 400) {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+  React.useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay)
+    return () => clearTimeout(handler)
+  }, [value, delay])
+  return debouncedValue
+}
+
+// ── Badge helpers ─────────────────────────────────────────────────
+function StockStatusBadge({ status }) {
+  if (status === 'OUT_OF_STOCK')
+    return <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded-full text-xs font-semibold">Out of Stock</span>
+  if (status === 'LOW_STOCK')
+    return <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-semibold">Low Stock</span>
+  return <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold">In Stock</span>
+}
+
+function ProductTypeBadge({ type }) {
+  const map = {
+    RAW_MATERIAL:   'bg-gray-100 text-gray-700',
+    SEMI_FINISHED:  'bg-blue-100 text-blue-700',
+    FINISHED:       'bg-purple-100 text-purple-700',
+  }
+  const cls = map[type] || 'bg-gray-100 text-gray-600'
+  const label = (type || '').replace(/_/g, ' ')
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}>{label}</span>
+}
+
+// ── Opening Stock Modal ───────────────────────────────────────────
 function StockAddModal({ row, onClose }) {
   const addOS  = useAddOpeningStock()
   const [qty,    setQty]    = useState('')
@@ -19,13 +53,24 @@ function StockAddModal({ row, onClose }) {
 
   if (!row) return null
 
+  const previewQty   = parseFloat(qty)   || 0
+  const previewRate  = parseFloat(rate)  || 0
+  const afterQty     = (Number(row.current_qty) || 0) + previewQty
+  const addedValue   = previewQty * previewRate
+
   const handleSubmit = (e) => {
     e.preventDefault()
     const q = parseFloat(qty)
     const r = parseFloat(rate) || 0
     if (!q || q <= 0) { alert('Qty must be > 0'); return }
     addOS.mutate(
-      { sku_code: row.sku_code, opening_qty: q, rate: r, opening_date: date, remarks: rem || reason },
+      {
+        sku_code:     row.sku_code,
+        opening_qty:  q,     // backend expects opening_qty
+        rate:         r,
+        opening_date: date,  // backend expects opening_date
+        remarks:      rem || reason,
+      },
       { onSuccess: onClose }
     )
   }
@@ -38,18 +83,22 @@ function StockAddModal({ row, onClose }) {
           <p className="text-sm text-gray-500 mt-0.5">
             <span className="font-mono font-semibold text-gray-800">{row.sku_code}</span> — {row.sku_description}
           </p>
-          <p className="text-xs text-blue-600 mt-1">Current Stock: <strong>{(Number(row.current_qty) || 0).toFixed(3)} {row.uom}</strong></p>
+          <p className="text-xs text-blue-600 mt-1">
+            Current Stock: <strong>{(Number(row.current_qty) || 0).toFixed(3)} {row.uom}</strong>
+          </p>
         </div>
+
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="label">Reason</label>
             <select value={reason} onChange={e => setReason(e.target.value)} className="input-field">
               <option>Opening Stock</option>
-              <option>Stock Adjustment</option>
+              <option>Stock Adjustment - Addition</option>
               <option>Physical Count Correction</option>
               <option>Other</option>
             </select>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Qty to Add ({row.uom}) *</label>
@@ -70,20 +119,29 @@ function StockAddModal({ row, onClose }) {
               />
             </div>
           </div>
+
           <div>
             <label className="label">Date *</label>
             <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="input-field" />
           </div>
+
           <div>
             <label className="label">Remarks</label>
             <input value={rem} onChange={e => setRem(e.target.value)} className="input-field" placeholder="Optional notes…" />
           </div>
-          {qty && (
-            <div className="bg-green-50 border border-green-100 rounded-lg px-4 py-3 text-sm flex justify-between">
-              <span className="text-gray-600">Value Added</span>
-              <span className="font-bold text-green-800">₹{(parseFloat(qty||0) * parseFloat(rate||0)).toFixed(2)}</span>
+
+          {/* Preview */}
+          <div className="bg-blue-50 border border-blue-100 rounded-lg px-4 py-3 text-sm space-y-1">
+            <div className="flex justify-between">
+              <span className="text-gray-600">After adding:</span>
+              <span className="font-bold text-blue-800">{afterQty.toFixed(3)} {row.uom}</span>
             </div>
-          )}
+            <div className="flex justify-between">
+              <span className="text-gray-600">Value added:</span>
+              <span className="font-bold text-green-800">₹{addedValue.toFixed(2)}</span>
+            </div>
+          </div>
+
           <div className="flex gap-3 pt-1">
             <button type="submit" disabled={addOS.isPending} className="btn-primary flex-1">
               {addOS.isPending ? 'Saving…' : 'Add to Stock'}
@@ -97,33 +155,53 @@ function StockAddModal({ row, onClose }) {
 }
 
 // ── Main StockSummary ─────────────────────────────────────────────
+const PAGE_SIZE = 50
+
 export default function StockSummary() {
   const navigate = useNavigate()
   const { role } = useAuth()
 
-  const { data, isLoading } = useStockSummaryQuery()
-  const updateMut = useUpdateReorderLevel()
-
+  // Filter state
   const [search,      setSearch]      = useState('')
+  const [typeFilter,  setTypeFilter]  = useState('')
+  const [statusFilter,setStatusFilter]= useState('')
+  const [page,        setPage]        = useState(1)
+
+  // UI state
   const [editingSku,  setEditingSku]  = useState(null)
   const [editVal,     setEditVal]     = useState('')
   const [isAdjOpen,   setIsAdjOpen]   = useState(false)
-  const [stockAddRow, setStockAddRow] = useState(null)  // row for "Add Stock" modal
+  const [stockAddRow, setStockAddRow] = useState(null)
 
-  const records = Array.isArray(data) ? data : []
+  const debouncedSearch = useDebounce(search)
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return records
-    const q = search.toLowerCase()
-    return records.filter(r =>
-      (r.sku_code       || '').toLowerCase().includes(q) ||
-      (r.sku_description || '').toLowerCase().includes(q)
-    )
-  }, [search, records])
+  // Reset to page 1 whenever filters change
+  const resetPage = useCallback(() => setPage(1), [])
+  const handleSearch      = (v) => { setSearch(v);      resetPage() }
+  const handleTypeFilter  = (v) => { setTypeFilter(v);  resetPage() }
+  const handleStatusFilter= (v) => { setStatusFilter(v);resetPage() }
 
-  const totalValue      = records.reduce((acc, r) => acc + (Number(r.current_value) || 0), 0)
-  const lowStockCount   = records.filter(r => (Number(r.current_qty)||0) > 0 && (Number(r.current_qty)||0) <= (Number(r.reorder_level)||0)).length
-  const outOfStockCount = records.filter(r => (Number(r.current_qty)||0) <= 0).length
+  const params = {
+    search:       debouncedSearch || undefined,
+    product_type: typeFilter       || undefined,
+    stock_status: statusFilter     || undefined,
+    page,
+    limit: PAGE_SIZE,
+  }
+
+  const { data, isLoading } = useStock(params)
+  const updateMut = useUpdateReorderLevel()
+
+  const items = Array.isArray(data?.items) ? data.items
+              : Array.isArray(data)        ? data
+              : []
+  const total = data?.total ?? items.length
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  // Summary stats (across current page; server handles filtering)
+  const totalValue      = items.reduce((acc, r) => acc + (Number(r.current_value) || 0), 0)
+  const lowStockCount   = items.filter(r => r.stock_status === 'LOW_STOCK').length
+  const outOfStockCount = items.filter(r => r.stock_status === 'OUT_OF_STOCK').length
 
   const handleSaveReorder = (sku) =>
     updateMut.mutate({ sku_code: sku, reorder_level: Number(editVal) || 0 }, { onSuccess: () => setEditingSku(null) })
@@ -133,7 +211,11 @@ export default function StockSummary() {
   const columns = [
     { key: 'sku_code',        label: 'SKU Code',    className: 'font-mono text-xs font-semibold' },
     { key: 'sku_description', label: 'Description' },
-    { key: 'uom',             label: 'UOM', align: 'center', className: 'font-mono text-xs' },
+    {
+      key: 'product_type', label: 'Type', align: 'center',
+      render: r => <ProductTypeBadge type={r.product_type} />,
+    },
+    { key: 'uom', label: 'UOM', align: 'center', className: 'font-mono text-xs' },
     {
       key: 'current_qty', label: 'Current Qty', align: 'right',
       render: r => <span className="tabular-nums font-semibold">{(Number(r.current_qty) || 0).toFixed(3)}</span>,
@@ -170,14 +252,8 @@ export default function StockSummary() {
       },
     },
     {
-      key: 'status', label: 'Status', align: 'center',
-      render: r => {
-        const q  = Number(r.current_qty) || 0
-        const rl = Number(r.reorder_level) || 0
-        if (q <= 0)           return <span className="px-2 py-0.5 bg-red-100     text-red-700     rounded-full text-xs font-semibold">Out of Stock</span>
-        if (rl > 0 && q <= rl) return <span className="px-2 py-0.5 bg-amber-100  text-amber-700   rounded-full text-xs font-semibold">Low Stock</span>
-        return                        <span className="px-2 py-0.5 bg-green-100   text-green-700   rounded-full text-xs font-semibold">In Stock</span>
-      },
+      key: 'stock_status', label: 'Status', align: 'center',
+      render: r => <StockStatusBadge status={r.stock_status} />,
     },
     {
       key: 'actions', label: 'Actions', align: 'right',
@@ -188,7 +264,7 @@ export default function StockSummary() {
               onClick={(e) => { e.stopPropagation(); setStockAddRow(r) }}
               className="px-2 py-1 text-xs bg-green-50 text-green-700 border border-green-200 rounded hover:bg-green-100 font-medium whitespace-nowrap"
             >
-              + Add Stock
+              + Stock
             </button>
           )}
           <button
@@ -210,7 +286,7 @@ export default function StockSummary() {
       <div className="grid grid-cols-4 gap-4">
         <div className="card p-4">
           <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Total SKUs</p>
-          <p className="text-2xl font-bold mt-1 text-gray-900">{records.length}</p>
+          <p className="text-2xl font-bold mt-1 text-gray-900">{total}</p>
         </div>
         <div className="card p-4">
           <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Total Stock Value</p>
@@ -226,15 +302,39 @@ export default function StockSummary() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4">
-        <input
-          type="text"
-          placeholder="Search by SKU or Description..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="input-field max-w-sm"
-        />
-        <div className="flex gap-2">
+      {/* Filters bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-3 flex-1">
+          <input
+            type="text"
+            placeholder="Search SKU or Description…"
+            value={search}
+            onChange={e => handleSearch(e.target.value)}
+            className="input-field max-w-xs"
+          />
+          <select
+            value={typeFilter}
+            onChange={e => handleTypeFilter(e.target.value)}
+            className="input-field w-44"
+          >
+            <option value="">All Types</option>
+            <option value="RAW_MATERIAL">Raw Material</option>
+            <option value="SEMI_FINISHED">Semi-Finished</option>
+            <option value="FINISHED">Finished</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={e => handleStatusFilter(e.target.value)}
+            className="input-field w-44"
+          >
+            <option value="">All Statuses</option>
+            <option value="IN_STOCK">In Stock</option>
+            <option value="LOW_STOCK">Low Stock</option>
+            <option value="OUT_OF_STOCK">Out of Stock</option>
+          </select>
+        </div>
+
+        <div className="flex gap-2 shrink-0">
           {canEdit && (
             <button onClick={() => setIsAdjOpen(true)} className="btn-secondary border-dashed text-gray-700">
               Stock Adjustment
@@ -244,11 +344,38 @@ export default function StockSummary() {
         </div>
       </div>
 
-      <Table columns={columns} data={filtered} loading={isLoading} empty="No inventory records found." />
+      <Table columns={columns} data={items} loading={isLoading} empty="No inventory records found." />
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <p className="text-sm text-gray-500">
+            Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, total)} of {total} SKUs
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="btn-secondary text-sm py-1 px-3 disabled:opacity-40"
+            >
+              ← Prev
+            </button>
+            <span className="px-3 py-1 text-sm text-gray-700 bg-gray-100 rounded">
+              {page} / {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="btn-secondary text-sm py-1 px-3 disabled:opacity-40"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
 
       <StockAdjustment isOpen={isAdjOpen} onClose={() => setIsAdjOpen(false)} />
 
-      {/* Add/Opening Stock Modal per row */}
       {stockAddRow && (
         <StockAddModal row={stockAddRow} onClose={() => setStockAddRow(null)} />
       )}

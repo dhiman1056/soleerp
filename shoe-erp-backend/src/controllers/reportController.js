@@ -261,18 +261,23 @@ const getWipAging = async (req, res) => {
 const getStockValuation = async (req, res) => {
   try {
     const category = req.query.category;
-    let where = `1=1`;
+    const conditions = ['pm.is_active = true'];
     const params = [];
     if (category && category !== 'ALL') {
-       params.push(category);
-       where += ` AND pm.product_type = $1`;
+      params.push(category);
+      conditions.push(`pm.product_type = $${params.length}`);
     }
 
     const resQuery = await query(`
-      SELECT pm.sku_code, pm.description, pm.product_type, pm.uom, ss.current_qty, ss.avg_rate, ss.current_value, ss.reorder_level
-      FROM stock_summary ss
-      JOIN product_master pm ON pm.sku_code = ss.sku_code
-      WHERE ${where}
+      SELECT
+        pm.sku_code, pm.description, pm.product_type, pm.uom,
+        COALESCE(ss.current_qty,   0) AS current_qty,
+        COALESCE(ss.avg_rate,      0) AS avg_rate,
+        COALESCE(ss.current_value, 0) AS current_value,
+        COALESCE(ss.reorder_level, 0) AS reorder_level
+      FROM product_master pm
+      LEFT JOIN stock_summary ss ON ss.sku_code = pm.sku_code
+      WHERE ${conditions.join(' AND ')}
       ORDER BY pm.sku_code
     `, params);
 
@@ -304,10 +309,64 @@ const getStockValuation = async (req, res) => {
   }
 };
 
+const getPurchaseReport = async (req, res) => {
+  try {
+    const { from_date, to_date, supplier_id } = req.query;
+    const conditions = ['1=1'];
+    const params = [];
+
+    if (from_date)   { params.push(from_date);   conditions.push(`r.grn_date >= $${params.length}`); }
+    if (to_date)     { params.push(to_date);     conditions.push(`r.grn_date <= $${params.length}`); }
+    if (supplier_id) { params.push(supplier_id); conditions.push(`r.supplier_id = $${params.length}`); }
+
+    // GRN lines detail
+    const { rows: lines } = await query(`
+      SELECT
+        r.grn_no, r.grn_date, r.po_no, r.challan_no, r.remarks,
+        s.supplier_name,
+        rl.sku_code, rl.received_qty, rl.rate, rl.value
+      FROM po_receipts r
+      LEFT JOIN suppliers s ON r.supplier_id = s.id
+      LEFT JOIN po_receipt_lines rl ON rl.grn_id = r.id
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY r.grn_date DESC, r.id DESC
+    `, params);
+
+    // GRN header summary
+    const { rows: grns } = await query(`
+      SELECT
+        r.grn_no, r.grn_date, r.po_no, r.challan_no,
+        s.supplier_name,
+        COALESCE(SUM(rl.value), 0) AS total_value,
+        COUNT(rl.id)::int AS line_count
+      FROM po_receipts r
+      LEFT JOIN suppliers s ON r.supplier_id = s.id
+      LEFT JOIN po_receipt_lines rl ON rl.grn_id = r.id
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY r.id, s.supplier_name
+      ORDER BY r.grn_date DESC
+    `, params);
+
+    const totalValue = grns.reduce((s, r) => s + parseFloat(r.total_value || 0), 0);
+
+    return res.json({
+      success: true,
+      data: {
+        summary: { totalGRNs: grns.length, totalValue: +totalValue.toFixed(2) },
+        grns,
+        lines,
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 module.exports = {
   getProductionSummary,
   getMaterialConsumption,
   getCostSheet,
   getWipAging,
-  getStockValuation
+  getStockValuation,
+  getPurchaseReport,
 };

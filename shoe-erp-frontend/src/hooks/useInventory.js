@@ -5,10 +5,10 @@ import toast from 'react-hot-toast'
 // ── Stock Summary ─────────────────────────────────────────────────
 export const useStock = (params = {}) =>
   useQuery({
-    queryKey: ['stockSummary', params],
+    queryKey: ['stock', params],
     queryFn: async () => {
       const res = await api.get('/inventory/stock', { params })
-      return res.data?.data ?? []
+      return res.data?.data ?? { items: [], total: 0 }
     },
   })
 
@@ -36,7 +36,7 @@ export const useAddOpeningStock = () => {
   return useMutation({
     mutationFn: (data) => api.post('/inventory/opening-stock', data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['stockSummary'] })
+      qc.invalidateQueries({ queryKey: ['stock'] })
       qc.invalidateQueries({ queryKey: ['stockLedger'] })
       qc.invalidateQueries({ queryKey: ['lowStockAlerts'] })
       toast.success('Opening stock added!')
@@ -107,7 +107,7 @@ export const useUpdateReorderLevel = () => {
     mutationFn: ({ sku_code, reorder_level }) =>
       api.put(`/inventory/stock/${sku_code}/reorder-level`, { reorder_level }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['stockSummary'] })
+      qc.invalidateQueries({ queryKey: ['stock'] })
       qc.invalidateQueries({ queryKey: ['lowStockAlerts'] })
     },
     onError: (err) => toast.error(err.response?.data?.message || err.message),

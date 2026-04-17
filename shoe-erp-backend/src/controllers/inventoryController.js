@@ -357,26 +357,88 @@ const createAdjustment = async (req, res, next) => {
 
 const getStock = async (req, res, next) => {
   try {
-    const search = req.query.search || '';
-    let sql = `
-      SELECT 
-        sku_code, sku_description, uom,
-        current_qty, current_value, avg_rate, reorder_level, last_updated,
-        CASE 
-          WHEN current_qty = 0 THEN 'OUT_OF_STOCK'
-          WHEN reorder_level > 0 AND current_qty <= reorder_level THEN 'LOW_STOCK'
-          ELSE 'IN_STOCK'
-        END as stock_status
-      FROM stock_summary
-    `;
+    const { search, product_type, stock_status, page = 1, limit = 100 } = req.query;
+
+    const conditions = ['pm.is_active = true'];
     const params = [];
+
     if (search) {
-      params.push('%' + search + '%');
-      sql += ` WHERE sku_code ILIKE $1 OR sku_description ILIKE $1`;
+      params.push(`%${search}%`);
+      conditions.push(`(pm.sku_code ILIKE $${params.length} OR pm.description ILIKE $${params.length})`);
     }
-    sql += ' ORDER BY sku_code';
-    const result = await query(sql, params);
-    res.json({ success: true, data: result.rows });
+    if (product_type) {
+      params.push(product_type);
+      conditions.push(`pm.product_type = $${params.length}`);
+    }
+
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+
+    // stock_status filter is applied as a HAVING-style CTE filter
+    const statusFilter = stock_status
+      ? `WHERE computed.stock_status = '${stock_status.toUpperCase()}'`
+      : '';
+
+    const baseSql = `
+      WITH computed AS (
+        SELECT
+          pm.sku_code,
+          pm.description          AS sku_description,
+          pm.uom,
+          pm.product_type,
+          pm.category,
+          pm.hsn_code,
+          pm.cost_price,
+          COALESCE(ss.current_qty,   0) AS current_qty,
+          COALESCE(ss.current_value, 0) AS current_value,
+          COALESCE(ss.avg_rate, pm.cost_price, 0) AS avg_rate,
+          COALESCE(ss.reorder_level, 0) AS reorder_level,
+          ss.last_updated,
+          CASE
+            WHEN COALESCE(ss.current_qty, 0) = 0 THEN 'OUT_OF_STOCK'
+            WHEN COALESCE(ss.current_qty, 0) <= COALESCE(ss.reorder_level, 0)
+              AND COALESCE(ss.reorder_level, 0) > 0 THEN 'LOW_STOCK'
+            ELSE 'IN_STOCK'
+          END AS stock_status
+        FROM product_master pm
+        LEFT JOIN stock_summary ss ON ss.sku_code = pm.sku_code
+        ${whereClause}
+      )
+      SELECT * FROM computed
+      ${statusFilter}
+      ORDER BY product_type, sku_code
+    `;
+
+    const countSql = `
+      WITH computed AS (
+        SELECT
+          pm.sku_code,
+          CASE
+            WHEN COALESCE(ss.current_qty, 0) = 0 THEN 'OUT_OF_STOCK'
+            WHEN COALESCE(ss.current_qty, 0) <= COALESCE(ss.reorder_level, 0)
+              AND COALESCE(ss.reorder_level, 0) > 0 THEN 'LOW_STOCK'
+            ELSE 'IN_STOCK'
+          END AS stock_status
+        FROM product_master pm
+        LEFT JOIN stock_summary ss ON ss.sku_code = pm.sku_code
+        ${whereClause}
+      )
+      SELECT COUNT(*) AS total FROM computed
+      ${statusFilter}
+    `;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const dataRes  = await query(baseSql  + ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`, [...params, parseInt(limit), offset]);
+    const countRes = await query(countSql, params);
+
+    res.json({
+      success: true,
+      data: {
+        items: dataRes.rows,
+        total: parseInt(countRes.rows[0].total),
+        page:  parseInt(page),
+        limit: parseInt(limit),
+      },
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -5,21 +5,44 @@ const { query, pool } = require('../config/db');
 // ─── GET /api/bom ────────────────────────────────────────────────────────────
 const listBoms = async (req, res) => {
   try {
+    const { search, bom_type, is_active = 'true' } = req.query;
+
+    const conditions = [];
+    const params = [];
+
+    if (is_active !== 'all') {
+      params.push(is_active === 'false' ? false : true);
+      conditions.push(`h.is_active = $${params.length}`);
+    }
+
+    if (bom_type) {
+      params.push(bom_type);
+      conditions.push(`h.bom_type = $${params.length}`);
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(h.bom_code ILIKE $${params.length} OR p.description ILIKE $${params.length})`);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
     const { rows } = await query(`
-      SELECT 
-        h.id, h.bom_code, h.output_sku, h.output_qty, 
-        h.output_uom, h.bom_type, h.is_active,
-        p.description as product_name,
-        COUNT(l.id) as component_count,
-        COALESCE(SUM(l.consume_qty * l.rate_at_bom), 0) as total_cost
+      SELECT
+        h.id, h.bom_code, h.output_sku, h.output_qty,
+        h.output_uom, h.bom_type, h.is_active, h.remarks,
+        p.description AS product_name,
+        COUNT(l.id)::int AS component_count,
+        COALESCE(SUM(l.consume_qty * l.rate_at_bom), 0) AS total_cost
       FROM bom_header h
       JOIN product_master p ON h.output_sku = p.sku_code
       LEFT JOIN bom_lines l ON l.bom_id = h.id
-      WHERE h.is_active = true
+      ${whereClause}
       GROUP BY h.id, h.bom_code, h.output_sku, h.output_qty,
-        h.output_uom, h.bom_type, h.is_active, p.description
+        h.output_uom, h.bom_type, h.is_active, h.remarks, p.description
       ORDER BY h.bom_code
-    `);
+    `, params);
+
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

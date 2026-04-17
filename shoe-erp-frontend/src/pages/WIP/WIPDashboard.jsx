@@ -43,11 +43,11 @@ function WIPSection({ label, color, rows, onReceive }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              {['WO No.', 'BOM', 'Product', 'Planned', 'Received', 'WIP Qty', 'WIP Value', 'Date', 'Action'].map((h) => (
+              {['WO No.', 'BOM', 'Product', 'Planned', 'Received', 'Rejection', 'WIP Qty', 'WIP Value', 'Date', 'Action'].map((h) => (
                 <th
                   key={h}
                   className={`px-4 py-3 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap
-                    ${['Planned','Received','WIP Qty','WIP Value'].includes(h) ? 'text-right' : 'text-left'}`}
+                    ${['Planned','Received','Rejection','WIP Qty','WIP Value'].includes(h) ? 'text-right' : 'text-left'}`}
                 >
                   {h}
                 </th>
@@ -62,6 +62,7 @@ function WIPSection({ label, color, rows, onReceive }) {
                 <td className="px-4 py-3 text-gray-700 max-w-[200px] truncate">{row.product_name}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-700">{(Number(row.planned_qty) || 0).toFixed(2)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-green-700 font-medium">{(Number(row.received_qty) || 0).toFixed(2)}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-red-600 font-medium">{(Number(row.total_rejection_qty) || 0).toFixed(2)}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-amber-700 font-bold">{(Number(row.wip_qty) || 0).toFixed(2)}</td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold text-gray-800">{formatCurrency(row.wip_value)}</td>
                 <td className="px-4 py-3 text-gray-500">{formatDate(row.wo_date)}</td>

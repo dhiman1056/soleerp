@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 
 const invalidatePO = (qc, id) => {
   qc.invalidateQueries({ queryKey: ['po'] })
-  qc.invalidateQueries({ queryKey: ['stockSummary'] })
+  qc.invalidateQueries({ queryKey: ['stock'] })
   qc.invalidateQueries({ queryKey: ['stockLedger'] })
   if (id) qc.invalidateQueries({ queryKey: ['po', String(id)] })
 }

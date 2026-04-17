@@ -4,6 +4,28 @@ const { query, pool } = require('../config/db');
 
 const listWorkOrders = async (req, res) => {
   try {
+    const { status, wo_type, search } = req.query;
+
+    const conditions = [];
+    const params = [];
+
+    if (status) {
+      params.push(status);
+      conditions.push(`w.status = $${params.length}`);
+    }
+
+    if (wo_type) {
+      params.push(wo_type);
+      conditions.push(`w.wo_type = $${params.length}`);
+    }
+
+    if (search) {
+      params.push(`%${search}%`);
+      conditions.push(`(w.wo_number ILIKE $${params.length} OR pm.description ILIKE $${params.length})`);
+    }
+
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
     const { rows } = await query(`
       SELECT
         w.id, w.wo_number, w.wo_date, w.planned_qty,
@@ -12,10 +34,8 @@ const listWorkOrders = async (req, res) => {
         (w.planned_qty - w.received_qty) AS wip_qty,
         fl.location_name AS from_location_name,
         tl.location_name AS to_location_name,
-        -- Primary BOM (backward compat)
         bh.bom_code, bh.output_sku,
         pm.description AS product_name,
-        -- All BOM lines for this WO
         COALESCE(
           json_agg(
             json_build_object(
@@ -31,17 +51,19 @@ const listWorkOrders = async (req, res) => {
           '[]'
         ) AS bom_lines
       FROM work_order_header w
-      LEFT JOIN bom_header     bh  ON w.bom_id          = bh.id
-      LEFT JOIN product_master pm  ON bh.output_sku     = pm.sku_code
+      LEFT JOIN bom_header     bh  ON w.bom_id           = bh.id
+      LEFT JOIN product_master pm  ON bh.output_sku      = pm.sku_code
       LEFT JOIN location_master fl ON w.from_location_id = fl.id
       LEFT JOIN location_master tl ON w.to_location_id   = tl.id
       LEFT JOIN work_order_bom_lines wbl ON wbl.wo_id    = w.id
       LEFT JOIN bom_header     bh2 ON wbl.bom_id         = bh2.id
       LEFT JOIN product_master pm2 ON bh2.output_sku     = pm2.sku_code
+      ${whereClause}
       GROUP BY w.id, bh.bom_code, bh.output_sku, pm.description,
                fl.location_name, tl.location_name
       ORDER BY w.wo_date DESC, w.id DESC
-    `);
+    `, params);
+
     return res.status(200).json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -128,11 +150,23 @@ const createWorkOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Total planned_qty must be > 0' });
     }
 
-    // Generate WO number
+    // Generate type-based WO number
+    const getWOPrefix = (type) => {
+      if (type === 'RM_TO_SF') return 'SFWO'
+      if (type === 'SF_TO_FG') return 'FGWO'
+      if (type === 'RM_TO_FG') return 'FGWO'
+      return 'WO'
+    }
+    const woPrefix = getWOPrefix((wo_type || '').toUpperCase())
     const numRes = await client.query(
-      `SELECT COALESCE(MAX(CAST(SUBSTRING(wo_number FROM 4) AS INTEGER)), 0) + 1 AS next_num FROM work_order_header`
+      `SELECT COALESCE(MAX(
+         CAST(SUBSTRING(wo_number FROM LENGTH($1)+2) AS INTEGER)
+       ), 0) + 1 AS next_num
+       FROM work_order_header
+       WHERE wo_number LIKE $2`,
+      [woPrefix, `${woPrefix}-%`]
     );
-    const wo_number = `WO-${String(numRes.rows[0].next_num).padStart(4, '0')}`;
+    const wo_number = `${woPrefix}-${String(numRes.rows[0].next_num).padStart(4, '0')}`;
 
     // Primary bom_id for backward-compat header column
     const primaryBomId = bomsArray[0]?.bom_id || null;
@@ -202,6 +236,7 @@ const receiveWorkOrder = async (req, res) => {
     const { rows: woRows } = await client.query(`
       SELECT
         w.id, w.wo_number, w.bom_id, w.planned_qty, w.received_qty, w.status,
+        w.wo_type,
         b.output_sku, b.output_uom,
         p.description AS product_name
       FROM work_order_header w
@@ -213,6 +248,24 @@ const receiveWorkOrder = async (req, res) => {
     if (woRows.length === 0) throw new Error('Work Order not found');
     const wo      = woRows[0];
     const rcvDate = receipt_date || new Date().toISOString().slice(0, 10);
+
+    // ── 1b. Generate receipt number (SFRCPT / FGRCPT) ────────────────────────
+    const getReceiptPrefix = (type) => {
+      if (type === 'RM_TO_SF') return 'SFRCPT'
+      if (type === 'SF_TO_FG') return 'FGRCPT'
+      if (type === 'RM_TO_FG') return 'FGRCPT'
+      return 'RCPT'
+    }
+    const rcptPrefix = getReceiptPrefix(wo.wo_type || '')
+    const rcptNumRes = await client.query(
+      `SELECT COALESCE(MAX(
+         CAST(SUBSTRING(receipt_no FROM LENGTH($1)+2) AS INTEGER)
+       ), 0) + 1 AS next_num
+       FROM wo_receipt_lines
+       WHERE receipt_no LIKE $2`,
+      [rcptPrefix, `${rcptPrefix}-%`]
+    )
+    const receipt_no = `${rcptPrefix}-${String(rcptNumRes.rows[0].next_num).padStart(4, '0')}`;
     const rcvQty  = parseFloat(received_qty);
     const rejQty  = parseFloat(rejection_qty) || 0;
     // Only good (non-rejected) qty goes to stock
@@ -236,14 +289,14 @@ const receiveWorkOrder = async (req, res) => {
       if (locRows.length > 0) fromLoc = locRows[0];
     }
 
-    // ── 3. Insert receipt line (with rejection & location info) ──────────────
+    // ── 3. Insert receipt line (with receipt_no, rejection & location info) ──
     await client.query(`
       INSERT INTO wo_receipt_lines
-        (wo_id, received_qty, rejection_qty, receipt_date, remarks,
+        (wo_id, receipt_no, received_qty, rejection_qty, receipt_date, remarks,
          from_location_id, to_location_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     `, [
-      woId, rcvQty, rejQty, rcvDate, remarks || null,
+      woId, receipt_no, rcvQty, rejQty, rcvDate, remarks || null,
       from_location_id ? parseInt(from_location_id) : null,
       to_location_id   ? parseInt(to_location_id)   : null,
     ]);
@@ -349,8 +402,8 @@ const receiveWorkOrder = async (req, res) => {
     await client.query('COMMIT');
     return res.status(200).json({
       success: true,
-      message: `Work Order received. Good qty: ${goodQty}, Rejected: ${rejQty}. Stock updated (${bomLinesRows.length} components deducted).`,
-      data: { received_qty: rcvQty, rejection_qty: rejQty, good_qty: goodQty },
+      message: `Work Order received. Receipt No: ${receipt_no}. Good qty: ${goodQty}, Rejected: ${rejQty}. Stock updated (${bomLinesRows.length} components deducted).`,
+      data: { receipt_no, received_qty: rcvQty, rejection_qty: rejQty, good_qty: goodQty },
     });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -388,11 +441,16 @@ const getWip = async (req, res) => {
         w.status, w.from_store, w.to_store,
         b.bom_code, b.output_sku,
         p.description as product_name,
-        NOW()::date - w.wo_date as age_days
+        NOW()::date - w.wo_date as age_days,
+        COALESCE(SUM(rl.rejection_qty), 0) as total_rejection_qty
       FROM work_order_header w
       JOIN bom_header b ON w.bom_id = b.id
       JOIN product_master p ON b.output_sku = p.sku_code
+      LEFT JOIN wo_receipt_lines rl ON rl.wo_id = w.id
       WHERE w.planned_qty > w.received_qty
+      GROUP BY w.id, w.wo_number, w.wo_date, w.wo_type,
+               w.planned_qty, w.received_qty, w.status, w.from_store, w.to_store,
+               b.bom_code, b.output_sku, p.description
       ORDER BY w.wo_date ASC
     `)
     res.json({ success: true, data: result.rows })

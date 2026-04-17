@@ -14,5 +14,6 @@ router.get('/material-consumption', controller.getMaterialConsumption);
 router.get('/cost-sheet/:fgSku', controller.getCostSheet);
 router.get('/wip-aging', controller.getWipAging);
 router.get('/stock-valuation', controller.getStockValuation);
+router.get('/purchase', controller.getPurchaseReport);
 
 module.exports = router;

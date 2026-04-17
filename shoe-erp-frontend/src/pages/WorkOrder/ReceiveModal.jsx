@@ -5,6 +5,7 @@ import { useReceiveWorkOrder } from '../../hooks/useWorkOrders.js'
 import { useLocations } from '../../hooks/useLocations.js'
 import { useSizesQuery } from '../../hooks/useSizes.js'
 import { today } from '../../utils/formatDate.js'
+import toast from 'react-hot-toast'
 
 /**
  * Modal for recording a receipt against a Work Order.
@@ -125,7 +126,17 @@ export default function ReceiveModal({ isOpen, onClose, wo }) {
         to_store:         toLoc?.location_name   || undefined,
         size_breakup:     sizeBreakupPayload,
       },
-      { onSuccess: onClose },
+      {
+        onSuccess: (res) => {
+          const rcptNo = res?.data?.data?.receipt_no
+          if (rcptNo) {
+            toast.success(`Receipt recorded! Receipt No: ${rcptNo}`)
+          } else {
+            toast.success('Work Order receipt recorded!')
+          }
+          onClose()
+        },
+      },
     )
   }
 

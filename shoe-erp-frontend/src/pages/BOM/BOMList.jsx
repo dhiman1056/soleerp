@@ -60,14 +60,16 @@ function BOMLines({ bomId }) {
 export default function BOMList() {
   const navigate = useNavigate()
   const [page,         setPage]        = useState(1)
+  const [search,       setSearch]      = useState('')
+  const [typeFilter,   setTypeFilter]  = useState('')
   const [expandedId,   setExpandedId]  = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
-  const { data, isLoading } = useBOMsQuery({ page, limit: 20 })
+  const { data, isLoading } = useBOMsQuery({ search: search || undefined, bom_type: typeFilter || undefined })
   const deleteMut            = useDeleteBOM()
   const { role }             = useAuth()
 
-  // useBOMsQuery now returns array directly
+  // useBOMsQuery returns array directly
   const records = Array.isArray(data) ? data : []
 
   const handleExport = () => {
@@ -121,7 +123,34 @@ export default function BOMList() {
         </div>
       </div>
 
-      {/* Custom table with expandable rows */}
+      {/* Search + Type filter bar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <input
+          type="text"
+          placeholder="Search BOM code or product..."
+          className="input-field w-64"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <select
+          className="input-field w-auto"
+          value={typeFilter}
+          onChange={e => setTypeFilter(e.target.value)}
+        >
+          <option value="">All Types</option>
+          <option value="SF">Semi-Finished (SF)</option>
+          <option value="FG">Finished Goods (FG)</option>
+          <option value="FG_DIRECT">Direct FG (FG_DIRECT)</option>
+        </select>
+        {(search || typeFilter) && (
+          <button
+            onClick={() => { setSearch(''); setTypeFilter('') }}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

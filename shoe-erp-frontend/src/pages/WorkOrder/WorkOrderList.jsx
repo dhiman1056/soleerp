@@ -15,6 +15,7 @@ export default function WorkOrderList() {
 
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter,   setTypeFilter]   = useState('')
+  const [search,       setSearch]       = useState('')
   const [page,         setPage]         = useState(1)
   const [showForm,     setShowForm]     = useState(false)
   const [receiveWO,    setReceiveWO]    = useState(null)
@@ -25,6 +26,7 @@ export default function WorkOrderList() {
     limit: 20,
     ...(statusFilter ? { status: statusFilter } : {}),
     ...(typeFilter   ? { wo_type: typeFilter }  : {}),
+    ...(search       ? { search }              : {}),
   }
 
   // useWorkOrdersQuery now returns the array directly
@@ -77,14 +79,31 @@ export default function WorkOrderList() {
       {/* Filters + Actions */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
+          <input
+            type="text"
+            placeholder="Search WO number or product..."
+            className="input-field w-56"
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1) }}
+          />
           <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="input-field w-auto">
             <option value="">All Statuses</option>
             {(Array.isArray(WO_STATUSES) ? WO_STATUSES : []).map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1) }} className="input-field w-auto">
             <option value="">All Types</option>
-            {(Array.isArray(WO_TYPES) ? WO_TYPES : []).map((t) => <option key={t} value={t}>{WO_TYPE_SHORT[t]}</option>)}
+            <option value="RM_TO_SF">RM → SF (SFWO)</option>
+            <option value="SF_TO_FG">SF → FG (FGWO)</option>
+            <option value="RM_TO_FG">RM → FG Direct (FGWO)</option>
           </select>
+          {(search || statusFilter || typeFilter) && (
+            <button
+              onClick={() => { setSearch(''); setStatusFilter(''); setTypeFilter(''); setPage(1) }}
+              className="text-xs text-gray-500 hover:text-gray-700"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
         <button onClick={() => setShowForm(true)} className="btn-primary">+ New Work Order</button>
       </div>

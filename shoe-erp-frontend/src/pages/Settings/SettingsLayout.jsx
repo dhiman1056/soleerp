@@ -8,6 +8,7 @@ const NAV = [
   { to: 'inventory',    label: 'Inventory'    },
   { to: 'notification', label: 'Notification' },
   { to: 'users',        label: 'Users'        },
+  { to: 'locations',    label: 'Locations'    },
 ];
 
 export default function SettingsLayout() {

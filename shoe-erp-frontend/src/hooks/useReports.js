@@ -69,3 +69,13 @@ export const useStockValuationQuery = (params = {}) => {
     },
   })
 }
+
+export const usePurchaseReportQuery = (params = {}) =>
+  useQuery({
+    queryKey: ['report-purchase', params],
+    queryFn: async () => {
+      const res = await api.get('/reports/purchase', { params })
+      return res.data?.data ?? { summary: {}, grns: [], lines: [] }
+    },
+    enabled: !!params.from_date,
+  })

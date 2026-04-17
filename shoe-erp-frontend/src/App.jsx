@@ -6,7 +6,9 @@ import LoginPage        from './pages/Auth/LoginPage.jsx'
 import Layout           from './components/layout/Layout.jsx'
 import Dashboard        from './pages/Dashboard.jsx'
 import RawMaterialList  from './pages/RawMaterial/RawMaterialList.jsx'
+import RawMaterialForm  from './pages/RawMaterial/RawMaterialForm.jsx'
 import ProductList      from './pages/Product/ProductList.jsx'
+import ProductForm      from './pages/Product/ProductForm.jsx'
 import BOMList          from './pages/BOM/BOMList.jsx'
 import BOMForm          from './pages/BOM/BOMForm.jsx'
 import WorkOrderList    from './pages/WorkOrder/WorkOrderList.jsx'
@@ -36,6 +38,7 @@ import FinancialSettings   from './pages/Settings/FinancialSettings.jsx'
 import InventorySettings   from './pages/Settings/InventorySettings.jsx'
 import NotificationSettings from './pages/Settings/NotificationSettings.jsx'
 import UserManagement      from './pages/Users/UserManagement.jsx'
+import LocationMaster      from './pages/Settings/LocationMaster.jsx'
 
 export default function App() {
   return (
@@ -47,7 +50,11 @@ export default function App() {
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="/raw-materials" element={<RawMaterialList />} />
+            <Route path="/raw-materials/new" element={<RawMaterialForm />} />
+            <Route path="/raw-materials/:sku/edit" element={<RawMaterialForm />} />
             <Route path="/products" element={<ProductList />} />
+            <Route path="/products/new" element={<ProductForm />} />
+            <Route path="/products/:sku/edit" element={<ProductForm />} />
             <Route path="/bom" element={<BOMList />} />
             <Route path="/bom/new" element={<BOMForm />} />
             <Route path="/bom/:id/edit" element={<BOMForm />} />
@@ -55,9 +62,9 @@ export default function App() {
             <Route path="/work-orders/:id" element={<WorkOrderDetail />} />
             <Route path="/wip" element={<WIPDashboard />} />
             <Route path="/inventory/stock" element={<StockSummary />} />
-            <Route path="inventory/ledger" element={<StockLedger />} />
-            <Route path="inventory/purchases" element={<PurchaseList />} />
-            <Route path="inventory/purchases/new" element={<PurchaseForm />} />
+            <Route path="/inventory/ledger" element={<StockLedger />} />
+            <Route path="/inventory/purchases" element={<PurchaseList />} />
+            <Route path="/inventory/purchases/new" element={<PurchaseForm />} />
             
             {/* Procurement */}
             <Route path="/suppliers" element={<SupplierList />} />
@@ -65,6 +72,9 @@ export default function App() {
             <Route path="/purchase-orders" element={<POList />} />
             <Route path="/purchase-orders/new" element={<POForm />} />
             <Route path="/purchase-orders/:id" element={<PODetail />} />
+
+            {/* Analytics */}
+            <Route path="/analytics" element={<Dashboard />} />
 
             {/* Settings & Admin */}
             {/* Legacy flat route kept for backwards compat */}
@@ -78,12 +88,13 @@ export default function App() {
               <Route path="inventory"    element={<InventorySettings />} />
               <Route path="notification" element={<NotificationSettings />} />
               <Route path="users"        element={<UserManagement />} />
+              <Route path="locations"    element={<LocationMaster />} />
             </Route>
 
             <Route path="/users" element={<UserManagement />} />
 
             {/* Reports */}
-            <Route path="reports" element={<ReportsLayout />}>
+            <Route path="/reports" element={<ReportsLayout />}>
               <Route index element={<Navigate to="production" replace />} />
               <Route path="production" element={<ProductionSummary />} />
               <Route path="consumption" element={<MaterialConsumption />} />
