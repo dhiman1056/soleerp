@@ -6,19 +6,65 @@ import { useAuth } from '../../hooks/useAuth.js'
 
 const routeLabels = {
   '/': ['Dashboard'],
+  '/analytics': ['Analytics Dashboard'],
+
+  // Products & Materials
   '/raw-materials': ['Raw Materials'],
+  '/raw-materials/new': ['Raw Materials', 'New Raw Material'],
   '/products': ['Products'],
+  '/products/new': ['Products', 'New Product'],
+
+  // BOM
   '/bom': ['Bill of Material'],
   '/bom/new': ['Bill of Material', 'New BOM'],
+
+  // Work Orders & WIP
   '/work-orders': ['Work Orders'],
   '/wip': ['WIP Dashboard'],
+
+  // Inventory
+  '/inventory/stock': ['Inventory', 'Stock Summary'],
+  '/inventory/ledger': ['Inventory', 'Stock Ledger'],
+  '/inventory/purchases': ['Inventory', 'Purchases'],
+  '/inventory/purchases/new': ['Inventory', 'New Purchase'],
+
+  // Procurement
+  '/suppliers': ['Suppliers'],
+  '/purchase-orders': ['Purchase Orders'],
+  '/purchase-orders/new': ['Purchase Orders', 'New PO'],
+
+  // Reports
+  '/reports': ['Reports & Analytics'],
+  '/reports/production': ['Reports & Analytics', 'Production Summary'],
+  '/reports/consumption': ['Reports & Analytics', 'Material Consumption'],
+  '/reports/cost-sheet': ['Reports & Analytics', 'Cost Sheet'],
+  '/reports/wip-aging': ['Reports & Analytics', 'WIP Aging'],
+  '/reports/stock-valuation': ['Reports & Analytics', 'Stock Valuation'],
+  '/reports/purchase': ['Reports & Analytics', 'Purchase Report'],
+
+  // Settings
+  '/settings': ['Settings'],
+  '/settings-v2': ['Settings'],
+  '/settings-v2/company': ['Settings', 'Company'],
+  '/settings-v2/financial': ['Settings', 'Financial'],
+  '/settings-v2/inventory': ['Settings', 'Inventory'],
+  '/settings-v2/notification': ['Settings', 'Notifications'],
+  '/settings-v2/users': ['Settings', 'User Management'],
+  '/settings-v2/locations': ['Settings', 'Location Master'],
+  '/users': ['Settings', 'User Management'],
 }
 
 const getLabels = (pathname) => {
   if (routeLabels[pathname]) return routeLabels[pathname]
   if (pathname.startsWith('/bom/') && pathname.endsWith('/edit')) return ['Bill of Material', 'Edit BOM']
   if (pathname.startsWith('/work-orders/')) return ['Work Orders', 'Work Order Detail']
-  return [pathname.replace('/', '').replace(/-/g, ' ')]
+  if (pathname.startsWith('/products/') && pathname.endsWith('/edit')) return ['Products', 'Edit Product']
+  if (pathname.startsWith('/raw-materials/') && pathname.endsWith('/edit')) return ['Raw Materials', 'Edit Raw Material']
+  if (pathname.startsWith('/suppliers/')) return ['Suppliers', 'Supplier Detail']
+  if (pathname.startsWith('/purchase-orders/')) return ['Purchase Orders', 'PO Detail']
+  if (pathname.startsWith('/reports/')) return ['Reports & Analytics', pathname.split('/').pop().replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())]
+  if (pathname.startsWith('/settings-v2/')) return ['Settings', pathname.split('/').pop().replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())]
+  return [pathname.replace('/', '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Dashboard']
 }
 
 export default function Topbar({ onToggleSidebar, onToggleNotifications }) {
