@@ -71,7 +71,7 @@ function DetailRow({ product, onEdit, onDelete, canDelete }) {
               {open ? '▲' : '▼'}
             </button>
             <button
-              onClick={() => onEdit(product)}
+              onClick={() => onEdit(product.sku_code)}
               className="px-2.5 py-1 text-xs rounded-md border border-gray-200 hover:bg-gray-50 font-medium"
             >
               Edit
@@ -225,7 +225,7 @@ export default function ProductList() {
         <div className="flex gap-2 shrink-0">
           <button onClick={() => exportCsv(filtered)} className="btn-secondary text-sm px-3">Export CSV</button>
           {canEdit && (
-            <button onClick={() => setEditTarget({})} className="btn-primary">+ Add Product</button>
+            <button onClick={() => setEditTarget('new')} className="btn-primary">+ Add Product</button>
           )}
         </div>
       </div>
@@ -276,7 +276,7 @@ export default function ProductList() {
           <div className="p-10 text-center">
             <p className="text-gray-400 font-medium">No products found.</p>
             {canEdit && (
-              <button onClick={() => setEditTarget({})} className="btn-primary mt-4">Add First Product</button>
+              <button onClick={() => setEditTarget('new')} className="btn-primary mt-4">Add First Product</button>
             )}
           </div>
         ) : (
@@ -337,11 +337,13 @@ export default function ProductList() {
       </div>
 
       {/* Product Form Modal */}
-      <ProductForm
-        isOpen={editTarget !== null}
-        onClose={() => setEditTarget(null)}
-        existing={editTarget && editTarget.sku_code ? editTarget : null}
-      />
+      {editTarget !== null && (
+        <ProductForm
+          isOpen={editTarget !== null}
+          onClose={() => setEditTarget(null)}
+          editSku={editTarget === 'new' ? null : editTarget}
+        />
+      )}
 
       {/* Delete Confirm */}
       <ConfirmDialog

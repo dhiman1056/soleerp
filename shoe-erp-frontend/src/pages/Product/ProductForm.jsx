@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
-import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import Modal from '../../components/common/Modal.jsx'
 
 import { 
-  useProducts, useCreateProduct, useUpdateProduct, useProductById, useNextSku 
+  useCreateProduct, useUpdateProduct, useProductById, useNextSku 
 } from '../../hooks/useProducts.js'
 import { 
   useUOMs, useBrands, useCategories, useSubCategories, 
@@ -85,10 +85,9 @@ function SectionLabel({ children }) {
   return <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 mt-6">{children}</p>
 }
 
-export default function ProductForm() {
-  const { sku } = useParams()
-  const navigate = useNavigate()
-  const isEdit = !!sku
+export default function ProductForm({ isOpen, onClose, editSku }) {
+  const isEdit = !!editSku
+  const sku = editSku
   
   const [tab, setTab] = useState(0)
   const [skuMode, setSkuMode] = useState('AUTO') // 'AUTO' or 'MANUAL'
@@ -175,6 +174,31 @@ export default function ProductForm() {
       })
       setImages(Array.isArray(existing.images) ? existing.images : [])
       setSkuMode('MANUAL')
+    } else if (!isEdit) {
+      reset({
+        product_type: 'RAW_MATERIAL',
+        sku_code: '',
+        short_description: '',
+        long_description: '',
+        uom_id: '',
+        pack_size: 1,
+        pack_size_uom_id: '',
+        brand_id: '',
+        supplier_name: '',
+        category_id: '',
+        sub_category_id: '',
+        design_id: '',
+        size_chart: '',
+        color_id: '',
+        hsn_id: '',
+        gst_rate: 0,
+        basic_cost_price: 0,
+        cost_price: 0,
+        mrp: 0,
+        sp: 0
+      })
+      setImages([])
+      setSkuMode('AUTO')
     }
   }, [isEdit, existing, reset])
 
@@ -211,11 +235,11 @@ export default function ProductForm() {
 
     if (isEdit) {
       updateMut.mutate({ sku, ...payload }, { 
-        onSuccess: () => navigate('/products') 
+        onSuccess: () => onClose() 
       })
     } else {
       createMut.mutate(payload, { 
-        onSuccess: () => navigate('/products') 
+        onSuccess: () => onClose() 
       })
     }
   }
@@ -236,277 +260,273 @@ export default function ProductForm() {
     }
   }
 
-  if (isLoadingExisting) {
-    return <div className="p-8 text-center text-gray-500">Loading product data...</div>
-  }
-
   return (
-    <div className="max-w-4xl mx-auto py-8 px-4">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {isEdit ? `Edit Product: ${existing?.sku_code}` : 'Create New Product'}
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Fill in the details below to complete the product record.</p>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {/* Tabs Header */}
-        <div className="flex border-b border-gray-200">
-          {TABS.map((t, i) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(i)}
-              className={`flex-1 py-4 text-sm font-semibold text-center transition-colors
-                ${tab === i ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/30' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}
-              `}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6">
-          {/* ── TAB 0: Basic Info ────────────────────────────────────────── */}
-          <div className={tab === 0 ? 'space-y-5' : 'hidden'}>
-            
-            <div>
-              <label className="label">Product Type *</label>
-              <div className="flex gap-4 mt-1">
-                {['RAW_MATERIAL', 'SEMI_FINISHED', 'FINISHED'].map(type => (
-                  <label key={type} className="flex items-center gap-2 cursor-pointer">
-                    <input type="radio" value={type} {...register('product_type')} className="text-blue-600 focus:ring-blue-500" disabled={isEdit} />
-                    <span className="text-sm text-gray-700 font-medium">
-                      {type === 'RAW_MATERIAL' ? 'Raw Material' : type === 'SEMI_FINISHED' ? 'Semi Finished' : 'Finished Good'}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="label">SKU Code</label>
-                {!isEdit && (
-                  <div className="flex items-center gap-2 text-xs">
-                    <button type="button" onClick={() => setSkuMode('AUTO')} className={skuMode === 'AUTO' ? 'text-blue-600 font-bold' : 'text-gray-400'}>[Auto Generated]</button>
-                    <button type="button" onClick={() => setSkuMode('MANUAL')} className={skuMode === 'MANUAL' ? 'text-blue-600 font-bold' : 'text-gray-400'}>[Enter Manually]</button>
-                  </div>
-                )}
-              </div>
-              
-              {skuMode === 'AUTO' && !isEdit ? (
-                <div className="input-field bg-gray-50 text-gray-500 font-mono flex items-center h-[42px]">
-                  Auto: {nextSku || 'Loading...'}
-                </div>
-              ) : (
-                <input 
-                  {...register('sku_code')} 
-                  className="input-field font-mono uppercase" 
-                  placeholder="Enter custom SKU"
-                  disabled={isEdit}
-                />
-              )}
-            </div>
-
-            <div>
-              <label className="label">Short Description *</label>
-              <input {...register('short_description', { required: true })} className="input-field" placeholder="e.g. Premium Leather Upper" />
-              {errors.short_description && <span className="text-red-500 text-xs">Required</span>}
-            </div>
-
-            <div>
-              <label className="label">Long Description</label>
-              <textarea {...register('long_description')} className="input-field min-h-[100px]" rows="4" placeholder="Detailed product specifications..."></textarea>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="label">UOM *</label>
-                <select {...register('uom_id', { required: true })} className="input-field">
-                  <option value="">— Select UOM —</option>
-                  {uoms.map(u => <option key={u.id} value={u.id}>{u.uom_code} — {u.uom_name}</option>)}
-                </select>
-                {errors.uom_id && <span className="text-red-500 text-xs">Required</span>}
-              </div>
-              <div>
-                <label className="label">Pack Size</label>
-                <input type="number" {...register('pack_size')} className="input-field" min="1" />
-              </div>
-              <div>
-                <label className="label">Pack Size UOM</label>
-                <select {...register('pack_size_uom_id')} className="input-field">
-                  <option value="">— Select —</option>
-                  {uoms.map(u => <option key={u.id} value={u.id}>{u.uom_code}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Brand Name</label>
-                <div className="flex gap-2">
-                  <select {...register('brand_id')} className="input-field">
-                    <option value="">— Select Brand —</option>
-                    {brands.map(b => <option key={b.id} value={b.id}>{b.brand_name}</option>)}
-                  </select>
-                  <div className="flex gap-1 w-[200px]">
-                    <input type="text" value={newBrand} onChange={e => setNewBrand(e.target.value)} placeholder="New Brand" className="input-field text-xs px-2" />
-                    <button type="button" onClick={handleAddBrand} className="bg-gray-100 px-2 rounded border border-gray-300 text-xs font-bold hover:bg-gray-200">+</button>
-                  </div>
-                </div>
-              </div>
-              <div>
-                <label className="label">Supplier</label>
-                <select {...register('supplier_name')} className="input-field">
-                  <option value="">— Select Supplier —</option>
-                  {suppliers.map(s => <option key={s.id} value={s.supplier_name}>{s.supplier_name}</option>)}
-                </select>
-              </div>
-            </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={isEdit ? `Edit Product: ${sku}` : 'Create New Product'}
+      size="3xl"
+      footer={
+        <>
+          <button type="button" onClick={onClose} className="btn-secondary disabled:opacity-50" disabled={isBusy}>
+            Cancel
+          </button>
+          <button type="submit" form="product-form" className="btn-primary disabled:opacity-50" disabled={isBusy}>
+            {isBusy ? 'Saving...' : 'Save Product'}
+          </button>
+        </>
+      }
+    >
+      {isLoadingExisting ? (
+        <div className="p-8 text-center text-gray-500">Loading product data...</div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          {/* Tabs Header */}
+          <div className="flex border-b border-gray-200">
+            {TABS.map((t, i) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(i)}
+                className={`flex-1 py-4 text-sm font-semibold text-center transition-colors
+                  ${tab === i ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50/30' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'}
+                `}
+              >
+                {t}
+              </button>
+            ))}
           </div>
 
-          {/* ── TAB 1: Classification ────────────────────────────────────── */}
-          <div className={tab === 1 ? 'space-y-5' : 'hidden'}>
-            <div className="grid grid-cols-2 gap-4">
+          <form id="product-form" onSubmit={handleSubmit(onSubmit)} className="p-6">
+            {/* ── TAB 0: Basic Info ────────────────────────────────────────── */}
+            <div className={tab === 0 ? 'space-y-5' : 'hidden'}>
+              
               <div>
-                <label className="label">Category</label>
-                <select {...register('category_id')} className="input-field">
-                  <option value="">— Select —</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.category_name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Sub Category</label>
-                <select {...register('sub_category_id')} className="input-field" disabled={!categoryId}>
-                  <option value="">— Select —</option>
-                  {subCategories.map(sc => <option key={sc.id} value={sc.id}>{sc.sub_category_name}</option>)}
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Design No</label>
-                <div className="flex gap-2">
-                  <select {...register('design_id')} className="input-field font-mono">
-                    <option value="">— Select —</option>
-                    {designs.map(d => <option key={d.id} value={d.id}>{d.design_no}</option>)}
-                  </select>
-                  <div className="flex gap-1 w-[200px]">
-                    <input type="text" value={newDesign} onChange={e => setNewDesign(e.target.value)} placeholder="New Design" className="input-field text-xs px-2 font-mono" />
-                    <button type="button" onClick={handleAddDesign} className="bg-gray-100 px-2 rounded border border-gray-300 text-xs font-bold hover:bg-gray-200">+</button>
-                  </div>
+                <label className="label">Product Type *</label>
+                <div className="flex gap-4 mt-1">
+                  {['RAW_MATERIAL', 'SEMI_FINISHED', 'FINISHED'].map(type => (
+                    <label key={type} className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" value={type} {...register('product_type')} className="text-blue-600 focus:ring-blue-500" disabled={isEdit} />
+                      <span className="text-sm text-gray-700 font-medium">
+                        {type === 'RAW_MATERIAL' ? 'Raw Material' : type === 'SEMI_FINISHED' ? 'Semi Finished' : 'Finished Good'}
+                      </span>
+                    </label>
+                  ))}
                 </div>
               </div>
-              <div>
-                <label className="label">Color</label>
-                <select {...register('color_id')} className="input-field">
-                  <option value="">— Select —</option>
-                  {colors.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.color_code} - {c.color_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
 
-            <div className="pt-4 border-t border-gray-100">
-              <label className="label mb-3">Size Chart</label>
-              {productType === 'RAW_MATERIAL' ? (
-                <select {...register('size_chart')} className="input-field max-w-xs">
-                  <option value="">— Select Size —</option>
-                  {sizes.map(s => <option key={s.id} value={s.size_code}>{s.size_label}</option>)}
-                </select>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex gap-4">
-                    {['INFANT', 'KIDS', 'LADIES', 'MEN', 'UNIVERSAL'].map(opt => (
-                      <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" value={opt} {...register('size_chart')} className="text-blue-600 focus:ring-blue-500" />
-                        <span className="text-sm text-gray-700 font-medium">{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {watch('size_chart') && (
-                    <div className="p-3 bg-blue-50 text-blue-800 text-sm rounded-lg font-mono border border-blue-100">
-                      <strong>Preview: </strong> {SIZE_PREVIEWS[watch('size_chart')]}
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="label">SKU Code</label>
+                  {!isEdit && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <button type="button" onClick={() => setSkuMode('AUTO')} className={skuMode === 'AUTO' ? 'text-blue-600 font-bold' : 'text-gray-400'}>[Auto Generated]</button>
+                      <button type="button" onClick={() => setSkuMode('MANUAL')} className={skuMode === 'MANUAL' ? 'text-blue-600 font-bold' : 'text-gray-400'}>[Enter Manually]</button>
                     </div>
                   )}
                 </div>
-              )}
+                
+                {skuMode === 'AUTO' && !isEdit ? (
+                  <div className="input-field bg-gray-50 text-gray-500 font-mono flex items-center h-[42px]">
+                    Auto: {nextSku || 'Loading...'}
+                  </div>
+                ) : (
+                  <input 
+                    {...register('sku_code')} 
+                    className="input-field font-mono uppercase" 
+                    placeholder="Enter custom SKU"
+                    disabled={isEdit}
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="label">Short Description *</label>
+                <input {...register('short_description', { required: true })} className="input-field" placeholder="e.g. Premium Leather Upper" />
+                {errors.short_description && <span className="text-red-500 text-xs">Required</span>}
+              </div>
+
+              <div>
+                <label className="label">Long Description</label>
+                <textarea {...register('long_description')} className="input-field min-h-[100px]" rows="4" placeholder="Detailed product specifications..."></textarea>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="label">UOM *</label>
+                  <select {...register('uom_id', { required: true })} className="input-field">
+                    <option value="">— Select UOM —</option>
+                    {uoms.map(u => <option key={u.id} value={u.id}>{u.uom_code} — {u.uom_name}</option>)}
+                  </select>
+                  {errors.uom_id && <span className="text-red-500 text-xs">Required</span>}
+                </div>
+                <div>
+                  <label className="label">Pack Size</label>
+                  <input type="number" {...register('pack_size')} className="input-field" min="1" />
+                </div>
+                <div>
+                  <label className="label">Pack Size UOM</label>
+                  <select {...register('pack_size_uom_id')} className="input-field">
+                    <option value="">— Select —</option>
+                    {uoms.map(u => <option key={u.id} value={u.id}>{u.uom_code}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Brand Name</label>
+                  <div className="flex gap-2">
+                    <select {...register('brand_id')} className="input-field">
+                      <option value="">— Select Brand —</option>
+                      {brands.map(b => <option key={b.id} value={b.id}>{b.brand_name}</option>)}
+                    </select>
+                    <div className="flex gap-1 w-[200px]">
+                      <input type="text" value={newBrand} onChange={e => setNewBrand(e.target.value)} placeholder="New Brand" className="input-field text-xs px-2" />
+                      <button type="button" onClick={handleAddBrand} className="bg-gray-100 px-2 rounded border border-gray-300 text-xs font-bold hover:bg-gray-200">+</button>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Supplier</label>
+                  <select {...register('supplier_name')} className="input-field">
+                    <option value="">— Select Supplier —</option>
+                    {suppliers.map(s => <option key={s.id} value={s.supplier_name}>{s.supplier_name}</option>)}
+                  </select>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* ── TAB 2: Pricing & Tax ─────────────────────────────────────── */}
-          <div className={tab === 2 ? 'space-y-5' : 'hidden'}>
-            <SectionLabel>Tax Information</SectionLabel>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">HSN Code</label>
-                <select {...register('hsn_id')} className="input-field font-mono">
-                  <option value="">— Select —</option>
-                  {hsnCodes.map(h => <option key={h.id} value={h.id}>{h.hsn_code} - {h.description?.substring(0,20)}</option>)}
-                </select>
+            {/* ── TAB 1: Classification ────────────────────────────────────── */}
+            <div className={tab === 1 ? 'space-y-5' : 'hidden'}>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Category</label>
+                  <select {...register('category_id')} className="input-field">
+                    <option value="">— Select —</option>
+                    {categories.map(c => <option key={c.id} value={c.id}>{c.category_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Sub Category</label>
+                  <select {...register('sub_category_id')} className="input-field" disabled={!categoryId}>
+                    <option value="">— Select —</option>
+                    {subCategories.map(sc => <option key={sc.id} value={sc.id}>{sc.sub_category_name}</option>)}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="label">GST Rate %</label>
-                <select {...register('gst_rate')} className="input-field">
-                  {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
-                </select>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Design No</label>
+                  <div className="flex gap-2">
+                    <select {...register('design_id')} className="input-field font-mono">
+                      <option value="">— Select —</option>
+                      {designs.map(d => <option key={d.id} value={d.id}>{d.design_no}</option>)}
+                    </select>
+                    <div className="flex gap-1 w-[200px]">
+                      <input type="text" value={newDesign} onChange={e => setNewDesign(e.target.value)} placeholder="New Design" className="input-field text-xs px-2 font-mono" />
+                      <button type="button" onClick={handleAddDesign} className="bg-gray-100 px-2 rounded border border-gray-300 text-xs font-bold hover:bg-gray-200">+</button>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Color</label>
+                  <select {...register('color_id')} className="input-field">
+                    <option value="">— Select —</option>
+                    {colors.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.color_code} - {c.color_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-100">
+                <label className="label mb-3">Size Chart</label>
+                {productType === 'RAW_MATERIAL' ? (
+                  <select {...register('size_chart')} className="input-field max-w-xs">
+                    <option value="">— Select Size —</option>
+                    {sizes.map(s => <option key={s.id} value={s.size_code}>{s.size_label}</option>)}
+                  </select>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex gap-4">
+                      {['INFANT', 'KIDS', 'LADIES', 'MEN', 'UNIVERSAL'].map(opt => (
+                        <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                          <input type="radio" value={opt} {...register('size_chart')} className="text-blue-600 focus:ring-blue-500" />
+                          <span className="text-sm text-gray-700 font-medium">{opt}</span>
+                        </label>
+                      ))}
+                    </div>
+                    {watch('size_chart') && (
+                      <div className="p-3 bg-blue-50 text-blue-800 text-sm rounded-lg font-mono border border-blue-100">
+                        <strong>Preview: </strong> {SIZE_PREVIEWS[watch('size_chart')]}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
-            <SectionLabel>Pricing</SectionLabel>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">Basic Cost Price (₹)</label>
-                <input type="number" step="0.01" {...register('basic_cost_price')} className="input-field text-right bg-gray-50" readOnly />
-                <p className="text-xs text-gray-500 mt-1">
-                  {productType === 'RAW_MATERIAL' ? 'Auto-updated from purchase GRN avg rate' : 'Auto-updated from BOM total cost'}
-                </p>
+            {/* ── TAB 2: Pricing & Tax ─────────────────────────────────────── */}
+            <div className={tab === 2 ? 'space-y-5' : 'hidden'}>
+              <SectionLabel>Tax Information</SectionLabel>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">HSN Code</label>
+                  <select {...register('hsn_id')} className="input-field font-mono">
+                    <option value="">— Select —</option>
+                    {hsnCodes.map(h => <option key={h.id} value={h.id}>{h.hsn_code} - {h.description?.substring(0,20)}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">GST Rate %</label>
+                  <select {...register('gst_rate')} className="input-field">
+                    {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
+                  </select>
+                </div>
               </div>
-              <div>
-                <label className="label">Cost Price (₹)</label>
-                <input type="number" step="0.01" {...register('cost_price')} className="input-field text-right bg-blue-50 text-blue-700 font-bold" readOnly />
-                <p className="text-xs text-blue-600 mt-1">
-                  = ₹{parseFloat(basicCostPrice).toFixed(2)} × (1 + {gstRate}%)
-                </p>
+
+              <SectionLabel>Pricing</SectionLabel>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Basic Cost Price (₹)</label>
+                  <input type="number" step="0.01" {...register('basic_cost_price')} className="input-field text-right bg-gray-50" readOnly />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {productType === 'RAW_MATERIAL' ? 'Auto-updated from purchase GRN avg rate' : 'Auto-updated from BOM total cost'}
+                  </p>
+                </div>
+                <div>
+                  <label className="label">Cost Price (₹)</label>
+                  <input type="number" step="0.01" {...register('cost_price')} className="input-field text-right bg-blue-50 text-blue-700 font-bold" readOnly />
+                  <p className="text-xs text-blue-600 mt-1">
+                    = ₹{parseFloat(basicCostPrice).toFixed(2)} × (1 + {gstRate}%)
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">MRP (₹)</label>
+                  <input type="number" step="0.01" {...register('mrp')} className="input-field text-right" />
+                </div>
+                <div>
+                  <label className="label">Selling Price (₹)</label>
+                  <input type="number" step="0.01" {...register('sp')} className="input-field text-right" />
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="label">MRP (₹)</label>
-                <input type="number" step="0.01" {...register('mrp')} className="input-field text-right" />
-              </div>
-              <div>
-                <label className="label">Selling Price (₹)</label>
-                <input type="number" step="0.01" {...register('sp')} className="input-field text-right" />
-              </div>
+            {/* ── TAB 3: Images ────────────────────────────────────────────── */}
+            <div className={tab === 3 ? 'space-y-5' : 'hidden'}>
+              <SectionLabel>Product Images</SectionLabel>
+              <ImageUploader images={images} onChange={setImages} />
             </div>
-          </div>
-
-          {/* ── TAB 3: Images ────────────────────────────────────────────── */}
-          <div className={tab === 3 ? 'space-y-5' : 'hidden'}>
-            <SectionLabel>Product Images</SectionLabel>
-            <ImageUploader images={images} onChange={setImages} />
-          </div>
-
-          {/* Form Actions */}
-          <div className="mt-8 pt-5 border-t border-gray-200 flex items-center justify-between">
-            <button type="button" onClick={() => navigate('/products')} className="px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" disabled={isBusy}>
-              Cancel
-            </button>
-            <button type="submit" className="px-5 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50" disabled={isBusy}>
-              {isBusy ? 'Saving...' : 'Save Product'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+          </form>
+        </div>
+      )}
+    </Modal>
   )
 }
