@@ -54,7 +54,7 @@ const getProductsWithBom = async (req, res) => {
   try {
     const { bom_type } = req.query;
     const { rows } = await query(`
-      SELECT DISTINCT
+      SELECT
         p.sku_code, p.description, p.uom, p.size_chart,
         b.id as bom_id, b.bom_code, b.output_qty,
         b.bom_type,
@@ -64,7 +64,7 @@ const getProductsWithBom = async (req, res) => {
           'consume_qty', bl.consume_qty,
           'uom', bl.uom,
           'supplier_name', pm.supplier_name
-        )) as components
+        )) FILTER (WHERE bl.id IS NOT NULL) as components
       FROM product_master p
       JOIN bom_header b ON b.output_sku = p.sku_code
       LEFT JOIN bom_lines bl ON bl.bom_id = b.id
