@@ -1,381 +1,397 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import Modal from '../../components/common/Modal.jsx'
 import { useReceiveWorkOrder } from '../../hooks/useWorkOrders.js'
 import { useLocations } from '../../hooks/useLocations.js'
-import { useSizesQuery } from '../../hooks/useSizes.js'
 import { today } from '../../utils/formatDate.js'
+import api from '../../api/axiosInstance.js'
 import toast from 'react-hot-toast'
 
-/**
- * Modal for recording a receipt against a Work Order.
- * Props: isOpen, onClose, wo (the work order object)
- */
+const SIZE_CHART_SIZES = {
+  INFANT: ['2','3','5','6','7','8','9','10','11','12'],
+  KIDS: ['6','7','8','9','10','11','11.5','12','12.5','13','1','2','3','4','5','6'],
+  LADIES: ['3','4','5','6','7','8','9'],
+  MEN: ['6','7','8','9','10','11','12'],
+}
+
 export default function ReceiveModal({ isOpen, onClose, wo }) {
   const receiveWO = useReceiveWorkOrder()
 
-  // ── Locations from API ────────────────────────────────────────────────────────
   const { data: locRaw } = useLocations()
   const allLocations = Array.isArray(locRaw) ? locRaw : []
 
-  // ── Sizes from master (for manual size-breakup mode) ─────────────────────────
-  const { data: sizesRaw } = useSizesQuery({ is_active: 'true' })
-  const activeSizes = Array.isArray(sizesRaw) ? sizesRaw : []
-
-  // ── WIP qty shortcut ──────────────────────────────────────────────────────────
-  const wipQty = parseFloat(wo?.planned_qty || 0) - parseFloat(wo?.received_qty || 0)
-
-  // ── Form ──────────────────────────────────────────────────────────────────────
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors },
   } = useForm({
-    defaultValues: { received_qty: '', receipt_date: today(), remarks: '' },
+    defaultValues: { receipt_date: today(), remarks: '' },
   })
 
-  // ── Local state ───────────────────────────────────────────────────────────────
-  const [useSizeBreakup, setUseSizeBreakup] = useState(false)
-  const [sizeMap,        setSizeMap]        = useState({})  // size_code → qty string
   const [fromLocationId, setFromLocationId] = useState('')
   const [toLocationId,   setToLocationId]   = useState('')
-  const [rejectionQty,   setRejectionQty]   = useState(0)
 
-  // ── WO Type → Receive Location auto-mapping ──────────────────────────────────────
+  const [sizeChart, setSizeChart] = useState(wo?.size_chart || wo?.product_size_chart || null)
+  
+  useEffect(() => {
+    if (isOpen && wo?.output_sku && !sizeChart) {
+      api.get(`/products/${wo.output_sku}`)
+        .then(res => {
+          if (res.data?.data?.size_chart) {
+            setSizeChart(res.data.data.size_chart)
+          }
+        })
+        .catch(console.error)
+    }
+  }, [isOpen, wo?.output_sku, sizeChart])
+
+  const sizes = useMemo(() => SIZE_CHART_SIZES[sizeChart] || [], [sizeChart])
+
+  const [sizeBreakup, setSizeBreakup] = useState([])
+
+  useEffect(() => {
+    if (isOpen && wo?.id) {
+      api.get(`/work-orders/${wo.id}/size-breakup`)
+        .then(res => setSizeBreakup(res.data?.data ?? []))
+        .catch(() => setSizeBreakup([]))
+    }
+  }, [isOpen, wo?.id])
+
+  const [receiveMap, setReceiveMap] = useState({})
+  const [rejectionMap, setRejectionMap] = useState({})
+  const [rejectionReasonMap, setRejectionReasonMap] = useState({})
+
+  useEffect(() => {
+    if (sizeBreakup.length > 0) {
+      const initReceive = {}
+      sizeBreakup.forEach(s => {
+        const wip = (s.planned_qty||0) - (s.received_qty||0)
+        if (wip > 0) initReceive[s.size_code] = ''
+      })
+      setReceiveMap(initReceive)
+      setRejectionMap({})
+      setRejectionReasonMap({})
+    }
+  }, [sizeBreakup])
+
   const WO_TYPE_RECEIVE_LOCATIONS = {
     RM_TO_SF: { from: 'SF-WIP Store',          to: 'Semi-Finished Store' },
     SF_TO_FG: { from: 'FG-WIP Store',          to: 'Finished Goods Warehouse' },
     RM_TO_FG: { from: 'FG-WIP Store',          to: 'Finished Goods Warehouse' },
   }
 
-  // Pre-fill location from WO when modal opens
   useEffect(() => {
     if (isOpen) {
-      reset({ received_qty: '', receipt_date: today(), remarks: '' })
-      setUseSizeBreakup(false)
-      setSizeMap({})
-      setRejectionQty(0)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, reset])
-
-  // Auto-set receive locations based on wo_type
-  useEffect(() => {
-    if (wo?.wo_type && allLocations.length > 0) {
-      const locMap = WO_TYPE_RECEIVE_LOCATIONS[wo.wo_type]
-      if (locMap) {
-        const fromLoc = allLocations.find(l => l.location_name === locMap.from)
-        const toLoc   = allLocations.find(l => l.location_name === locMap.to)
-        if (fromLoc) setFromLocationId(String(fromLoc.id))
-        if (toLoc)   setToLocationId(String(toLoc.id))
-      } else {
-        // Fallback: try to match by stored store name on the WO
-        const fl = allLocations.find(l => l.location_name === wo?.from_store)
-        const tl = allLocations.find(l => l.location_name === wo?.to_store)
-        setFromLocationId(fl ? String(fl.id) : '')
-        setToLocationId(tl   ? String(tl.id) : '')
+      reset({ receipt_date: today(), remarks: '' })
+      if (wo?.wo_type && allLocations.length > 0) {
+        const locMap = WO_TYPE_RECEIVE_LOCATIONS[wo.wo_type]
+        if (locMap) {
+          const fl = allLocations.find(l => l.location_name === locMap.from)
+          const tl = allLocations.find(l => l.location_name === locMap.to)
+          setFromLocationId(fl ? String(fl.id) : '')
+          setToLocationId(tl   ? String(tl.id) : '')
+        }
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wo?.wo_type, allLocations.length])
+  }, [isOpen, wo?.wo_type, allLocations.length])
 
-  // ── Derived totals ────────────────────────────────────────────────────────────
-  const sizeTotal = Object.values(sizeMap).reduce((s, v) => s + (parseInt(v) || 0), 0)
+  const validate = () => {
+    const totalRcv = Object.values(receiveMap).reduce((s,v) => s+(parseInt(v)||0), 0)
+    
+    if (totalRcv <= 0) {
+      toast.error('Enter at least one size quantity to receive.')
+      return false
+    }
+    
+    const missingReasons = Object.entries(rejectionMap)
+      .filter(([size, qty]) => parseInt(qty) > 0 && !rejectionReasonMap[size])
+    
+    if (missingReasons.length > 0) {
+      toast.error('Please select rejection reason for all rejected sizes.')
+      return false
+    }
+    
+    return true
+  }
 
-  // ── Submit ────────────────────────────────────────────────────────────────────
   const onSubmit = (values) => {
-    let totalReceived = 0
-    let sizeBreakupPayload = null
+    if (!validate()) return
 
-    if (useSizeBreakup) {
-      const entries = Object.entries(sizeMap).filter(([, v]) => parseInt(v) > 0)
-      if (entries.length === 0) {
-        alert('Enter at least one size quantity.')
-        return
-      }
-      sizeBreakupPayload = Object.fromEntries(entries.map(([k, v]) => [k, parseInt(v)]))
-      totalReceived = sizeTotal
-    } else {
-      totalReceived = parseFloat(values.received_qty)
-    }
+    const totalReceived = Object.values(receiveMap).reduce((s,v) => s+(parseInt(v)||0), 0)
+    const totalRejected = Object.values(rejectionMap).reduce((s,v) => s+(parseInt(v)||0), 0)
+    const totalGood = Math.max(0, totalReceived - totalRejected)
 
-    if (totalReceived <= 0) {
-      alert('Total received quantity must be greater than 0.')
-      return
-    }
-
-    if (totalReceived > wipQty) {
-      alert(`Cannot exceed WIP qty (${wipQty.toFixed(2)}).`)
-      return
-    }
+    const size_receipts = sizeBreakup
+      .filter(s => parseInt(receiveMap[s.size_code]) > 0)
+      .map(s => ({
+        size_code: s.size_code,
+        receive_qty: parseInt(receiveMap[s.size_code]) || 0,
+        rejection_qty: parseInt(rejectionMap[s.size_code]) || 0,
+        rejection_reason: rejectionReasonMap[s.size_code] || null,
+      }))
 
     const fromLoc = allLocations.find(l => String(l.id) === String(fromLocationId))
     const toLoc   = allLocations.find(l => String(l.id) === String(toLocationId))
 
     receiveWO.mutate(
       {
-        id:              wo.id,
-        received_qty:    totalReceived,
-        rejection_qty:   rejectionQty,
-        receipt_date:    values.receipt_date,
-        remarks:         values.remarks || null,
+        id:               wo.id,
+        received_qty:     totalReceived,
+        rejection_qty:    totalRejected,
+        receipt_date:     values.receipt_date,
+        remarks:          values.remarks || null,
         from_location_id: fromLocationId ? parseInt(fromLocationId) : undefined,
         to_location_id:   toLocationId   ? parseInt(toLocationId)   : undefined,
         from_store:       fromLoc?.location_name || undefined,
         to_store:         toLoc?.location_name   || undefined,
-        size_breakup:     sizeBreakupPayload,
+        size_receipts,
+        total_good:       totalGood,
+        total_received:   totalReceived,
+        total_rejected:   totalRejected
       },
       {
         onSuccess: (res) => {
           const rcptNo = res?.data?.data?.receipt_no
-          if (rcptNo) {
-            toast.success(`Receipt recorded! Receipt No: ${rcptNo}`)
-          } else {
-            toast.success('Work Order receipt recorded!')
-          }
+          toast.success(rcptNo ? `Receipt ${rcptNo} recorded! Good: ${totalGood}, Rejected: ${totalRejected}` : `Receipt recorded! Good: ${totalGood}`)
           onClose()
         },
-      },
+      }
     )
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  const totalPlannedWO = parseFloat(wo?.planned_qty || 0)
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Record Receipt"
-      size="md"
+      title="Record Size-Wise Receipt"
+      size="3xl"
       footer={
         <>
           <button type="button" onClick={onClose} className="btn-secondary" disabled={receiveWO.isPending}>
             Cancel
           </button>
           <button type="submit" form="receive-form" className="btn-primary" disabled={receiveWO.isPending}>
-            {receiveWO.isPending ? 'Saving…' : 'Record Receipt'}
+            {receiveWO.isPending ? 'Saving…' : 'Confirm Receipt'}
           </button>
         </>
       }
     >
-      {/* ── WO Summary ── */}
-      <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-4">
-        <p className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-2">Work Order Summary</p>
-        <div className="grid grid-cols-2 gap-y-1 text-sm">
-          <span className="text-gray-500">WO Number</span>
-          <span className="font-semibold text-gray-900 font-mono">{wo?.wo_number}</span>
-          <span className="text-gray-500">Output Product</span>
-          <span className="font-semibold text-gray-900">{wo?.product_name || '—'}</span>
-          <span className="text-gray-500">BOM Code</span>
-          <span className="font-semibold text-gray-900 font-mono">{wo?.bom_code || '—'}</span>
-          <span className="text-gray-500">Planned Qty</span>
-          <span className="font-semibold text-gray-900">{parseFloat(wo?.planned_qty || 0).toFixed(2)}</span>
-          <span className="text-gray-500">Received So Far</span>
-          <span className="font-semibold text-green-700">{parseFloat(wo?.received_qty || 0).toFixed(2)}</span>
-          <span className="text-gray-500">WIP Qty (Max)</span>
-          <span className="font-bold text-amber-700">{wipQty.toFixed(2)}</span>
+      <div className="mb-5 bg-amber-50 border border-amber-200 rounded-xl p-4 shadow-sm">
+        <p className="text-xs font-bold text-amber-800 uppercase tracking-wide mb-3">Work Order Summary</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-3 text-sm mb-4">
+          <div>
+            <p className="text-gray-500 text-xs uppercase">WO Number</p>
+            <p className="font-semibold text-gray-900 font-mono">{wo?.wo_number}</p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs uppercase">Output Product</p>
+            <p className="font-semibold text-gray-900 truncate" title={wo?.product_name}>{wo?.product_name || '—'}</p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs uppercase">BOM Code</p>
+            <p className="font-semibold text-gray-900 font-mono">{wo?.bom_code || '—'}</p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs uppercase">Total Planned Qty</p>
+            <p className="font-bold text-gray-900 tabular-nums">{totalPlannedWO.toFixed(2)}</p>
+          </div>
         </div>
+
+        {sizeBreakup.length > 0 && (
+          <div className="mt-3 overflow-x-auto bg-white rounded-lg border border-amber-200 shadow-sm">
+            <table className="w-full text-xs">
+              <thead className="bg-amber-100 border-b border-amber-200">
+                <tr>
+                  <th className="px-3 py-2 text-left font-bold text-amber-900">Size (UK)</th>
+                  <th className="px-3 py-2 text-right font-bold text-amber-900">Planned</th>
+                  <th className="px-3 py-2 text-right font-bold text-amber-900">WO-Received Qty</th>
+                  <th className="px-3 py-2 text-right font-bold text-amber-900">WIP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sizeBreakup.map(s => {
+                  const p = parseInt(s.planned_qty) || 0
+                  const r = parseInt(s.received_qty) || 0
+                  const w = Math.max(0, p - r)
+                  return (
+                    <tr key={s.size_code} className="border-b border-amber-100/50 last:border-0 hover:bg-amber-50/30">
+                      <td className="px-3 py-1.5 font-bold text-gray-800">UK {s.size_code}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-gray-600">{p}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-green-700 font-semibold">{r}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums font-bold text-amber-700">{w}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot className="bg-amber-50 border-t-2 border-amber-300">
+                <tr>
+                  <td className="px-3 py-2 font-bold text-gray-800">Total</td>
+                  <td className="px-3 py-2 text-right font-bold text-gray-800 tabular-nums">
+                    {sizeBreakup.reduce((s,r) => s + (parseInt(r.planned_qty)||0), 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right font-bold text-green-700 tabular-nums">
+                    {sizeBreakup.reduce((s,r) => s + (parseInt(r.received_qty)||0), 0)}
+                  </td>
+                  <td className="px-3 py-2 text-right font-bold text-amber-700 tabular-nums">
+                    {sizeBreakup.reduce((s,r) => s + Math.max(0, (parseInt(r.planned_qty)||0) - (parseInt(r.received_qty)||0)), 0)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
       </div>
 
-      <form id="receive-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-
-        {/* ── Qty Mode Toggle ── */}
-        <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
-          <div className="flex items-center justify-between mb-3">
-            <label className="text-xs font-bold text-gray-600 uppercase tracking-wide">Receipt Quantity</label>
-            {activeSizes.length > 0 && (
-              <div className="flex items-center gap-1 bg-white rounded-md p-1 shadow-sm border border-gray-200">
-                <button
-                  type="button"
-                  onClick={() => setUseSizeBreakup(false)}
-                  className={`px-3 py-1 text-xs font-semibold rounded transition-colors ${
-                    !useSizeBreakup ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  Total Qty
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUseSizeBreakup(true)}
-                  className={`px-3 py-1 text-xs font-semibold rounded transition-colors ${
-                    useSizeBreakup ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                >
-                  Size Breakup
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Total Qty mode */}
-          {!useSizeBreakup && (
-            <div>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                max={wipQty}
-                {...register('received_qty', {
-                  required:      'Received qty is required',
-                  min:           { value: 0.01,   message: 'Must be > 0' },
-                  max:           { value: wipQty, message: `Cannot exceed WIP qty (${wipQty.toFixed(2)})` },
-                  valueAsNumber: true,
-                })}
-                className={`input-field text-right tabular-nums text-lg font-bold ${errors.received_qty ? 'input-error' : ''}`}
-                placeholder={`Max ${wipQty.toFixed(2)}`}
-                autoFocus
-              />
-              {errors.received_qty && (
-                <p className="text-red-500 text-xs mt-1">{errors.received_qty.message}</p>
-              )}
-            </div>
-          )}
-
-          {/* Size Breakup mode */}
-          {useSizeBreakup && (
-            <div>
-              <div className="overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-sm">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      {activeSizes.map(s => (
-                        <th key={s.size_code} className="px-2 py-2 text-center text-xs text-gray-600 font-bold uppercase">
-                          {s.size_code}
-                        </th>
-                      ))}
-                      <th className="px-3 py-2 text-right text-xs bg-blue-50 text-blue-700 font-bold uppercase">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      {activeSizes.map(s => (
-                        <td key={s.size_code} className="px-2 py-2 border-r border-gray-100 last:border-0">
+      <form id="receive-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        
+        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 shadow-sm">
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-3">Record Quantities</p>
+          
+          {sizes.length === 0 ? (
+            <p className="py-8 text-center text-xs text-gray-400">No size chart configured for this product.</p>
+          ) : (
+            <div className="overflow-x-auto bg-white border border-gray-200 rounded-lg shadow-sm">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-gray-600 uppercase">Size</th>
+                    <th className="px-3 py-2 text-right text-xs font-bold text-gray-600 uppercase">Planned</th>
+                    <th className="px-3 py-2 text-right text-xs font-bold text-amber-700 uppercase">WIP</th>
+                    <th className="px-3 py-2 text-center text-xs font-bold text-blue-700 uppercase">Receive Qty</th>
+                    <th className="px-3 py-2 text-center text-xs font-bold text-red-600 uppercase">Rejection</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-red-600 uppercase">Reason</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sizeBreakup.map(s => {
+                    const p = parseInt(s.planned_qty) || 0
+                    const r = parseInt(s.received_qty) || 0
+                    const wipForSize = Math.max(0, p - r)
+                    const rejQty = parseInt(rejectionMap[s.size_code]) || 0
+                    const needsReason = rejQty > 0 && !rejectionReasonMap[s.size_code]
+                    
+                    if (wipForSize <= 0) return (
+                      <tr key={s.size_code} className="border-t border-gray-100 opacity-50 bg-gray-50">
+                        <td className="px-3 py-2 font-mono font-bold text-gray-500">UK {s.size_code}</td>
+                        <td className="px-3 py-2 text-right text-gray-500 tabular-nums">{p}</td>
+                        <td className="px-3 py-2 text-right text-gray-400 font-semibold italic">Complete</td>
+                        <td colSpan={3} className="px-3 py-2 text-center text-gray-400 text-xs italic">
+                          Already received
+                        </td>
+                      </tr>
+                    )
+                    
+                    return (
+                      <tr key={s.size_code} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+                        <td className="px-3 py-2 font-mono font-bold text-gray-800">UK {s.size_code}</td>
+                        <td className="px-3 py-2 text-right text-gray-600 tabular-nums">{p}</td>
+                        <td className="px-3 py-2 text-right font-bold text-amber-700 tabular-nums text-base">{wipForSize}</td>
+                        <td className="px-3 py-2">
                           <input
-                            type="number"
-                            min="0"
-                            step="1"
-                            placeholder="0"
-                            value={sizeMap[s.size_code] || ''}
+                            type="number" min="0" max={wipForSize} step="1"
+                            value={receiveMap[s.size_code] || ''}
                             onChange={e => {
-                              const v = parseInt(e.target.value)
-                              setSizeMap(p => ({ ...p, [s.size_code]: isNaN(v) || v < 0 ? '' : String(v) }))
+                              let v = parseInt(e.target.value)
+                              if (v > wipForSize) v = wipForSize
+                              if (isNaN(v) || v < 0) v = ''
+                              setReceiveMap(p => ({...p, [s.size_code]: v === '' ? '' : String(v)}))
                             }}
-                            className="w-full px-1 py-1 text-xs text-center border-b-2 border-transparent focus:border-blue-500 focus:outline-none transition-colors font-bold tabular-nums"
+                            className="w-16 px-2 py-1.5 mx-auto block text-center border border-blue-200 rounded font-bold text-blue-700 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                            placeholder="0"
                           />
                         </td>
-                      ))}
-                      <td className="px-3 py-2 text-right font-bold text-blue-700 bg-blue-50 tabular-nums text-base">
-                        {sizeTotal}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              {sizeTotal > wipQty && (
-                <p className="text-red-500 text-xs mt-1">
-                  Total ({sizeTotal}) exceeds WIP qty ({wipQty.toFixed(2)})
-                </p>
-              )}
+                        <td className="px-3 py-2">
+                          <input
+                            type="number" min="0" 
+                            max={parseInt(receiveMap[s.size_code]) || 0}
+                            step="1"
+                            value={rejectionMap[s.size_code] || ''}
+                            onChange={e => {
+                              let v = parseInt(e.target.value)
+                              const maxRej = parseInt(receiveMap[s.size_code]) || 0
+                              if (v > maxRej) v = maxRej
+                              if (isNaN(v) || v < 0) v = ''
+                              setRejectionMap(p => ({...p, [s.size_code]: v === '' ? '' : String(v)}))
+                            }}
+                            className={`w-16 px-2 py-1.5 mx-auto block text-center border rounded font-bold outline-none ${
+                              rejQty > 0 ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-500' : 'border-gray-200 focus:ring-red-500 focus:border-red-500'
+                            }`}
+                            placeholder="0"
+                          />
+                        </td>
+                        <td className="px-3 py-2">
+                          {rejQty > 0 ? (
+                            <select
+                              value={rejectionReasonMap[s.size_code] || ''}
+                              onChange={e => setRejectionReasonMap(p => ({
+                                ...p, [s.size_code]: e.target.value
+                              }))}
+                              className={`text-xs border rounded px-2 py-1.5 w-full outline-none ${
+                                needsReason ? 'border-red-500 bg-red-50 text-red-800 shadow-sm' : 'border-gray-200 text-gray-700 focus:border-red-500 focus:ring-1 focus:ring-red-500'
+                              }`}
+                            >
+                              <option value="">Select reason *</option>
+                              <option value="Quality Issue">Quality Issue</option>
+                              <option value="Size Mismatch">Size Mismatch</option>
+                              <option value="Damaged">Damaged</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          ) : (
+                            <span className="text-gray-300 italic px-2">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+                <tfoot className="bg-gray-50 border-t-2 border-gray-300">
+                  <tr>
+                    <td colSpan={3} className="px-3 py-3 font-bold text-gray-700 text-right uppercase text-xs">
+                      Session Total:
+                    </td>
+                    <td className="px-3 py-3 text-center font-bold text-blue-700 text-base tabular-nums">
+                      {Object.values(receiveMap).reduce((s,v) => s+(parseInt(v)||0), 0)}
+                    </td>
+                    <td className="px-3 py-3 text-center font-bold text-red-600 text-base tabular-nums">
+                      {Object.values(rejectionMap).reduce((s,v) => s+(parseInt(v)||0), 0)}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           )}
         </div>
 
-        {/* ── From / To Location ── */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* ── Locations & Logistics ── */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <label className="label">From Location</label>
-            <select
-              value={fromLocationId}
-              onChange={e => setFromLocationId(e.target.value)}
-              className="input-field"
-            >
+            <select value={fromLocationId} onChange={e => setFromLocationId(e.target.value)} className="input-field shadow-sm">
               <option value="">— Select —</option>
-              {allLocations.map(l => (
-                <option key={l.id} value={l.id}>{l.location_name}</option>
-              ))}
+              {allLocations.map(l => <option key={l.id} value={l.id}>{l.location_name}</option>)}
             </select>
           </div>
           <div>
             <label className="label">To Location</label>
-            <select
-              value={toLocationId}
-              onChange={e => setToLocationId(e.target.value)}
-              className="input-field"
-            >
+            <select value={toLocationId} onChange={e => setToLocationId(e.target.value)} className="input-field shadow-sm">
               <option value="">— Select —</option>
-              {allLocations.map(l => (
-                <option key={l.id} value={l.id}>{l.location_name}</option>
-              ))}
+              {allLocations.map(l => <option key={l.id} value={l.id}>{l.location_name}</option>)}
             </select>
           </div>
+          <div>
+            <label className="label">Receipt Date *</label>
+            <input type="date" {...register('receipt_date', { required: 'Required' })} className={`input-field shadow-sm ${errors.receipt_date ? 'input-error' : ''}`} />
+          </div>
+          <div>
+            <label className="label">Remarks</label>
+            <input {...register('remarks')} placeholder="Notes..." className="input-field shadow-sm" />
+          </div>
         </div>
-
-        {/* ── Rejection Qty ── */}
-        <div className="bg-red-50 border border-red-100 rounded-xl p-4">
-          <label className="text-xs font-bold text-red-700 uppercase tracking-wide block mb-2">
-            Rejection Qty <span className="font-normal text-red-400">(if any)</span>
-          </label>
-          <input
-            type="number"
-            min="0"
-            max={wipQty}
-            step="0.01"
-            value={rejectionQty}
-            onChange={e => setRejectionQty(parseFloat(e.target.value) || 0)}
-            placeholder="0"
-            className="input-field text-right tabular-nums"
-          />
-          <p className="text-xs text-gray-400 mt-1">
-            Rejected qty will be recorded but <strong>not</strong> added to stock.
-          </p>
-          {rejectionQty > 0 && (() => {
-            const displayReceived = useSizeBreakup ? sizeTotal : 0
-            const goodQty = Math.max(0, displayReceived - rejectionQty)
-            const rejPct  = displayReceived > 0
-              ? ((rejectionQty / displayReceived) * 100).toFixed(1)
-              : '—'
-            return (
-              <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2">
-                  <p className="text-xs text-gray-500">Good Qty (to stock)</p>
-                  <p className="font-bold text-green-700 tabular-nums text-base">
-                    {useSizeBreakup ? goodQty.toFixed(2) : '(enter qty above)'}
-                  </p>
-                </div>
-                <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  <p className="text-xs text-gray-500">Rejection %</p>
-                  <p className="font-bold text-red-600 tabular-nums text-base">
-                    {useSizeBreakup && sizeTotal > 0 ? `${rejPct}%` : '—'}
-                  </p>
-                </div>
-              </div>
-            )
-          })()}
-        </div>
-
-        {/* ── Receipt Date ── */}
-        <div>
-          <label className="label">Receipt Date *</label>
-          <input
-            type="date"
-            {...register('receipt_date', { required: 'Date is required' })}
-            className={`input-field ${errors.receipt_date ? 'input-error' : ''}`}
-          />
-          {errors.receipt_date && (
-            <p className="text-red-500 text-xs mt-1">{errors.receipt_date.message}</p>
-          )}
-        </div>
-
-        {/* ── Remarks ── */}
-        <div>
-          <label className="label">Remarks</label>
-          <input
-            {...register('remarks')}
-            placeholder="Optional QC notes, batch info…"
-            className="input-field"
-          />
-        </div>
-
       </form>
     </Modal>
   )

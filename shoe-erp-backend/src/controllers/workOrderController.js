@@ -102,7 +102,14 @@ const getWorkOrder = async (req, res) => {
       WHERE bl.bom_id = $1
     `, [wo.bom_id, wo.planned_qty]);
 
-    return res.status(200).json({ success: true, data: { ...wo, lines: lineRows } });
+    const { rows: breakupRows } = await query(`
+      SELECT size_code, planned_qty, received_qty
+      FROM wo_size_breakup
+      WHERE wo_id = $1
+      ORDER BY size_code
+    `, [woId]);
+
+    return res.status(200).json({ success: true, data: { ...wo, lines: lineRows, size_breakup: breakupRows } });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -138,7 +145,7 @@ const createWorkOrder = async (req, res) => {
     }
 
     // Validate wo_type
-    const VALID_TYPES = ['RM_TO_SF', 'SF_TO_FG', 'RM_TO_FG'];
+    const VALID_TYPES = ['RM_TO_SF', 'SF_TO_FG'];
     if (!VALID_TYPES.includes((wo_type || '').toUpperCase())) {
       await client.query('ROLLBACK');
       return res.status(400).json({ success: false, message: `wo_type must be one of: ${VALID_TYPES.join(', ')}` });
@@ -206,6 +213,23 @@ const createWorkOrder = async (req, res) => {
       `, [woId, bomLine.bom_id, parseFloat(bomLine.planned_qty), bomRows[0].bom_code, bomRows[0].output_sku]);
     }
 
+    const aggregatedSizes = {};
+    for (const bomLine of bomsArray) {
+      if (bomLine.size_breakup) {
+        for (const [sizeCode, qty] of Object.entries(bomLine.size_breakup)) {
+          aggregatedSizes[sizeCode] = (aggregatedSizes[sizeCode] || 0) + parseFloat(qty || 0);
+        }
+      }
+    }
+    for (const [sizeCode, qty] of Object.entries(aggregatedSizes)) {
+      if (qty > 0) {
+        await client.query(`
+          INSERT INTO wo_size_breakup (wo_id, size_code, planned_qty, received_qty)
+          VALUES ($1, $2, $3, 0)
+        `, [woId, sizeCode, qty]);
+      }
+    }
+
     await client.query('COMMIT');
     return res.status(201).json({ success: true, data: rows[0] });
   } catch (err) {
@@ -230,6 +254,10 @@ const receiveWorkOrder = async (req, res) => {
       to_store,
       from_location_id,
       to_location_id,
+      size_receipts,
+      total_received,
+      total_rejected,
+      total_good
     } = req.body;
 
     // ── 1. Load WO + BOM + product info ─────────────────────────────────────
@@ -266,11 +294,9 @@ const receiveWorkOrder = async (req, res) => {
       [rcptPrefix, `${rcptPrefix}-%`]
     )
     const receipt_no = `${rcptPrefix}-${String(rcptNumRes.rows[0].next_num).padStart(4, '0')}`;
-    const rcvQty  = parseFloat(received_qty);
-    const rejQty  = parseFloat(rejection_qty) || 0;
-    // Only good (non-rejected) qty goes to stock
-    const goodQty = Math.max(0, rcvQty - rejQty);
-    // Total received_qty on WO header tracks all received (including rejected)
+    const rcvQty  = parseFloat(total_received) || 0;
+    const rejQty  = parseFloat(total_rejected) || 0;
+    const goodQty = parseFloat(total_good) || Math.max(0, rcvQty - rejQty);
     const totalRcv = parseFloat(wo.received_qty) + rcvQty;
 
     // ── 2. Resolve to-location name for ledger tagging ───────────────────────
@@ -290,16 +316,36 @@ const receiveWorkOrder = async (req, res) => {
     }
 
     // ── 3. Insert receipt line (with receipt_no, rejection & location info) ──
-    await client.query(`
+    const { rows: rcptRows } = await client.query(`
       INSERT INTO wo_receipt_lines
         (wo_id, receipt_no, received_qty, rejection_qty, receipt_date, remarks,
          from_location_id, to_location_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id
     `, [
       woId, receipt_no, rcvQty, rejQty, rcvDate, remarks || null,
       from_location_id ? parseInt(from_location_id) : null,
       to_location_id   ? parseInt(to_location_id)   : null,
     ]);
+    
+    const receiptId = rcptRows[0].id;
+
+    if (Array.isArray(size_receipts)) {
+      for (const sr of size_receipts) {
+        if (sr.receive_qty > 0 || sr.rejection_qty > 0) {
+          await client.query(`
+            INSERT INTO wo_size_receipts (receipt_id, wo_id, size_code, receive_qty, rejection_qty, rejection_reason)
+            VALUES ($1, $2, $3, $4, $5, $6)
+          `, [receiptId, woId, sr.size_code, sr.receive_qty, sr.rejection_qty, sr.rejection_reason]);
+
+          await client.query(`
+            UPDATE wo_size_breakup
+            SET received_qty = received_qty + $1
+            WHERE wo_id = $2 AND size_code = $3
+          `, [sr.receive_qty, woId, sr.size_code]);
+        }
+      }
+    }
 
     // ── 4. Update WO header ──────────────────────────────────────────────────
     await client.query(`
@@ -441,6 +487,7 @@ const getWip = async (req, res) => {
         w.status, w.from_store, w.to_store,
         b.bom_code, b.output_sku,
         p.description as product_name,
+        p.size_chart as product_size_chart,
         NOW()::date - w.wo_date as age_days,
         COALESCE(SUM(rl.rejection_qty), 0) as total_rejection_qty
       FROM work_order_header w
@@ -450,7 +497,7 @@ const getWip = async (req, res) => {
       WHERE w.planned_qty > w.received_qty
       GROUP BY w.id, w.wo_number, w.wo_date, w.wo_type,
                w.planned_qty, w.received_qty, w.status, w.from_store, w.to_store,
-               b.bom_code, b.output_sku, p.description
+               b.bom_code, b.output_sku, p.description, p.size_chart
       ORDER BY w.wo_date ASC
     `)
     res.json({ success: true, data: result.rows })
@@ -480,6 +527,28 @@ const deleteWorkOrder = async (req, res) => {
   }
 }
 
+const getWOSizeBreakup = async (req, res) => {
+  try {
+    const { id } = req.params
+    const { rows } = await query(`
+      SELECT 
+        wsb.size_code, 
+        wsb.planned_qty,
+        COALESCE(SUM(wsr.receive_qty), 0) as received_qty
+      FROM wo_size_breakup wsb
+      LEFT JOIN wo_size_receipts wsr ON wsr.wo_id = wsb.wo_id 
+        AND wsr.size_code = wsb.size_code
+      WHERE wsb.wo_id = $1
+      GROUP BY wsb.size_code, wsb.planned_qty
+      ORDER BY wsb.size_code
+    `, [id])
+    
+    res.json({ success: true, data: rows })
+  } catch (err) {
+    res.status(500).json({ message: err.message })
+  }
+}
+
 module.exports = {
   listWorkOrders,
   getWorkOrder,
@@ -487,5 +556,6 @@ module.exports = {
   receiveWorkOrder,
   deleteWorkOrder,
   getWip,
-  getWipSummary
+  getWipSummary,
+  getWOSizeBreakup
 };

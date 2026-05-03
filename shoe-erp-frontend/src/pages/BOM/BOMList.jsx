@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import Table         from '../../components/common/Table.jsx'
 import ConfirmDialog from '../../components/common/ConfirmDialog.jsx'
 import { useBOMsQuery, useDeleteBOM, useBOMQuery } from '../../hooks/useBOM.js'
 import { formatCurrency } from '../../utils/formatCurrency.js'
@@ -8,13 +7,10 @@ import { useAuth } from '../../hooks/useAuth.js'
 import { downloadFile } from '../../utils/downloadFile.js'
 import { printBOMSheet } from '../../print/PrintBOMSheet.jsx'
 
-// Inline expandable component detail sub-table
 function BOMLines({ bomId }) {
   const { data: bom, isLoading } = useBOMQuery(bomId)
-  // useBOMQuery now returns the BOM object directly (res.data.data)
   const lines = Array.isArray(bom?.components) ? bom.components : []
 
-  // Compute total from lines directly — getBom endpoint doesn't include total_cost
   const totalCost = lines.reduce(
     (sum, l) => sum + (Number(l.value) || Number(l.consume_qty) * Number(l.rate_at_bom) || 0),
     0
@@ -31,6 +27,7 @@ function BOMLines({ bomId }) {
             <th className="px-3 py-2 text-left font-semibold">Input SKU</th>
             <th className="px-3 py-2 text-left font-semibold">Description</th>
             <th className="px-3 py-2 text-right font-semibold">Consume Qty</th>
+            <th className="px-3 py-2 text-right font-semibold text-blue-600">Avg / Pair</th>
             <th className="px-3 py-2 text-center font-semibold">UOM</th>
             <th className="px-3 py-2 text-right font-semibold">Rate (₹)</th>
             <th className="px-3 py-2 text-right font-semibold">Line Cost</th>
@@ -38,17 +35,20 @@ function BOMLines({ bomId }) {
         </thead>
         <tbody>
           {lines.map((l, i) => (
-            <tr key={i} className="border-t border-gray-100">
+            <tr key={i} className="border-t border-gray-100 hover:bg-gray-100/50">
               <td className="px-3 py-2 font-mono font-semibold text-gray-800">{l.input_sku}</td>
               <td className="px-3 py-2 text-gray-600">{l.description}</td>
-              <td className="px-3 py-2 text-right tabular-nums">{l.consume_qty}</td>
+              <td className="px-3 py-2 text-right tabular-nums">{Number(l.consume_qty).toFixed(4)}</td>
+              <td className="px-3 py-2 text-right tabular-nums text-blue-700 bg-blue-50/20 font-medium">
+                {Number(l.avg_per_pair || 0).toFixed(4)}
+              </td>
               <td className="px-3 py-2 text-center font-mono">{l.uom}</td>
               <td className="px-3 py-2 text-right tabular-nums">{formatCurrency(l.rate_at_bom)}</td>
               <td className="px-3 py-2 text-right tabular-nums font-semibold">{formatCurrency(l.value)}</td>
             </tr>
           ))}
           <tr className="border-t-2 border-gray-200 bg-gray-100 font-bold">
-            <td colSpan={5} className="px-3 py-2 text-right text-gray-700">Total Material Cost</td>
+            <td colSpan={6} className="px-3 py-2 text-right text-gray-700">Total Material Cost</td>
             <td className="px-3 py-2 text-right text-gray-900 tabular-nums">{formatCurrency(totalCost)}</td>
           </tr>
         </tbody>
@@ -59,7 +59,6 @@ function BOMLines({ bomId }) {
 
 export default function BOMList() {
   const navigate = useNavigate()
-  const [page,         setPage]        = useState(1)
   const [search,       setSearch]      = useState('')
   const [typeFilter,   setTypeFilter]  = useState('')
   const [expandedId,   setExpandedId]  = useState(null)
@@ -69,7 +68,6 @@ export default function BOMList() {
   const deleteMut            = useDeleteBOM()
   const { role }             = useAuth()
 
-  // useBOMsQuery returns array directly
   const records = Array.isArray(data) ? data : []
 
   const handleExport = () => {
@@ -83,13 +81,17 @@ export default function BOMList() {
     { key: 'product_name',       label: 'Product' },
     {
       key: 'bom_type', label: 'Type',
-      render: (r) => <span className="text-xs font-semibold text-blue-700">{r.bom_type}</span>,
+      render: (r) => (
+        <span className={`text-xs font-semibold ${r.bom_type === 'SF' ? 'text-indigo-600' : 'text-emerald-600'}`}>
+          {r.bom_type === 'SF' ? 'Semi-Finished' : 'Finished Goods'}
+        </span>
+      ),
     },
     { key: 'output_qty', label: 'Output Qty', align: 'right', className: 'tabular-nums' },
     { key: 'output_uom', label: 'UOM',        align: 'center', className: 'font-mono text-xs' },
     {
       key: 'total_material_cost', label: 'Material Cost', align: 'right',
-      render: (r) => <span className="font-semibold tabular-nums">{formatCurrency(r.total_cost)}</span>,
+      render: (r) => <span className="font-semibold tabular-nums text-gray-700">{formatCurrency(r.total_cost)}</span>,
     },
     {
       key: 'is_active', label: 'Status', align: 'center',
@@ -118,13 +120,12 @@ export default function BOMList() {
       <div className="flex justify-between items-center">
         <p className="text-sm text-gray-500">Click a row to expand component breakdown.</p>
         <div className="flex gap-2">
-          <button onClick={handleExport} className="btn-secondary">Export BOM Master (Excel)</button>
+          <button onClick={handleExport} className="btn-secondary">Export BOM (Excel)</button>
           <button onClick={() => navigate('/bom/new')} className="btn-primary">+ New BOM</button>
         </div>
       </div>
 
-      {/* Search + Type filter bar */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap bg-white p-3 rounded-lg shadow-sm border border-gray-200">
         <input
           type="text"
           placeholder="Search BOM code or product..."
@@ -138,9 +139,8 @@ export default function BOMList() {
           onChange={e => setTypeFilter(e.target.value)}
         >
           <option value="">All Types</option>
-          <option value="SF">Semi-Finished (SF)</option>
-          <option value="FG">Finished Goods (FG)</option>
-          <option value="FG_DIRECT">Direct FG (FG_DIRECT)</option>
+          <option value="SF">Semi-Finished</option>
+          <option value="FG">Finished Goods</option>
         </select>
         {(search || typeFilter) && (
           <button
@@ -151,6 +151,7 @@ export default function BOMList() {
           </button>
         )}
       </div>
+
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -186,7 +187,7 @@ export default function BOMList() {
                       ))}
                     </tr>
                     {expandedId === row.id && (
-                      <tr key={`${row.id}-expand`} className="bg-gray-50">
+                      <tr key={`${row.id}-expand`} className="bg-gray-50 border-b border-gray-200 shadow-inner">
                         <td colSpan={columns.length + 1}>
                           <BOMLines bomId={row.id} />
                         </td>

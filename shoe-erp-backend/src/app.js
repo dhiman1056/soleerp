@@ -23,9 +23,13 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+const migrate = require('./db/migrate')
+migrate()
+
 app.use('/api/auth',          require('./routes/authRoutes'))
 app.use('/api/raw-materials', require('./routes/rawMaterialRoutes'))
 app.use('/api/products',      require('./routes/productRoutes'))
+app.use('/api/masters',       require('./routes/masterRoutes'))
 app.use('/api/bom',           require('./routes/bomRoutes'))
 app.use('/api/work-orders',   require('./routes/workOrderRoutes'))
 app.use('/api/inventory',     require('./routes/inventoryRoutes'))
@@ -46,6 +50,7 @@ app.use((err, req, res, next) => {
 })
 
 const PORT = process.env.PORT || 5000
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
 
 process.on('SIGTERM', () => {

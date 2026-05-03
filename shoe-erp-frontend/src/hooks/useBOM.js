@@ -61,6 +61,18 @@ export const useDeleteBOM = () => {
   })
 }
 
+export const useProductsWithBom = (bomType) => {
+  return useQuery({
+    queryKey: ['bom-products', bomType],
+    queryFn: async () => {
+      if (!bomType) return []
+      const res = await api.get('/bom/products-with-bom', { params: { bom_type: bomType } })
+      return res.data?.data ?? []
+    },
+    enabled: !!bomType
+  })
+}
+
 // ── Backward-compatible aliases ───────────────────────────────────────────────
 export const useBOMsQuery = useBOMs
 export const useBOMQuery  = useBOMById

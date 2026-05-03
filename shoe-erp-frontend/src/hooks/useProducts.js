@@ -8,11 +8,7 @@ export const useProducts = (params = {}) =>
     queryKey: ['products', params],
     queryFn: async () => {
       const res = await api.get('/products', { params })
-      // Return the full response so callers can access meta too
-      return {
-        records: Array.isArray(res.data?.data) ? res.data.data : [],
-        meta:    res.data?.meta ?? {},
-      }
+      return res.data?.data?.items ?? res.data?.data ?? []
     },
   })
 
@@ -22,7 +18,7 @@ export const useProductById = (sku) =>
     queryKey: ['products', sku],
     queryFn: async () => {
       const res = await api.get(`/products/${sku}`)
-      return res.data?.data ?? null
+      return res.data?.data ?? {}
     },
     enabled: !!sku,
   })
@@ -33,7 +29,8 @@ export const useNextSku = (product_type) =>
     queryKey: ['next-sku', product_type],
     queryFn: async () => {
       const res = await api.get('/products/next-sku', { params: { product_type } })
-      return res.data?.data?.sku_code ?? ''
+      // Returns sku_code directly to prevent React "object as child" rendering errors
+      return res.data?.data?.sku_code ?? res.data?.data ?? ''
     },
     enabled: !!product_type,
     staleTime: 0,       // always re-fetch — SKU advances with each creation

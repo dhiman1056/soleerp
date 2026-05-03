@@ -8,7 +8,7 @@ const router = Router();
 const auth = require('../middleware/authMiddleware');
 const roleMiddleware = require('../middleware/roleMiddleware');
 
-const VALID_WO_TYPES = ['RM_TO_SF', 'SF_TO_FG', 'RM_TO_FG'];
+const VALID_WO_TYPES = ['RM_TO_SF', 'SF_TO_FG'];
 
 // ── Validation chains ─────────────────────────────────────────────────────
 
@@ -66,6 +66,11 @@ router.get('/wip/summary', auth, ctrl.getWipSummary);
  * @query  page, limit, status, wo_type
  */
 router.get('/',            auth, ctrl.listWorkOrders);
+
+/**
+ * @route  GET /api/work-orders/:id/size-breakup
+ */
+router.get('/:id/size-breakup', auth, ctrl.getWOSizeBreakup);
 
 /**
  * @route  GET /api/work-orders/:id

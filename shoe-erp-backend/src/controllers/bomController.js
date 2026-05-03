@@ -49,6 +49,39 @@ const listBoms = async (req, res) => {
   }
 };
 
+// ─── GET /api/bom/products-with-bom ──────────────────────────────────────────
+const getProductsWithBom = async (req, res) => {
+  try {
+    const { bom_type } = req.query;
+    const { rows } = await query(`
+      SELECT DISTINCT
+        p.sku_code, p.description, p.uom, p.size_chart,
+        b.id as bom_id, b.bom_code, b.output_qty,
+        b.bom_type,
+        COALESCE(SUM(bl.consume_qty * bl.rate_at_bom), 0) as total_cost,
+        json_agg(json_build_object(
+          'input_sku', bl.input_sku,
+          'consume_qty', bl.consume_qty,
+          'uom', bl.uom,
+          'supplier_name', pm.supplier_name
+        )) as components
+      FROM product_master p
+      JOIN bom_header b ON b.output_sku = p.sku_code
+      LEFT JOIN bom_lines bl ON bl.bom_id = b.id
+      LEFT JOIN product_master pm ON bl.input_sku = pm.sku_code
+      WHERE b.is_active = true
+      AND b.bom_type = $1
+      GROUP BY p.sku_code, p.description, p.uom, p.size_chart,
+               b.id, b.bom_code, b.output_qty, b.bom_type
+      ORDER BY p.sku_code
+    `, [bom_type]);
+
+    return res.status(200).json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 // ─── GET /api/bom/:id ────────────────────────────────────────────────────────
 const getBom = async (req, res) => {
   try {
@@ -59,6 +92,7 @@ const getBom = async (req, res) => {
           'input_sku', l.input_sku,
           'description', pm2.description,
           'consume_qty', l.consume_qty,
+          'avg_per_pair', (l.consume_qty / NULLIF(h.output_qty, 0)),
           'uom', l.uom,
           'rate_at_bom', l.rate_at_bom,
           'value', l.consume_qty * l.rate_at_bom
@@ -78,6 +112,19 @@ const getBom = async (req, res) => {
   }
 };
 
+const generateBomCode = async (client, bom_type) => {
+  const prefix = bom_type === 'SF' ? 'BOM-SF' : 'BOM-FG'
+  const { rows } = await client.query(`
+    SELECT COALESCE(MAX(
+      CAST(SUBSTRING(bom_code FROM LENGTH($1)+1) AS INTEGER)
+    ), 0) + 1 AS next_num
+    FROM bom_header
+    WHERE bom_code LIKE $2
+    AND bom_code ~ $3
+  `, [prefix, `${prefix}%`, `^${prefix}[0-9]+$`])
+  return `${prefix}${String(rows[0].next_num).padStart(2, '0')}`
+}
+
 // ─── POST /api/bom ───────────────────────────────────────────────────────────
 const createBom = async (req, res) => {
   const client = await pool.connect();
@@ -90,7 +137,7 @@ const createBom = async (req, res) => {
       (bom_code, output_sku, output_qty, output_uom, bom_type, remarks)
       VALUES ($1,$2,$3,$4,$5,$6)
       RETURNING *
-    `, [bom_code || `BOM-${Date.now()}`, output_sku, output_qty || 1, output_uom, bom_type, remarks || null]);
+    `, [bom_code || await generateBomCode(client, bom_type), output_sku, output_qty || 1, output_uom, bom_type, remarks || null]);
 
     const bomId = headerRows[0].id;
 
@@ -102,6 +149,28 @@ const createBom = async (req, res) => {
         `, [bomId, l.input_sku, l.consume_qty, l.uom, l.rate_at_bom || 0]);
       }
     }
+
+    // ── Auto-update product_master.basic_cost_price from BOM total cost ────
+    const { rows: costRows } = await client.query(`
+      SELECT COALESCE(SUM(consume_qty * rate_at_bom), 0) AS total_cost
+      FROM bom_lines WHERE bom_id = $1
+    `, [bomId]);
+    const totalCost = parseFloat(costRows[0].total_cost) || 0;
+
+    // Only update for SEMI_FINISHED / FINISHED products
+    const { rows: prodRows } = await client.query(
+      `SELECT product_type, gst_rate FROM product_master WHERE sku_code = $1`, [output_sku]
+    );
+    if (prodRows.length && ['SEMI_FINISHED', 'FINISHED'].includes(prodRows[0].product_type)) {
+      const gstMult = 1 + (parseFloat(prodRows[0].gst_rate) || 0) / 100;
+      const costWithGst = +(totalCost * gstMult).toFixed(2);
+      await client.query(`
+        UPDATE product_master
+        SET basic_cost_price = $1, cost_price = $2, rate = $2, updated_at = NOW()
+        WHERE sku_code = $3
+      `, [totalCost, costWithGst, output_sku]);
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     await client.query('COMMIT');
     return res.status(201).json({ success: true, data: headerRows[0] });
@@ -177,15 +246,39 @@ const updateBom = async (req, res) => {
       }
     }
 
+    // ── Auto-update product_master.basic_cost_price from updated BOM ───────
+    const outputSku = headerRow.output_sku;
+    const { rows: updCostRows } = await client.query(`
+      SELECT COALESCE(SUM(consume_qty * rate_at_bom), 0) AS total_cost
+      FROM bom_lines WHERE bom_id = $1
+    `, [id]);
+    const updTotalCost = parseFloat(updCostRows[0].total_cost) || 0;
+
+    const { rows: updProdRows } = await client.query(
+      `SELECT product_type, gst_rate FROM product_master WHERE sku_code = $1`, [outputSku]
+    );
+    if (updProdRows.length && ['SEMI_FINISHED', 'FINISHED'].includes(updProdRows[0].product_type)) {
+      const gstMult = 1 + (parseFloat(updProdRows[0].gst_rate) || 0) / 100;
+      const costWithGst = +(updTotalCost * gstMult).toFixed(2);
+      await client.query(`
+        UPDATE product_master
+        SET basic_cost_price = $1, cost_price = $2, rate = $2, updated_at = NOW()
+        WHERE sku_code = $3
+      `, [updTotalCost, costWithGst, outputSku]);
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     await client.query('COMMIT');
 
     // Return updated header + fresh lines (with descriptions)
     const { rows: updatedLines } = await pool.query(`
       SELECT bl.id, bl.input_sku, bl.consume_qty, bl.uom, bl.rate_at_bom,
              (bl.consume_qty * bl.rate_at_bom) as value,
+             (bl.consume_qty / NULLIF(bh.output_qty, 0)) as avg_per_pair,
              pm.description
       FROM   bom_lines bl
       JOIN   product_master pm ON bl.input_sku = pm.sku_code
+      JOIN   bom_header bh ON bl.bom_id = bh.id
       WHERE  bl.bom_id = $1
       ORDER  BY bl.id
     `, [id]);
@@ -223,4 +316,4 @@ const deleteBom = async (req, res) => {
   }
 };
 
-module.exports = { listBoms, getBom, createBom, updateBom, deleteBom };
+module.exports = { listBoms, getBom, createBom, updateBom, deleteBom, getProductsWithBom };

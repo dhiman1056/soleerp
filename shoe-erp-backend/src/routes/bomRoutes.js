@@ -70,6 +70,11 @@ const updateRules = [
 router.get('/',    auth, ctrl.listBoms);
 
 /**
+ * @route  GET /api/bom/products-with-bom
+ */
+router.get('/products-with-bom', auth, ctrl.getProductsWithBom);
+
+/**
  * @route  GET /api/bom/:id
  */
 router.get('/:id', auth, ctrl.getBom);

@@ -364,6 +364,24 @@ const receivePurchaseOrder = async (req, res) => {
         refNo: grn_no, refType: 'GRN',
         remarks: remarks || `GRN ${grn_no} against ${poRows[0].po_no}`,
       });
+
+      // ── Auto-update product_master.basic_cost_price (RAW_MATERIAL only) ───────
+      const { rows: ssRows } = await client.query(
+        `SELECT avg_rate FROM stock_summary WHERE sku_code = $1`, [line.sku_code]
+      );
+      if (ssRows.length) {
+        const newAvgRate = parseFloat(ssRows[0].avg_rate) || 0;
+        // Only update if it is a RAW_MATERIAL
+        await client.query(`
+          UPDATE product_master
+          SET basic_cost_price = $1,
+              cost_price = ROUND($1 * (1 + COALESCE(gst_rate, 0) / 100), 2),
+              rate       = ROUND($1 * (1 + COALESCE(gst_rate, 0) / 100), 2),
+              updated_at = NOW()
+          WHERE sku_code = $2 AND product_type = 'RAW_MATERIAL'
+        `, [newAvgRate, line.sku_code]);
+      }
+      // ───────────────────────────────────────────────────────────────────
     }
 
     // Recalculate PO status
@@ -426,6 +444,23 @@ const directGRN = async (req, res) => {
         refNo: grn_no, refType: 'DIRECT_GRN',
         remarks: remarks || `Direct GRN ${grn_no}`,
       });
+
+      // ── Auto-update product_master.basic_cost_price (RAW_MATERIAL only) ───────
+      const { rows: ssRowsDirect } = await client.query(
+        `SELECT avg_rate FROM stock_summary WHERE sku_code = $1`, [item.sku_code]
+      );
+      if (ssRowsDirect.length) {
+        const newAvgRate = parseFloat(ssRowsDirect[0].avg_rate) || 0;
+        await client.query(`
+          UPDATE product_master
+          SET basic_cost_price = $1,
+              cost_price = ROUND($1 * (1 + COALESCE(gst_rate, 0) / 100), 2),
+              rate       = ROUND($1 * (1 + COALESCE(gst_rate, 0) / 100), 2),
+              updated_at = NOW()
+          WHERE sku_code = $2 AND product_type = 'RAW_MATERIAL'
+        `, [newAvgRate, item.sku_code]);
+      }
+      // ───────────────────────────────────────────────────────────────────
     }
 
     await client.query('COMMIT');
