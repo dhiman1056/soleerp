@@ -48,7 +48,7 @@ const listWorkOrders = async (req, res) => {
               'product_name', pm2.description
             )
           ) FILTER (WHERE wbl.id IS NOT NULL),
-          '[]'
+          '[]'::json
         ) AS bom_lines
       FROM work_order_header w
       LEFT JOIN bom_header     bh  ON w.bom_id           = bh.id
