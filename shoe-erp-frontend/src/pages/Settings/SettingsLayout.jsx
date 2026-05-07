@@ -3,12 +3,27 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 const NAV = [
-  { to: 'company',      label: 'Company'      },
-  { to: 'financial',    label: 'Financial'    },
-  { to: 'inventory',    label: 'Inventory'    },
-  { to: 'notification', label: 'Notification' },
-  { to: 'users',        label: 'Users'        },
-  { to: 'locations',    label: 'Locations'    },
+  { to: 'company',            label: 'Company'            },
+  { to: 'financial',          label: 'Financial'          },
+  { to: 'inventory',          label: 'Inventory'          },
+  { to: 'notification',       label: 'Notification'       },
+  { to: 'users',              label: 'Users'              },
+  { to: 'locations',          label: 'Locations'          },
+  { to: 'company-master',     label: 'Company Master'     },
+  { to: 'department-master',  label: 'Department Master'  },
+  { to: 'category-master',       label: 'Category Master'       },
+  { to: 'sub-category-master',   label: 'Sub-Category Master'   },
+  { to: 'size-master',           label: 'Size Master'           },
+  { to: 'brand-master',          label: 'Brand Master'          },
+  { to: 'manufacturer-master',   label: 'Manufacturer Master'   },
+  { to: 'customer-master',       label: 'Customer Master'       },
+  { to: 'uom-master',            label: 'UOM Master'            },
+  { to: 'gst-master',            label: 'GST Master'            },
+  { to: 'hsn-master',            label: 'HSN Master'            },
+  { to: 'design-master',         label: 'Design Master'         },
+  { to: 'components-master',     label: 'Components Master'     },
+  { to: 'division-master',       label: 'Division Master'       },
+  { to: 'team-master',           label: 'Team Master'           },
 ];
 
 export default function SettingsLayout() {

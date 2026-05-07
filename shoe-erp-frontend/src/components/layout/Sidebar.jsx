@@ -66,6 +66,69 @@ const analyticsNav = [
   },
 ]
 
+const mastersNav = [
+  {
+    to: '/masters/companies', label: 'Company Master',
+    icon: <Icon path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />,
+  },
+  {
+    to: '/masters/departments', label: 'Department Master',
+    icon: <Icon path="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />,
+  },
+  {
+    to: '/masters/categories', label: 'Category Master',
+    icon: <Icon path="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />,
+  },
+  {
+    to: '/masters/sub-categories', label: 'Sub-Category Master',
+    icon: <Icon path="M4 6h16M4 10h16M4 14h16M4 18h16" />,
+  },
+  {
+    to: '/masters/sizes', label: 'Size Master',
+    icon: <Icon path="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />,
+  },
+  {
+    to: '/masters/brands', label: 'Brand Master',
+    icon: <Icon path="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />,
+  },
+  {
+    to: '/masters/manufacturers', label: 'Manufacturer Master',
+    icon: <Icon path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />,
+  },
+  {
+    to: '/masters/customers', label: 'Customer Master',
+    icon: <Icon path="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />,
+  },
+  {
+    to: '/masters/uom', label: 'UOM Master',
+    icon: <Icon path="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M12 7h.01M12 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V3h-5z" />,
+  },
+  {
+    to: '/masters/gst', label: 'GST Master',
+    icon: <Icon path="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />,
+  },
+  {
+    to: '/masters/hsn', label: 'HSN Master',
+    icon: <Icon path="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />,
+  },
+  {
+    to: '/masters/designs', label: 'Design Master',
+    icon: <Icon path="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />,
+  },
+  {
+    to: '/masters/components', label: 'Components Master',
+    icon: <Icon path="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />,
+  },
+  {
+    to: '/masters/divisions', label: 'Division Master',
+    icon: <Icon path="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />,
+  },
+  {
+    to: '/masters/teams', label: 'Team Master',
+    icon: <Icon path="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />,
+  },
+]
+
 const adminNav = [
   {
     to: '/settings', label: 'Settings',
@@ -139,9 +202,10 @@ export default function Sidebar() {
       {/* Nav items */}
       <nav className="flex-1 py-4 overflow-y-auto w-full no-scrollbar">
           <NavSection title="MANUFACTURING" items={manufacturingNav} collapsed={collapsed} wipCount={wipCount} />
-          <NavSection title="PROCUREMENT" items={procurementNav} collapsed={collapsed} />
-          <NavSection title="INVENTORY" items={inventoryNav} collapsed={collapsed} />
-          <NavSection title="ANALYTICS" items={analyticsNav} collapsed={collapsed} />
+          <NavSection title="PROCUREMENT"   items={procurementNav}  collapsed={collapsed} />
+          <NavSection title="INVENTORY"     items={inventoryNav}    collapsed={collapsed} />
+          <NavSection title="ANALYTICS"     items={analyticsNav}    collapsed={collapsed} />
+          <NavSection title="MASTERS"       items={mastersNav}      collapsed={collapsed} />
           {['admin', 'manager'].includes(user?.role) && <NavSection title="ADMINISTRATION" items={adminNav} collapsed={collapsed} />}
       </nav>
 

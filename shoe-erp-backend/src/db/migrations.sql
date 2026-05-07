@@ -454,3 +454,221 @@ CREATE TABLE IF NOT EXISTS wo_size_receipts (
   rejection_reason VARCHAR(100),
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Company Master
+CREATE TABLE IF NOT EXISTS company_master (
+  id SERIAL PRIMARY KEY,
+  company_code VARCHAR(20) UNIQUE NOT NULL,
+  company_name VARCHAR(150) NOT NULL,
+  description TEXT,
+  licence_no VARCHAR(50),
+  address TEXT,
+  state VARCHAR(50),
+  city VARCHAR(50),
+  pincode VARCHAR(10),
+  contact_person VARCHAR(100),
+  contact_mobile VARCHAR(20),
+  email VARCHAR(100),
+  customer_care_no VARCHAR(20),
+  msme_certificate VARCHAR(100),
+  gstin VARCHAR(20),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Department Master
+CREATE TABLE IF NOT EXISTS department_master (
+  id SERIAL PRIMARY KEY,
+  dept_code VARCHAR(20) UNIQUE NOT NULL,
+  dept_name VARCHAR(150) NOT NULL,
+  description TEXT,
+  location_id INTEGER REFERENCES location_master(id),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Category Master — enhance existing table with catg_code, description, dept_id
+ALTER TABLE category_master ADD COLUMN IF NOT EXISTS catg_code   VARCHAR(20);
+ALTER TABLE category_master ADD COLUMN IF NOT EXISTS description  TEXT;
+ALTER TABLE category_master ADD COLUMN IF NOT EXISTS dept_id      INTEGER REFERENCES department_master(id);
+ALTER TABLE category_master ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMP DEFAULT NOW();
+
+-- Partial unique index: catg_code must be unique when set (ignores NULL rows = legacy data)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_catg_code
+  ON category_master(catg_code)
+  WHERE catg_code IS NOT NULL;
+
+-- Sub Category Master — enhance existing table
+ALTER TABLE sub_category_master ADD COLUMN IF NOT EXISTS sub_catg_code VARCHAR(20);
+ALTER TABLE sub_category_master ADD COLUMN IF NOT EXISTS description   TEXT;
+ALTER TABLE sub_category_master ADD COLUMN IF NOT EXISTS updated_at    TIMESTAMP DEFAULT NOW();
+
+-- Partial unique index: sub_catg_code unique only when set (legacy rows without codes are safe)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sub_catg_code
+  ON sub_category_master(sub_catg_code)
+  WHERE sub_catg_code IS NOT NULL;
+
+-- Size Master — enhance existing table
+ALTER TABLE size_master ADD COLUMN IF NOT EXISTS size_master_code VARCHAR(20);
+ALTER TABLE size_master ADD COLUMN IF NOT EXISTS description       TEXT;
+ALTER TABLE size_master ADD COLUMN IF NOT EXISTS size_chart        VARCHAR(30);
+ALTER TABLE size_master ADD COLUMN IF NOT EXISTS uk_size           VARCHAR(10);
+ALTER TABLE size_master ADD COLUMN IF NOT EXISTS euro_size         VARCHAR(10);
+ALTER TABLE size_master ADD COLUMN IF NOT EXISTS updated_at        TIMESTAMP DEFAULT NOW();
+
+-- Partial unique index: size_master_code unique when set
+CREATE UNIQUE INDEX IF NOT EXISTS idx_size_master_code
+  ON size_master(size_master_code)
+  WHERE size_master_code IS NOT NULL;
+
+-- Brand Master — enhance existing table
+ALTER TABLE brand_master ADD COLUMN IF NOT EXISTS brand_code   VARCHAR(20);
+ALTER TABLE brand_master ADD COLUMN IF NOT EXISTS description  TEXT;
+ALTER TABLE brand_master ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMP DEFAULT NOW();
+
+-- Partial unique index: brand_code unique when set (legacy rows without codes are safe)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_brand_code
+  ON brand_master(brand_code)
+  WHERE brand_code IS NOT NULL;
+
+-- Manufacturer Master
+CREATE TABLE IF NOT EXISTS manufacturer_master (
+  id               SERIAL PRIMARY KEY,
+  mfr_code         VARCHAR(20) UNIQUE NOT NULL,
+  mfr_name         VARCHAR(150) NOT NULL,
+  description      TEXT,
+  brand_id         INTEGER REFERENCES brand_master(id),
+  licence_no       VARCHAR(50),
+  address          TEXT,
+  state            VARCHAR(50),
+  city             VARCHAR(50),
+  pincode          VARCHAR(10),
+  contact_person   VARCHAR(100),
+  contact_mobile   VARCHAR(20),
+  email            VARCHAR(100),
+  customer_care_no VARCHAR(20),
+  msme_certificate VARCHAR(100),
+  gstin            VARCHAR(20),
+  is_active        BOOLEAN DEFAULT true,
+  created_at       TIMESTAMP DEFAULT NOW(),
+  updated_at       TIMESTAMP DEFAULT NOW()
+);
+
+-- Customer Master
+CREATE TABLE IF NOT EXISTS customer_master (
+  id               SERIAL PRIMARY KEY,
+  cust_code        VARCHAR(20) UNIQUE NOT NULL,
+  cust_name        VARCHAR(150) NOT NULL,
+  description      TEXT,
+  brand_id         INTEGER REFERENCES brand_master(id),
+  gstin            VARCHAR(20),
+  address          TEXT,
+  state            VARCHAR(50),
+  city             VARCHAR(50),
+  pincode          VARCHAR(10),
+  contact_person   VARCHAR(100),
+  contact_mobile   VARCHAR(20),
+  email            VARCHAR(100),
+  customer_care_no VARCHAR(20),
+  msme_certificate VARCHAR(100),
+  credit_limit     NUMERIC(14,2) DEFAULT 0,
+  payment_terms    VARCHAR(100),
+  is_active        BOOLEAN DEFAULT true,
+  created_at       TIMESTAMP DEFAULT NOW(),
+  updated_at       TIMESTAMP DEFAULT NOW()
+);
+
+-- UOM Master — enhance existing table
+ALTER TABLE uom_master ADD COLUMN IF NOT EXISTS uom_master_code VARCHAR(20);
+ALTER TABLE uom_master ADD COLUMN IF NOT EXISTS description      TEXT;
+ALTER TABLE uom_master ADD COLUMN IF NOT EXISTS pack_size        NUMERIC(12,4) DEFAULT 1;
+ALTER TABLE uom_master ADD COLUMN IF NOT EXISTS pack_size_unit   VARCHAR(20);
+ALTER TABLE uom_master ADD COLUMN IF NOT EXISTS updated_at       TIMESTAMP DEFAULT NOW();
+
+-- Partial unique index: uom_master_code unique when set
+CREATE UNIQUE INDEX IF NOT EXISTS idx_uom_master_code
+  ON uom_master(uom_master_code)
+  WHERE uom_master_code IS NOT NULL;
+
+-- GST Master
+CREATE TABLE IF NOT EXISTS gst_master (
+  id          SERIAL PRIMARY KEY,
+  gst_code    VARCHAR(20) UNIQUE NOT NULL,
+  description VARCHAR(150) NOT NULL,
+  gst_rate    NUMERIC(5,2) NOT NULL DEFAULT 0,
+  sgst_rate   NUMERIC(5,2) DEFAULT 0,
+  cgst_rate   NUMERIC(5,2) DEFAULT 0,
+  igst_rate   NUMERIC(5,2) DEFAULT 0,
+  is_active   BOOLEAN DEFAULT true,
+  created_at  TIMESTAMP DEFAULT NOW(),
+  updated_at  TIMESTAMP DEFAULT NOW()
+);
+
+INSERT INTO gst_master (gst_code, description, gst_rate, sgst_rate, cgst_rate, igst_rate) VALUES
+  ('GST-0001', 'GST 0%',  0,  0,    0,    0),
+  ('GST-0002', 'GST 5%',  5,  2.5,  2.5,  5),
+  ('GST-0003', 'GST 12%', 12, 6,    6,    12),
+  ('GST-0004', 'GST 18%', 18, 9,    9,    18),
+  ('GST-0005', 'GST 28%', 28, 14,   14,   28)
+ON CONFLICT DO NOTHING;
+
+-- HSN Master — enhance existing table
+ALTER TABLE hsn_master ADD COLUMN IF NOT EXISTS hsn_master_code VARCHAR(20);
+ALTER TABLE hsn_master ADD COLUMN IF NOT EXISTS gst_id          INTEGER REFERENCES gst_master(id);
+ALTER TABLE hsn_master ADD COLUMN IF NOT EXISTS sgst_rate       NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE hsn_master ADD COLUMN IF NOT EXISTS cgst_rate       NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE hsn_master ADD COLUMN IF NOT EXISTS igst_rate       NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE hsn_master ADD COLUMN IF NOT EXISTS updated_at      TIMESTAMP DEFAULT NOW();
+
+-- Partial unique index: hsn_master_code unique when set
+CREATE UNIQUE INDEX IF NOT EXISTS idx_hsn_master_code
+  ON hsn_master(hsn_master_code)
+  WHERE hsn_master_code IS NOT NULL;
+
+-- Design Master — enhance existing table
+ALTER TABLE design_master ADD COLUMN IF NOT EXISTS design_master_code VARCHAR(20);
+ALTER TABLE design_master ADD COLUMN IF NOT EXISTS description        TEXT;
+ALTER TABLE design_master ADD COLUMN IF NOT EXISTS updated_at         TIMESTAMP DEFAULT NOW();
+
+-- Partial unique index: design_master_code unique when set
+CREATE UNIQUE INDEX IF NOT EXISTS idx_design_master_code
+  ON design_master(design_master_code)
+  WHERE design_master_code IS NOT NULL;
+
+-- Components Master
+CREATE TABLE IF NOT EXISTS components_master (
+  id          SERIAL PRIMARY KEY,
+  comp_code   VARCHAR(20) UNIQUE NOT NULL,
+  comp_name   VARCHAR(150) NOT NULL,
+  description TEXT,
+  design_id   INTEGER REFERENCES design_master(id),
+  is_active   BOOLEAN DEFAULT true,
+  created_at  TIMESTAMP DEFAULT NOW(),
+  updated_at  TIMESTAMP DEFAULT NOW()
+);
+
+-- Division Master
+CREATE TABLE IF NOT EXISTS division_master (
+  id          SERIAL PRIMARY KEY,
+  div_code    VARCHAR(20) UNIQUE NOT NULL,
+  div_name    VARCHAR(150) NOT NULL,
+  description TEXT,
+  location_id INTEGER REFERENCES location_master(id),
+  is_active   BOOLEAN DEFAULT true,
+  created_at  TIMESTAMP DEFAULT NOW(),
+  updated_at  TIMESTAMP DEFAULT NOW()
+);
+
+-- Team Master
+CREATE TABLE IF NOT EXISTS team_master (
+  id          SERIAL PRIMARY KEY,
+  team_code   VARCHAR(20) UNIQUE NOT NULL,
+  team_name   VARCHAR(150) NOT NULL,
+  description TEXT,
+  division_id INTEGER REFERENCES division_master(id),
+  is_active   BOOLEAN DEFAULT true,
+  created_at  TIMESTAMP DEFAULT NOW(),
+  updated_at  TIMESTAMP DEFAULT NOW()
+);

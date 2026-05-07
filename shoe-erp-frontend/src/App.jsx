@@ -39,6 +39,21 @@ import InventorySettings   from './pages/Settings/InventorySettings.jsx'
 import NotificationSettings from './pages/Settings/NotificationSettings.jsx'
 import UserManagement      from './pages/Users/UserManagement.jsx'
 import LocationMaster      from './pages/Settings/LocationMaster.jsx'
+import CompanyMaster       from './pages/Masters/CompanyMaster.jsx'
+import DepartmentMaster    from './pages/Masters/DepartmentMaster.jsx'
+import CategoryMaster      from './pages/Masters/CategoryMaster.jsx'
+import SubCategoryMaster   from './pages/Masters/SubCategoryMaster.jsx'
+import SizeMaster          from './pages/Masters/SizeMaster.jsx'
+import BrandMaster         from './pages/Masters/BrandMaster.jsx'
+import ManufacturerMaster  from './pages/Masters/ManufacturerMaster.jsx'
+import CustomerMaster      from './pages/Masters/CustomerMaster.jsx'
+import UOMMaster           from './pages/Masters/UOMMaster.jsx'
+import GSTMaster           from './pages/Masters/GSTMaster.jsx'
+import HSNMaster           from './pages/Masters/HSNMaster.jsx'
+import DesignMaster        from './pages/Masters/DesignMaster.jsx'
+import ComponentsMaster    from './pages/Masters/ComponentsMaster.jsx'
+import DivisionMaster      from './pages/Masters/DivisionMaster.jsx'
+import TeamMaster          from './pages/Masters/TeamMaster.jsx'
 
 export default function App() {
   return (
@@ -87,11 +102,41 @@ export default function App() {
               <Route path="financial"    element={<FinancialSettings />} />
               <Route path="inventory"    element={<InventorySettings />} />
               <Route path="notification" element={<NotificationSettings />} />
-              <Route path="users"        element={<UserManagement />} />
-              <Route path="locations"    element={<LocationMaster />} />
+              <Route path="users"          element={<UserManagement />} />
+              <Route path="locations"      element={<LocationMaster />} />
+              <Route path="company-master"     element={<CompanyMaster />} />
+              <Route path="department-master"  element={<DepartmentMaster />} />
+              <Route path="category-master"    element={<CategoryMaster />} />
+              <Route path="sub-category-master" element={<SubCategoryMaster />} />
+              <Route path="size-master"          element={<SizeMaster />} />
+              <Route path="brand-master"         element={<BrandMaster />} />
+              <Route path="manufacturer-master"  element={<ManufacturerMaster />} />
+              <Route path="customer-master"       element={<CustomerMaster />} />
+              <Route path="uom-master"            element={<UOMMaster />} />
+              <Route path="gst-master"            element={<GSTMaster />} />
+              <Route path="hsn-master"            element={<HSNMaster />} />
+              <Route path="design-master"         element={<DesignMaster />} />
+              <Route path="components-master"     element={<ComponentsMaster />} />
+              <Route path="division-master"       element={<DivisionMaster />} />
+              <Route path="team-master"           element={<TeamMaster />} />
             </Route>
 
             <Route path="/users" element={<UserManagement />} />
+            <Route path="/masters/companies"   element={<CompanyMaster />} />
+            <Route path="/masters/departments" element={<DepartmentMaster />} />
+            <Route path="/masters/categories"    element={<CategoryMaster />} />
+            <Route path="/masters/sub-categories" element={<SubCategoryMaster />} />
+            <Route path="/masters/sizes"           element={<SizeMaster />} />
+            <Route path="/masters/brands"          element={<BrandMaster />} />
+            <Route path="/masters/manufacturers"   element={<ManufacturerMaster />} />
+            <Route path="/masters/customers"       element={<CustomerMaster />} />
+            <Route path="/masters/uom"             element={<UOMMaster />} />
+            <Route path="/masters/gst"             element={<GSTMaster />} />
+            <Route path="/masters/hsn"             element={<HSNMaster />} />
+            <Route path="/masters/designs"         element={<DesignMaster />} />
+            <Route path="/masters/components"      element={<ComponentsMaster />} />
+            <Route path="/masters/divisions"       element={<DivisionMaster />} />
+            <Route path="/masters/teams"           element={<TeamMaster />} />
 
             {/* Reports */}
             <Route path="/reports" element={<ReportsLayout />}>
