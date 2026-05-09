@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react'
-import { useForm, useWatch } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import Modal from '../../components/common/Modal.jsx'
 
-import { 
-  useCreateProduct, useUpdateProduct, useProductById, useNextSku 
+import {
+  useCreateProduct, useUpdateProduct, useProductById, useNextSku
 } from '../../hooks/useProducts.js'
-import { 
-  useUOMs, useBrands, useCategories, useSubCategories, 
-  useDesigns, useColors, useHSNCodes, useCreateBrand, useCreateDesign
-} from '../../hooks/useMasters.js'
+import { useUOMs } from '../../hooks/useUOM.js'
+import { useColors } from '../../hooks/useColors.js'
+import { useBrands, useCreateBrand } from '../../hooks/useBrands.js'
+import { useCategories } from '../../hooks/useCategories.js'
+import { useSubCategoriesByCategory } from '../../hooks/useSubCategories.js'
+import { useDesigns, useCreateDesign } from '../../hooks/useDesigns.js'
+import { useHSN } from '../../hooks/useHSN.js'
+import { useGST } from '../../hooks/useGST.js'
 import { useSizes } from '../../hooks/useSizes.js'
 import { useSuppliers } from '../../hooks/useSuppliers.js'
 
@@ -91,6 +95,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
   
   const [tab, setTab] = useState(0)
   const [skuMode, setSkuMode] = useState('AUTO') // 'AUTO' or 'MANUAL'
+  const [manualSku, setManualSku] = useState('')
   const [images, setImages] = useState([])
 
   const { data: existing, isLoading: isLoadingExisting } = useProductById(sku)
@@ -108,7 +113,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
       pack_size: 1,
       pack_size_uom_id: '',
       brand_id: '',
-      supplier_name: '',
+      supplier_id: '',
       category_id: '',
       sub_category_id: '',
       design_id: '',
@@ -130,14 +135,14 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
   const basicCostPrice = watch('basic_cost_price') || 0
   const gstRate = watch('gst_rate') || 0
 
-  // Hooks
+  // ── Hooks (new individual API hooks) ──────────────────────────────────────────
   const { data: uoms = [] } = useUOMs()
   const { data: brands = [] } = useBrands()
   const { data: categories = [] } = useCategories()
-  const { data: subCategories = [] } = useSubCategories(categoryId)
+  const { data: subCategories = [] } = useSubCategoriesByCategory(categoryId)
   const { data: designs = [] } = useDesigns()
   const { data: colors = [] } = useColors()
-  const { data: hsnCodes = [] } = useHSNCodes()
+  const { data: hsnCodes = [] } = useHSN()
   const { data: sizes = [] } = useSizes()
   const { data: suppliers = [] } = useSuppliers()
   const { data: nextSku } = useNextSku(productType)
@@ -159,7 +164,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
         pack_size: existing.pack_size || 1,
         pack_size_uom_id: existing.pack_size_uom_id || '',
         brand_id: existing.brand_id || '',
-        supplier_name: existing.supplier_name || '',
+        supplier_id: existing.supplier_id || '',
         category_id: existing.category_id || '',
         sub_category_id: existing.sub_category_id || '',
         design_id: existing.design_id || '',
@@ -184,7 +189,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
         pack_size: 1,
         pack_size_uom_id: '',
         brand_id: '',
-        supplier_name: '',
+        supplier_id: '',
         category_id: '',
         sub_category_id: '',
         design_id: '',
@@ -198,19 +203,20 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
         sp: 0
       })
       setImages([])
+      setManualSku('')
       setSkuMode('AUTO')
     }
   }, [isEdit, existing, reset])
 
-  // Auto-fill GST from HSN
-  useEffect(() => {
-    if (hsnId) {
-      const selectedHsn = hsnCodes.find(h => h.id.toString() === hsnId.toString())
-      if (selectedHsn) {
-        setValue('gst_rate', parseFloat(selectedHsn.gst_rate) || 0)
-      }
+  // Auto-fill GST from HSN selection
+  const handleHsnChange = (hsnId) => {
+    setValue('hsn_id', hsnId)
+    const hsn = hsnCodes.find(h => String(h.id) === String(hsnId))
+    if (hsn) {
+      setValue('gst_rate', hsn.gst_rate || hsn.gst_rate_from_master || 0)
+      setValue('hsn_code', hsn.hsn_code)
     }
-  }, [hsnId, hsnCodes, setValue])
+  }
 
   // Auto-calculate Cost Price
   useEffect(() => {
@@ -220,13 +226,22 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
     setValue('cost_price', calculatedCost)
   }, [basicCostPrice, gstRate, setValue])
 
+  // Reset sub-category when category changes
+  useEffect(() => {
+    if (!isEdit) {
+      setValue('sub_category_id', '')
+    }
+  }, [categoryId, isEdit, setValue])
+
   const onSubmit = (values) => {
     const uom = uoms.find(u => u.id.toString() === values.uom_id?.toString())
     const hsn = hsnCodes.find(h => h.id.toString() === values.hsn_id?.toString())
 
     const payload = {
       ...values,
-      sku_code: skuMode === 'MANUAL' ? values.sku_code : undefined,
+      sku_code: isEdit
+        ? values.sku_code
+        : (skuMode === 'MANUAL' ? manualSku : (nextSku?.sku_code || nextSku || '')),
       description: values.short_description, // Map to legacy description field
       uom: uom ? uom.uom_code : '',
       hsn_code: hsn ? hsn.hsn_code : '',
@@ -315,27 +330,48 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                 </div>
               </div>
 
+              {/* ── SKU Code with Auto/Manual Toggle ──────────────────────── */}
               <div>
                 <div className="flex items-center justify-between">
                   <label className="label">SKU Code</label>
                   {!isEdit && (
                     <div className="flex items-center gap-2 text-xs">
-                      <button type="button" onClick={() => setSkuMode('AUTO')} className={skuMode === 'AUTO' ? 'text-blue-600 font-bold' : 'text-gray-400'}>[Auto Generated]</button>
-                      <button type="button" onClick={() => setSkuMode('MANUAL')} className={skuMode === 'MANUAL' ? 'text-blue-600 font-bold' : 'text-gray-400'}>[Enter Manually]</button>
+                      <button
+                        type="button"
+                        onClick={() => setSkuMode('AUTO')}
+                        className={skuMode === 'AUTO' ? 'text-blue-600 font-bold' : 'text-gray-400'}
+                      >
+                        [Auto Generated]
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSkuMode('MANUAL')}
+                        className={skuMode === 'MANUAL' ? 'text-blue-600 font-bold' : 'text-gray-400'}
+                      >
+                        [Enter Manually]
+                      </button>
                     </div>
                   )}
                 </div>
                 
-                {skuMode === 'AUTO' && !isEdit ? (
-                  <div className="input-field bg-gray-50 text-gray-500 font-mono flex items-center h-[42px]">
-                    Auto: {nextSku || 'Loading...'}
-                  </div>
-                ) : (
+                {isEdit ? (
                   <input 
                     {...register('sku_code')} 
-                    className="input-field font-mono uppercase" 
-                    placeholder="Enter custom SKU"
-                    disabled={isEdit}
+                    className="input-field font-mono" 
+                    placeholder="SKU Code"
+                  />
+                ) : skuMode === 'AUTO' ? (
+                  <input
+                    value={nextSku?.sku_code || nextSku || 'Loading...'}
+                    disabled
+                    className="input-field bg-gray-50 text-gray-500 font-mono"
+                  />
+                ) : (
+                  <input
+                    value={manualSku}
+                    onChange={e => setManualSku(e.target.value.toUpperCase())}
+                    placeholder="Enter SKU manually"
+                    className="input-field font-mono uppercase"
                   />
                 )}
               </div>
@@ -351,12 +387,17 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                 <textarea {...register('long_description')} className="input-field min-h-[100px]" rows="4" placeholder="Detailed product specifications..."></textarea>
               </div>
 
+              {/* ── UOM ───────────────────────────────────────────────────── */}
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="label">UOM *</label>
                   <select {...register('uom_id', { required: true })} className="input-field">
                     <option value="">— Select UOM —</option>
-                    {uoms.map(u => <option key={u.id} value={u.id}>{u.uom_code} — {u.uom_name}</option>)}
+                    {uoms.map(u => (
+                      <option key={u.id} value={u.id}>
+                        {u.uom_code} — {u.uom_name}
+                      </option>
+                    ))}
                   </select>
                   {errors.uom_id && <span className="text-red-500 text-xs">Required</span>}
                 </div>
@@ -368,18 +409,25 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                   <label className="label">Pack Size UOM</label>
                   <select {...register('pack_size_uom_id')} className="input-field">
                     <option value="">— Select —</option>
-                    {uoms.map(u => <option key={u.id} value={u.id}>{u.uom_code}</option>)}
+                    {uoms.map(u => (
+                      <option key={u.id} value={u.id}>{u.uom_code}</option>
+                    ))}
                   </select>
                 </div>
               </div>
 
+              {/* ── Brand & Supplier ──────────────────────────────────────── */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">Brand Name</label>
                   <div className="flex gap-2">
                     <select {...register('brand_id')} className="input-field">
                       <option value="">— Select Brand —</option>
-                      {brands.map(b => <option key={b.id} value={b.id}>{b.brand_name}</option>)}
+                      {brands.map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.brand_name} ({b.brand_code})
+                        </option>
+                      ))}
                     </select>
                     <div className="flex gap-1 w-[200px]">
                       <input type="text" value={newBrand} onChange={e => setNewBrand(e.target.value)} placeholder="New Brand" className="input-field text-xs px-2" />
@@ -389,9 +437,13 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                 </div>
                 <div>
                   <label className="label">Supplier</label>
-                  <select {...register('supplier_name')} className="input-field">
+                  <select {...register('supplier_id')} className="input-field">
                     <option value="">— Select Supplier —</option>
-                    {suppliers.map(s => <option key={s.id} value={s.supplier_name}>{s.supplier_name}</option>)}
+                    {suppliers.map(s => (
+                      <option key={s.id} value={s.id}>
+                        {s.supplier_name} ({s.supplier_code})
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -400,29 +452,44 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
             {/* ── TAB 1: Classification ────────────────────────────────────── */}
             <div className={tab === 1 ? 'space-y-5' : 'hidden'}>
               <div className="grid grid-cols-2 gap-4">
+                {/* ── Category (shows dept name) ─────────────────────────── */}
                 <div>
                   <label className="label">Category</label>
                   <select {...register('category_id')} className="input-field">
                     <option value="">— Select —</option>
-                    {categories.map(c => <option key={c.id} value={c.id}>{c.category_name}</option>)}
+                    {categories.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.catg_name} ({c.dept_name || 'No Dept'})
+                      </option>
+                    ))}
                   </select>
                 </div>
+                {/* ── Sub Category (filtered by category) ────────────────── */}
                 <div>
                   <label className="label">Sub Category</label>
                   <select {...register('sub_category_id')} className="input-field" disabled={!categoryId}>
                     <option value="">— Select —</option>
-                    {subCategories.map(sc => <option key={sc.id} value={sc.id}>{sc.sub_category_name}</option>)}
+                    {subCategories.map(sc => (
+                      <option key={sc.id} value={sc.id}>
+                        {sc.sub_category_name}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
+                {/* ── Design ─────────────────────────────────────────────── */}
                 <div>
                   <label className="label">Design No</label>
                   <div className="flex gap-2">
                     <select {...register('design_id')} className="input-field font-mono">
                       <option value="">— Select —</option>
-                      {designs.map(d => <option key={d.id} value={d.id}>{d.design_no}</option>)}
+                      {designs.map(d => (
+                        <option key={d.id} value={d.id}>
+                          {d.design_no} — {d.design_name}
+                        </option>
+                      ))}
                     </select>
                     <div className="flex gap-1 w-[200px]">
                       <input type="text" value={newDesign} onChange={e => setNewDesign(e.target.value)} placeholder="New Design" className="input-field text-xs px-2 font-mono" />
@@ -430,13 +497,14 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                     </div>
                   </div>
                 </div>
+                {/* ── Color ──────────────────────────────────────────────── */}
                 <div>
                   <label className="label">Color</label>
                   <select {...register('color_id')} className="input-field">
                     <option value="">— Select —</option>
                     {colors.map(c => (
                       <option key={c.id} value={c.id}>
-                        {c.color_code} - {c.color_name}
+                        {c.color_name} ({c.color_code})
                       </option>
                     ))}
                   </select>
@@ -474,11 +542,20 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
             <div className={tab === 2 ? 'space-y-5' : 'hidden'}>
               <SectionLabel>Tax Information</SectionLabel>
               <div className="grid grid-cols-2 gap-4">
+                {/* ── HSN Code (auto-fills GST) ──────────────────────────── */}
                 <div>
                   <label className="label">HSN Code</label>
-                  <select {...register('hsn_id')} className="input-field font-mono">
+                  <select
+                    value={watch('hsn_id') || ''}
+                    onChange={(e) => handleHsnChange(e.target.value)}
+                    className="input-field font-mono"
+                  >
                     <option value="">— Select —</option>
-                    {hsnCodes.map(h => <option key={h.id} value={h.id}>{h.hsn_code} - {h.description?.substring(0,20)}</option>)}
+                    {hsnCodes.map(h => (
+                      <option key={h.id} value={h.id}>
+                        {h.hsn_code} — {h.description} ({h.gst_rate}%)
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
