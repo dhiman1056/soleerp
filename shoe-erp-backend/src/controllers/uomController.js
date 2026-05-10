@@ -35,6 +35,65 @@ const listUOMs = async (req, res) => {
   }
 }
 
+// ─── GET /api/uom/conversions ─────────────────────────────────────────────────
+const listConversions = async (req, res) => {
+  try {
+    const { rows } = await query(`
+      SELECT 
+        uc.*,
+        u1.uom_code as from_uom_code,
+        u1.uom_name as from_uom_name,
+        u2.uom_code as to_uom_code,
+        u2.uom_name as to_uom_name
+      FROM uom_conversions uc
+      JOIN uom_master u1 ON uc.from_uom_id = u1.id
+      JOIN uom_master u2 ON uc.to_uom_id = u2.id
+      WHERE uc.is_active = true
+      ORDER BY u1.uom_code
+    `)
+    res.json({ success: true, data: rows })
+  } catch (err) {
+    console.error('[uomController] listConversions:', err.message)
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+// ─── POST /api/uom/conversions ────────────────────────────────────────────────
+const createConversion = async (req, res) => {
+  try {
+    const { from_uom_id, to_uom_id, conversion_factor } = req.body
+
+    if (!from_uom_id || !to_uom_id || !conversion_factor) {
+      return res.status(400).json({ success: false, message: 'From UOM, To UOM, and conversion factor are required' })
+    }
+
+    const { rows } = await query(`
+      INSERT INTO uom_conversions (from_uom_id, to_uom_id, conversion_factor)
+      VALUES ($1, $2, $3) RETURNING *
+    `, [from_uom_id, to_uom_id, conversion_factor])
+
+    res.status(201).json({ success: true, data: rows[0] })
+  } catch (err) {
+    console.error('[uomController] createConversion:', err.message)
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
+// ─── DELETE /api/uom/conversions/:id ──────────────────────────────────────────
+const deleteConversion = async (req, res) => {
+  try {
+    const { rows } = await query(
+      `UPDATE uom_conversions SET is_active = false, updated_at = NOW() WHERE id = $1 RETURNING id`,
+      [req.params.id]
+    )
+    if (!rows.length) return res.status(404).json({ success: false, message: 'Conversion not found' })
+    res.json({ success: true, message: 'Conversion deleted' })
+  } catch (err) {
+    console.error('[uomController] deleteConversion:', err.message)
+    res.status(500).json({ success: false, message: err.message })
+  }
+}
+
 // ─── GET /api/uom/:id ─────────────────────────────────────────────────────────
 const getUOM = async (req, res) => {
   try {
@@ -49,7 +108,7 @@ const getUOM = async (req, res) => {
 // ─── POST /api/uom ────────────────────────────────────────────────────────────
 const createUOM = async (req, res) => {
   try {
-    const { uom_code, uom_name, description, pack_size = 1, pack_size_unit } = req.body
+    const { uom_code, uom_name, description } = req.body
 
     if (!uom_code?.trim()) return res.status(400).json({ success: false, message: 'UOM code is required' })
     if (!uom_name?.trim()) return res.status(400).json({ success: false, message: 'UOM name is required' })
@@ -57,15 +116,13 @@ const createUOM = async (req, res) => {
     const uom_master_code = await generateCode()
 
     const { rows } = await query(`
-      INSERT INTO uom_master (uom_master_code, uom_code, uom_name, description, pack_size, pack_size_unit)
-      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
+      INSERT INTO uom_master (uom_master_code, uom_code, uom_name, description)
+      VALUES ($1, $2, $3, $4) RETURNING *
     `, [
       uom_master_code,
       uom_code.trim().toUpperCase(),
       uom_name.trim(),
-      description || null,
-      parseFloat(pack_size) || 1,
-      pack_size_unit || null
+      description || null
     ])
 
     res.status(201).json({ success: true, data: rows[0] })
@@ -80,24 +137,20 @@ const createUOM = async (req, res) => {
 const updateUOM = async (req, res) => {
   try {
     const { id } = req.params
-    const { uom_code, uom_name, description, pack_size, pack_size_unit, is_active } = req.body
+    const { uom_code, uom_name, description, is_active } = req.body
 
     const { rows } = await query(`
       UPDATE uom_master SET
         uom_code       = COALESCE($1, uom_code),
         uom_name       = COALESCE($2, uom_name),
         description    = COALESCE($3, description),
-        pack_size      = COALESCE($4, pack_size),
-        pack_size_unit = COALESCE($5, pack_size_unit),
-        is_active      = COALESCE($6, is_active),
+        is_active      = COALESCE($4, is_active),
         updated_at     = NOW()
-      WHERE id = $7 RETURNING *
+      WHERE id = $5 RETURNING *
     `, [
       uom_code ? uom_code.trim().toUpperCase() : null,
       uom_name ? uom_name.trim() : null,
       description ?? null,
-      pack_size !== undefined ? parseFloat(pack_size) || 1 : null,
-      pack_size_unit ?? null,
       is_active !== undefined ? is_active : null,
       id
     ])
@@ -124,4 +177,4 @@ const deleteUOM = async (req, res) => {
   }
 }
 
-module.exports = { listUOMs, getUOM, createUOM, updateUOM, deleteUOM }
+module.exports = { listUOMs, getUOM, createUOM, updateUOM, deleteUOM, listConversions, createConversion, deleteConversion }

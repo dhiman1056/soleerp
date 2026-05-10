@@ -50,3 +50,27 @@ export const useDeleteUOM = () => {
     }
   })
 }
+
+export const useUOMConversions = () => useQuery({
+  queryKey: ['uom-conversions'],
+  queryFn: async () => {
+    const res = await api.get('/uom/conversions')
+    return res.data?.data ?? []
+  }
+})
+
+export const useCreateUOMConversion = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data) => api.post('/uom/conversions', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['uom-conversions'] })
+  })
+}
+
+export const useDeleteUOMConversion = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => api.delete(`/uom/conversions/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['uom-conversions'] })
+  })
+}

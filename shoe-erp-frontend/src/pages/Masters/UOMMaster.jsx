@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { useUOMs, useCreateUOM, useUpdateUOM, useDeleteUOM } from '../../hooks/useUOM'
+import { 
+  useUOMs, useCreateUOM, useUpdateUOM, useDeleteUOM,
+  useUOMConversions, useCreateUOMConversion, useDeleteUOMConversion
+} from '../../hooks/useUOM'
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
@@ -20,7 +23,7 @@ const COMMON_UOMS = [
   { code: 'GRAM', name: 'Gram' },
 ]
 
-const EMPTY = { uom_code: '', uom_name: '', description: '', pack_size: '1', pack_size_unit: '' }
+const EMPTY = { uom_code: '', uom_name: '' }
 
 const Field = ({ label, required, error, children }) => (
   <div>
@@ -43,11 +46,8 @@ function UOMModal({ editItem, onClose }) {
   useEffect(() => {
     if (editItem) {
       setForm({
-        uom_code:       editItem.uom_code       || '',
-        uom_name:       editItem.uom_name        || '',
-        description:    editItem.description     || '',
-        pack_size:      editItem.pack_size != null ? String(editItem.pack_size) : '1',
-        pack_size_unit: editItem.pack_size_unit  || '',
+        uom_code: editItem.uom_code || '',
+        uom_name: editItem.uom_name || '',
       })
     } else {
       setForm(EMPTY)
@@ -61,9 +61,8 @@ function UOMModal({ editItem, onClose }) {
     if (errors[key]) setErrors(er => ({ ...er, [key]: '' }))
   }
 
-  // Quick-fill from common UOM chip
   const fillFromChip = (chip) => {
-    setForm(f => ({ ...f, uom_code: chip.code, uom_name: chip.name }))
+    setForm({ uom_code: chip.code, uom_name: chip.name })
     setErrors({})
   }
 
@@ -80,11 +79,8 @@ function UOMModal({ editItem, onClose }) {
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     const payload = {
-      uom_code:       form.uom_code.trim().toUpperCase(),
-      uom_name:       form.uom_name.trim(),
-      description:    form.description || null,
-      pack_size:      parseFloat(form.pack_size) || 1,
-      pack_size_unit: form.pack_size_unit || null,
+      uom_code: form.uom_code.trim().toUpperCase(),
+      uom_name: form.uom_name.trim(),
     }
 
     if (isEdit) {
@@ -108,9 +104,6 @@ function UOMModal({ editItem, onClose }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h3 className="text-lg font-bold text-gray-900">{isEdit ? 'Edit UOM' : 'Add New UOM'}</h3>
-            {isEdit && editItem.uom_master_code && (
-              <p className="text-xs font-mono font-semibold text-gray-500 mt-0.5">{editItem.uom_master_code}</p>
-            )}
           </div>
           <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -143,47 +136,27 @@ function UOMModal({ editItem, onClose }) {
             </div>
           )}
 
-          {/* UOM Code + UOM Name side by side */}
+          <div>
+            <label className="label">UOM Code</label>
+            <input
+              value={isEdit ? editItem.uom_master_code : "Auto Generated (UOM-0001)"}
+              disabled
+              className="input-field bg-gray-50 text-gray-500 font-mono"
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
-            <Field label="UOM Code" required error={errors.uom_code}>
+            <Field label="Short Code (e.g. KG)" required error={errors.uom_code}>
               <input id="uom_code" className={`input-field font-mono font-bold uppercase ${errors.uom_code ? 'border-red-400' : ''}`}
-                value={form.uom_code} onChange={set('uom_code')} placeholder="PAIR" />
+                value={form.uom_code} onChange={set('uom_code')} placeholder="KG" />
             </Field>
-            <Field label="UOM Name" required error={errors.uom_name}>
+            <Field label="UOM Description" required error={errors.uom_name}>
               <input id="uom_name" className={`input-field ${errors.uom_name ? 'border-red-400' : ''}`}
-                value={form.uom_name} onChange={set('uom_name')} placeholder="Pair" autoFocus={!isEdit} />
+                value={form.uom_name} onChange={set('uom_name')} placeholder="Kilogram" autoFocus={!isEdit} />
             </Field>
           </div>
 
-          {/* Description */}
-          <Field label="Description">
-            <textarea id="uom_desc" className="input-field resize-none" rows={2}
-              value={form.description} onChange={set('description')} placeholder="Optional description…" />
-          </Field>
-
-          {/* Pack Size + Unit side by side */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Pack Size">
-              <input id="uom_pack_size" type="number" step="0.0001" min="0" className="input-field"
-                value={form.pack_size} onChange={set('pack_size')} placeholder="1" />
-            </Field>
-            <Field label="Pack Size Unit">
-              <input id="uom_pack_size_unit" className="input-field"
-                value={form.pack_size_unit} onChange={set('pack_size_unit')} placeholder="e.g. pieces per pair" />
-            </Field>
-          </div>
-
-          {/* Auto-code banner */}
-          {!isEdit && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-xs text-blue-700">Master code auto-generated on save (UOM-0001, UOM-0002…)</p>
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="btn-secondary" disabled={pending}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={pending}>
               {pending ? 'Saving…' : isEdit ? 'Update UOM' : 'Create UOM'}
@@ -195,15 +168,136 @@ function UOMModal({ editItem, onClose }) {
   )
 }
 
+// ─── Conversions Section ───────────────────────────────────────────────────────
+function UOMConversions({ uoms, canEdit }) {
+  const { data, isLoading } = useUOMConversions()
+  const createMut = useCreateUOMConversion()
+  const deleteMut = useDeleteUOMConversion()
+
+  const conversions = Array.isArray(data) ? data : []
+
+  const [fromUom, setFromUom] = useState('')
+  const [toUom, setToUom]     = useState('')
+  const [factor, setFactor]   = useState('')
+
+  const handleAddConversion = () => {
+    if (!fromUom || !toUom || !factor) {
+      return toast.error('Please fill all conversion fields')
+    }
+    createMut.mutate(
+      { from_uom_id: Number(fromUom), to_uom_id: Number(toUom), conversion_factor: Number(factor) },
+      {
+        onSuccess: () => {
+          toast.success('Conversion added')
+          setFromUom('')
+          setToUom('')
+          setFactor('')
+        },
+        onError: (err) => toast.error(err?.response?.data?.message || 'Failed to add conversion')
+      }
+    )
+  }
+
+  const handleDelete = (id) => {
+    if (window.confirm('Delete this conversion?')) {
+      deleteMut.mutate(id, {
+        onSuccess: () => toast.success('Conversion deleted'),
+        onError: () => toast.error('Failed to delete conversion')
+      })
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {canEdit && (
+        <div className="card p-4 bg-gray-50/50 flex flex-col sm:flex-row gap-3 items-end sm:items-center">
+          <div className="flex-1">
+            <label className="label">From UOM</label>
+            <select className="input-field" value={fromUom} onChange={e => setFromUom(e.target.value)}>
+              <option value="">— Select —</option>
+              {uoms.map(u => <option key={u.id} value={u.id}>{u.uom_code} ({u.uom_name})</option>)}
+            </select>
+          </div>
+          <div className="pb-2 text-gray-400 font-bold hidden sm:block">=</div>
+          <div className="flex-1">
+            <label className="label">Factor</label>
+            <input type="number" step="0.000001" min="0" placeholder="e.g. 1000" className="input-field" 
+              value={factor} onChange={e => setFactor(e.target.value)} />
+          </div>
+          <div className="flex-1">
+            <label className="label">To UOM</label>
+            <select className="input-field" value={toUom} onChange={e => setToUom(e.target.value)}>
+              <option value="">— Select —</option>
+              {uoms.map(u => <option key={u.id} value={u.id}>{u.uom_code} ({u.uom_name})</option>)}
+            </select>
+          </div>
+          <button 
+            onClick={handleAddConversion} 
+            disabled={createMut.isPending}
+            className="btn-primary whitespace-nowrap h-[42px]"
+          >
+            {createMut.isPending ? 'Adding…' : '+ Add'}
+          </button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="p-12 flex justify-center"><Loader /></div>
+      ) : (
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase text-xs font-semibold">
+                <tr>
+                  <th className="px-5 py-3">From</th>
+                  <th className="px-5 py-3 text-center">=</th>
+                  <th className="px-5 py-3">Factor</th>
+                  <th className="px-5 py-3">To</th>
+                  {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {conversions.length === 0 ? (
+                  <tr>
+                    <td colSpan={canEdit ? 5 : 4} className="p-10 text-center text-gray-400">
+                      No conversions found.
+                    </td>
+                  </tr>
+                ) : conversions.map(c => (
+                  <tr key={c.id} className="hover:bg-gray-50/60 transition-colors">
+                    <td className="px-5 py-3 font-semibold text-indigo-700">{c.from_uom_code}</td>
+                    <td className="px-5 py-3 text-center text-gray-400 font-bold">=</td>
+                    <td className="px-5 py-3 font-mono font-bold text-gray-800">{Number(c.conversion_factor)}</td>
+                    <td className="px-5 py-3 font-semibold text-teal-700">{c.to_uom_code}</td>
+                    {canEdit && (
+                      <td className="px-5 py-3 text-right">
+                        <button onClick={() => handleDelete(c.id)} className="text-red-500 hover:text-red-700 text-xs font-semibold">
+                          Delete
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function UOMMaster() {
   const { user } = useAuth()
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
-  const [search, setSearch]         = useState('')
+  const [activeTab, setActiveTab]       = useState('uoms')
+  const [search, setSearch]             = useState('')
   const [filterActive, setFilterActive] = useState('')
-  const [showModal, setShowModal]   = useState(false)
-  const [editItem, setEditItem]     = useState(null)
+  const [showModal, setShowModal]       = useState(false)
+  const [editItem, setEditItem]         = useState(null)
 
   const params = {}
   if (search.trim())       params.search    = search.trim()
@@ -225,15 +319,20 @@ export default function UOMMaster() {
     })
   }
 
+  // Calculate conversions count for a UOM (to show in table)
+  // We fetch conversions via a separate hook here just to count them.
+  const { data: convData } = useUOMConversions()
+  const conversionsList = Array.isArray(convData) ? convData : []
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">UOM Master</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Manage units of measure — codes auto-generated (UOM-0001…)</p>
+          <p className="text-xs text-gray-500 mt-0.5">Manage units of measure and conversions</p>
         </div>
-        {canEdit && (
+        {canEdit && activeTab === 'uoms' && (
           <button id="btn-add-uom" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -243,128 +342,117 @@ export default function UOMMaster() {
         )}
       </div>
 
-      {/* Common UOM reference bar */}
-      <div className="flex flex-wrap gap-1.5 p-3 bg-gray-50 rounded-xl border border-gray-100">
-        <span className="text-xs text-gray-400 font-medium self-center mr-1">Common:</span>
-        {COMMON_UOMS.map(c => (
-          <span key={c.code}
-            className="px-2.5 py-0.5 bg-white border border-gray-200 rounded-full text-xs font-semibold text-gray-600"
-            title={c.name}
-          >
-            {c.code}
-          </span>
-        ))}
+      {/* Tabs */}
+      <div className="flex gap-4 border-b border-gray-200">
+        <button 
+          className={`py-2 px-1 border-b-2 font-semibold text-sm transition-colors ${
+            activeTab === 'uoms' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('uoms')}
+        >
+          UOM List
+        </button>
+        <button 
+          className={`py-2 px-1 border-b-2 font-semibold text-sm transition-colors ${
+            activeTab === 'conversions' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+          onClick={() => setActiveTab('conversions')}
+        >
+          UOM Converter
+        </button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-          </svg>
-          <input id="uom-search" className="input-field pl-9" placeholder="Search by code or name…"
-            value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-        <select id="uom-status-filter" className="input-field w-auto min-w-[140px]"
-          value={filterActive} onChange={e => setFilterActive(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
-      </div>
-
-      {/* Table */}
-      {isLoading ? (
-        <div className="p-12 flex justify-center"><Loader /></div>
-      ) : (
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase text-xs font-semibold">
-                <tr>
-                  <th className="px-5 py-3 whitespace-nowrap">Master Code</th>
-                  <th className="px-5 py-3">UOM Code</th>
-                  <th className="px-5 py-3">UOM Name</th>
-                  <th className="px-5 py-3 hidden md:table-cell text-center">Pack Size</th>
-                  <th className="px-5 py-3 hidden lg:table-cell">Description</th>
-                  <th className="px-5 py-3 text-center">Status</th>
-                  {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {uoms.length === 0 ? (
-                  <tr>
-                    <td colSpan={canEdit ? 7 : 6} className="p-10 text-center text-gray-400">
-                      <div className="flex flex-col items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M12 7h.01M9 11h6" />
-                        </svg>
-                        <span>No UOMs found.{canEdit && ' Click "Add UOM" to get started.'}</span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : uoms.map(u => (
-                  <tr key={u.id} className={`hover:bg-gray-50/60 transition-colors ${!u.is_active ? 'opacity-55' : ''}`}>
-                    {/* Master Code */}
-                    <td className="px-5 py-3 font-mono font-bold text-xs whitespace-nowrap text-violet-700">
-                      {u.uom_master_code || <span className="text-gray-300 italic">—</span>}
-                    </td>
-
-                    {/* UOM Code chip */}
-                    <td className="px-5 py-3">
-                      <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-800 rounded font-mono font-bold text-xs">
-                        {u.uom_code}
-                      </span>
-                    </td>
-
-                    {/* UOM Name */}
-                    <td className="px-5 py-3 font-semibold text-gray-900">{u.uom_name}</td>
-
-                    {/* Pack Size */}
-                    <td className="px-5 py-3 hidden md:table-cell text-center">
-                      {u.pack_size != null && u.pack_size !== 1 ? (
-                        <div className="flex flex-col items-center">
-                          <span className="font-mono font-semibold text-gray-800 text-xs">{u.pack_size}</span>
-                          {u.pack_size_unit && <span className="text-xs text-gray-400">{u.pack_size_unit}</span>}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400 text-xs">1</span>
-                      )}
-                    </td>
-
-                    {/* Description */}
-                    <td className="px-5 py-3 hidden lg:table-cell text-xs text-gray-400 max-w-[200px]">
-                      <span className="truncate block">{u.description || '—'}</span>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-5 py-3 text-center">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {u.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-
-                    {/* Actions */}
-                    {canEdit && (
-                      <td className="px-5 py-3 text-right whitespace-nowrap space-x-3">
-                        <button onClick={() => openEdit(u)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">Edit</button>
-                        <button onClick={() => handleToggle(u)} className={`text-xs font-semibold ${u.is_active ? 'text-red-500 hover:text-red-700' : 'text-green-600 hover:text-green-800'}`}>
-                          {u.is_active ? 'Deactivate' : 'Activate'}
-                        </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {activeTab === 'uoms' && (
+        <>
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+              </svg>
+              <input id="uom-search" className="input-field pl-9" placeholder="Search by code or name…"
+                value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+            <select id="uom-status-filter" className="input-field w-auto min-w-[140px]"
+              value={filterActive} onChange={e => setFilterActive(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
           </div>
 
-          {uoms.length > 0 && (
-            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-              <p className="text-xs text-gray-400">{uoms.length} {uoms.length === 1 ? 'UOM' : 'UOMs'} found</p>
+          {/* Table */}
+          {isLoading ? (
+            <div className="p-12 flex justify-center"><Loader /></div>
+          ) : (
+            <div className="card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase text-xs font-semibold">
+                    <tr>
+                      <th className="px-5 py-3 whitespace-nowrap">Code</th>
+                      <th className="px-5 py-3">Description</th>
+                      <th className="px-5 py-3 text-center">Conversions</th>
+                      <th className="px-5 py-3 text-center">Status</th>
+                      {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {uoms.length === 0 ? (
+                      <tr>
+                        <td colSpan={canEdit ? 5 : 4} className="p-10 text-center text-gray-400">
+                          <div className="flex flex-col items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M12 7h.01M9 11h6" />
+                            </svg>
+                            <span>No UOMs found.{canEdit && ' Click "Add UOM" to get started.'}</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : uoms.map(u => {
+                      const count = conversionsList.filter(c => c.from_uom_id === u.id || c.to_uom_id === u.id).length
+                      return (
+                        <tr key={u.id} className={`hover:bg-gray-50/60 transition-colors ${!u.is_active ? 'opacity-55' : ''}`}>
+                          <td className="px-5 py-3 font-mono font-bold text-xs whitespace-nowrap text-violet-700">
+                            {u.uom_master_code || <span className="text-gray-300 italic">—</span>}
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="font-semibold text-gray-900">{u.uom_name}</span>
+                            <span className="ml-2 text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{u.uom_code}</span>
+                          </td>
+                          <td className="px-5 py-3 text-center">
+                            {count > 0 ? (
+                              <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs font-bold">{count}</span>
+                            ) : (
+                              <span className="text-gray-300 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-center">
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${u.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {u.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                          {canEdit && (
+                            <td className="px-5 py-3 text-right whitespace-nowrap space-x-3">
+                              <button onClick={() => openEdit(u)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">Edit</button>
+                              <button onClick={() => handleToggle(u)} className={`text-xs font-semibold ${u.is_active ? 'text-red-500 hover:text-red-700' : 'text-green-600 hover:text-green-800'}`}>
+                                {u.is_active ? 'Deactivate' : 'Activate'}
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
-        </div>
+        </>
+      )}
+
+      {activeTab === 'conversions' && (
+        <UOMConversions uoms={uoms.filter(u => u.is_active)} canEdit={canEdit} />
       )}
 
       {showModal && <UOMModal editItem={editItem} onClose={closeModal} />}
