@@ -6,7 +6,7 @@ import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
 
 const EMPTY = {
-  mfr_name:'', description:'', brand_id:'',
+  mfr_name:'', brand_id:'',
   licence_no:'', gstin:'', msme_certificate:'',
   address:'', city:'', state:'', pincode:'',
   contact_person:'', contact_mobile:'', email:'', customer_care_no:''
@@ -43,7 +43,6 @@ function ManufacturerModal({ editItem, onClose }) {
     if (editItem) {
       setForm({
         mfr_name:         editItem.mfr_name         || '',
-        description:      editItem.description       || '',
         brand_id:         editItem.brand_id ? String(editItem.brand_id) : '',
         licence_no:       editItem.licence_no        || '',
         gstin:            editItem.gstin             || '',
@@ -124,17 +123,29 @@ function ManufacturerModal({ editItem, onClose }) {
           {/* ── Section 1: Basic Info ── */}
           <SectionHeader icon="🏭" title="Basic Info" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            <div className="sm:col-span-2">
+              <label className="label">Manufacturer Code</label>
+              <input
+                value={isEdit ? editItem.mfr_code : "Auto Generated (MFR-0001)"}
+                disabled
+                className="input-field bg-gray-50 text-gray-500 font-mono"
+              />
+            </div>
+
             <div className="sm:col-span-2">
               <Field label="Manufacturer Name" required error={errors.mfr_name}>
-                {inp('mfr_name', 'e.g. ABC Footwear Pvt Ltd')}
+                <input
+                  type="text"
+                  required
+                  placeholder="Enter manufacturer name"
+                  value={form.mfr_name}
+                  onChange={set('mfr_name')}
+                  className={`input-field ${errors.mfr_name ? 'border-red-400' : ''}`}
+                />
               </Field>
             </div>
-            <div className="sm:col-span-2">
-              <Field label="Description">
-                <textarea id="mfr_desc" className="input-field resize-none" rows={2}
-                  value={form.description} onChange={set('description')} placeholder="Optional description…" />
-              </Field>
-            </div>
+            
             <Field label="Brand">
               <select id="mfr_brand" className="input-field" value={form.brand_id} onChange={set('brand_id')}>
                 <option value="">— No Brand —</option>

@@ -5,23 +5,17 @@ import {
   useUpdateBrand,
   useDeleteBrand
 } from '../../hooks/useBrands'
+import { useCompanies } from '../../hooks/useCompany'
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
 
 // ─── Empty form ────────────────────────────────────────────────────────────────
-const EMPTY_FORM = { brand_name: '', description: '' }
-
-// ─── Field wrapper ─────────────────────────────────────────────────────────────
-const Field = ({ label, required, error, children }) => (
-  <div>
-    <label className="label">
-      {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-    </label>
-    {children}
-    {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
-  </div>
-)
+const EMPTY_FORM = {
+  brand_name: '',
+  company_id: '',
+  discount: '',
+}
 
 // ─── Modal ─────────────────────────────────────────────────────────────────────
 function BrandModal({ editItem, onClose }) {
@@ -30,14 +24,21 @@ function BrandModal({ editItem, onClose }) {
   const updateMut = useUpdateBrand()
   const pending   = createMut.isPending || updateMut.isPending
 
+  const { data: companies = [] } = useCompanies()
+
   const [form, setForm]     = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
-    setForm(editItem
-      ? { brand_name: editItem.brand_name || '', description: editItem.description || '' }
-      : EMPTY_FORM
-    )
+    if (editItem) {
+      setForm({
+        brand_name: editItem.brand_name || '',
+        company_id: editItem.company_id ? String(editItem.company_id) : '',
+        discount:   editItem.discount || '',
+      })
+    } else {
+      setForm(EMPTY_FORM)
+    }
     setErrors({})
   }, [editItem])
 
@@ -57,7 +58,11 @@ function BrandModal({ editItem, onClose }) {
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
 
-    const payload = { brand_name: form.brand_name.trim(), description: form.description || null }
+    const payload = {
+      brand_name: form.brand_name.trim(),
+      company_id: form.company_id ? Number(form.company_id) : null,
+      discount:   form.discount || null,
+    }
 
     if (isEdit) {
       updateMut.mutate(
@@ -104,44 +109,63 @@ function BrandModal({ editItem, onClose }) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
 
-          {/* Brand Name */}
-          <Field label="Brand Name" required error={errors.brand_name}>
+          {/* Brand Code (auto-generated, read-only) */}
+          <div>
+            <label className="label">Brand Code</label>
             <input
-              id="brand_name"
-              className={`input-field ${errors.brand_name ? 'border-red-400 focus:ring-red-300' : ''}`}
+              value={isEdit ? editItem.brand_code : "Auto Generated (BRAND-0001)"}
+              disabled
+              className="input-field bg-gray-50 text-gray-500 font-mono"
+            />
+          </div>
+
+          {/* Brand Name * */}
+          <div>
+            <label className="label">Brand Description *</label>
+            <input
+              type="text"
+              required
+              placeholder="Enter brand description"
               value={form.brand_name}
               onChange={set('brand_name')}
-              placeholder="e.g. Nike, Adidas, Bata"
+              className={`input-field ${errors.brand_name ? 'border-red-400 focus:ring-red-300' : ''}`}
               autoFocus
             />
-          </Field>
+            {errors.brand_name && <p className="mt-1 text-xs text-red-500">{errors.brand_name}</p>}
+          </div>
 
-          {/* Description */}
-          <Field label="Description">
-            <textarea
-              id="brand_description"
-              className="input-field resize-none"
-              rows={3}
-              value={form.description}
-              onChange={set('description')}
-              placeholder="Optional description…"
+          {/* Company */}
+          <div>
+            <label className="label">Company</label>
+            <select
+              value={form.company_id}
+              onChange={set('company_id')}
+              className="input-field"
+            >
+              <option value="">— Select Company —</option>
+              {companies.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.company_code} — {c.company_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Discount % */}
+          <div>
+            <label className="label">Discount %</label>
+            <input
+              type="number"
+              min="0" max="100" step="0.01"
+              placeholder="0.00"
+              value={form.discount}
+              onChange={set('discount')}
+              className="input-field"
             />
-          </Field>
-
-          {/* Auto-code info */}
-          {!isEdit && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-xs text-blue-700">
-                Brand code auto-generated on save (BRAND-0001, BRAND-0002…)
-              </p>
-            </div>
-          )}
+          </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="btn-secondary" disabled={pending}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={pending}>
               {pending ? 'Saving…' : isEdit ? 'Update Brand' : 'Create Brand'}
@@ -159,13 +183,11 @@ export default function BrandMaster() {
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
   const [search, setSearch]             = useState('')
-  const [filterActive, setFilterActive] = useState('')
   const [showModal, setShowModal]       = useState(false)
   const [editItem, setEditItem]         = useState(null)
 
   const params = {}
-  if (search.trim())       params.search    = search.trim()
-  if (filterActive !== '') params.is_active = filterActive
+  if (search.trim()) params.search = search.trim()
 
   const { data, isLoading } = useBrands(params)
   const updateMut = useUpdateBrand()
@@ -226,18 +248,6 @@ export default function BrandMaster() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-
-        {/* Status filter */}
-        <select
-          id="brand-status-filter"
-          className="input-field w-auto min-w-[140px]"
-          value={filterActive}
-          onChange={e => setFilterActive(e.target.value)}
-        >
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
       </div>
 
       {/* Table */}
@@ -250,8 +260,9 @@ export default function BrandMaster() {
               <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase text-xs font-semibold">
                 <tr>
                   <th className="px-5 py-3 whitespace-nowrap">Code</th>
-                  <th className="px-5 py-3">Brand Name</th>
-                  <th className="px-5 py-3 hidden md:table-cell">Description</th>
+                  <th className="px-5 py-3">Description</th>
+                  <th className="px-5 py-3">Company</th>
+                  <th className="px-5 py-3">Discount %</th>
                   <th className="px-5 py-3 text-center">Status</th>
                   {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
                 </tr>
@@ -259,7 +270,7 @@ export default function BrandMaster() {
               <tbody className="divide-y divide-gray-100">
                 {brands.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 5 : 4} className="p-10 text-center text-gray-400">
+                    <td colSpan={canEdit ? 6 : 5} className="p-10 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
@@ -273,28 +284,22 @@ export default function BrandMaster() {
                     key={b.id}
                     className={`hover:bg-gray-50/60 transition-colors ${!b.is_active ? 'opacity-55' : ''}`}
                   >
-                    {/* Code */}
                     <td className="px-5 py-3 font-mono font-bold text-xs whitespace-nowrap text-orange-700">
                       {b.brand_code || <span className="text-gray-300 italic">—</span>}
                     </td>
 
-                    {/* Brand Name */}
+                    <td className="px-5 py-3 font-semibold text-gray-900">
+                      {b.brand_name}
+                    </td>
+
                     <td className="px-5 py-3">
-                      <div className="flex items-center gap-2.5">
-                        {/* Brand initial avatar */}
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-400 to-rose-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                          {b.brand_name?.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="font-semibold text-gray-900">{b.brand_name}</span>
-                      </div>
+                      {b.company_name || '—'}
                     </td>
 
-                    {/* Description */}
-                    <td className="px-5 py-3 text-gray-400 text-xs hidden md:table-cell max-w-[260px]">
-                      <span className="truncate block">{b.description || '—'}</span>
+                    <td className="px-5 py-3">
+                      {b.discount ? `${b.discount}%` : '—'}
                     </td>
 
-                    {/* Status */}
                     <td className="px-5 py-3 text-center">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                         b.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
@@ -303,7 +308,6 @@ export default function BrandMaster() {
                       </span>
                     </td>
 
-                    {/* Actions */}
                     {canEdit && (
                       <td className="px-5 py-3 text-right whitespace-nowrap space-x-3">
                         <button
@@ -327,19 +331,9 @@ export default function BrandMaster() {
               </tbody>
             </table>
           </div>
-
-          {/* Footer */}
-          {brands.length > 0 && (
-            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-              <p className="text-xs text-gray-400">
-                {brands.length} {brands.length === 1 ? 'brand' : 'brands'} found
-              </p>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Modal */}
       {showModal && <BrandModal editItem={editItem} onClose={closeModal} />}
     </div>
   )

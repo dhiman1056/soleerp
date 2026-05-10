@@ -12,21 +12,10 @@ import toast from 'react-hot-toast'
 
 // ─── Empty form ────────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
-  category_name: '',
-  description:   '',
-  dept_id:       '',
+  catg_name: '',
+  dept_id: '',
+  discount: '',
 }
-
-// ─── Field wrapper ─────────────────────────────────────────────────────────────
-const Field = ({ label, required, error, children }) => (
-  <div>
-    <label className="label">
-      {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-    </label>
-    {children}
-    {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
-  </div>
-)
 
 // ─── Modal ─────────────────────────────────────────────────────────────────────
 function CategoryModal({ editItem, onClose }) {
@@ -35,8 +24,7 @@ function CategoryModal({ editItem, onClose }) {
   const updateMut = useUpdateCategory()
   const pending   = createMut.isPending || updateMut.isPending
 
-  const { data: deptData, isLoading: deptLoading } = useDepartments({ is_active: 'true' })
-  const departments = Array.isArray(deptData) ? deptData : []
+  const { data: departments = [] } = useDepartments()
 
   const [form, setForm]     = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
@@ -44,9 +32,9 @@ function CategoryModal({ editItem, onClose }) {
   useEffect(() => {
     if (editItem) {
       setForm({
-        category_name: editItem.category_name || '',
-        description:   editItem.description   || '',
-        dept_id:       editItem.dept_id ? String(editItem.dept_id) : '',
+        catg_name: editItem.catg_name || '',
+        dept_id:   editItem.dept_id ? String(editItem.dept_id) : '',
+        discount:  editItem.discount || '',
       })
     } else {
       setForm(EMPTY_FORM)
@@ -61,8 +49,7 @@ function CategoryModal({ editItem, onClose }) {
 
   const validate = () => {
     const errs = {}
-    if (!form.category_name.trim()) errs.category_name = 'Category name is required'
-    if (!form.dept_id)              errs.dept_id        = 'Department is required'
+    if (!form.catg_name.trim()) errs.catg_name = 'Category description is required'
     return errs
   }
 
@@ -72,9 +59,9 @@ function CategoryModal({ editItem, onClose }) {
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     const payload = {
-      category_name: form.category_name.trim(),
-      description:   form.description || null,
-      dept_id:       Number(form.dept_id),
+      catg_name: form.catg_name.trim(),
+      dept_id:   form.dept_id ? Number(form.dept_id) : null,
+      discount:  form.discount || null,
     }
 
     if (isEdit) {
@@ -121,74 +108,64 @@ function CategoryModal({ editItem, onClose }) {
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-
-          {/* Category Name */}
-          <Field label="Category Name" required error={errors.category_name}>
+          
+          {/* Category Code - Read Only */}
+          <div>
+            <label className="label">Category Code</label>
             <input
-              id="category_name"
-              className={`input-field uppercase ${errors.category_name ? 'border-red-400 focus:ring-red-300' : ''}`}
-              value={form.category_name}
-              onChange={e => {
-                setForm(f => ({ ...f, category_name: e.target.value.toUpperCase() }))
-                if (errors.category_name) setErrors(er => ({ ...er, category_name: '' }))
-              }}
-              placeholder="e.g. GENTS, LADIES, KIDS"
+              value={isEdit ? editItem.catg_code : "Auto Generated (CATG-0001)"}
+              disabled
+              className="input-field bg-gray-50 text-gray-500 font-mono"
+            />
+          </div>
+
+          {/* Category Description */}
+          <div>
+            <label className="label">Category Description *</label>
+            <input
+              type="text"
+              required
+              placeholder="Enter category description"
+              value={form.catg_name}
+              onChange={set('catg_name')}
+              className={`input-field ${errors.catg_name ? 'border-red-400 focus:ring-red-300' : ''}`}
               autoFocus
             />
-          </Field>
+            {errors.catg_name && <p className="mt-1 text-xs text-red-500">{errors.catg_name}</p>}
+          </div>
 
-          {/* Description */}
-          <Field label="Description">
-            <textarea
-              id="catg_description"
-              className="input-field resize-none"
-              rows={3}
-              value={form.description}
-              onChange={set('description')}
-              placeholder="Optional description for this category…"
-            />
-          </Field>
-
-          {/* Department dropdown */}
-          <Field label="Department" required error={errors.dept_id}>
+          {/* Department */}
+          <div>
+            <label className="label">Department</label>
             <select
-              id="catg_dept"
-              className={`input-field ${errors.dept_id ? 'border-red-400 focus:ring-red-300' : ''}`}
               value={form.dept_id}
               onChange={set('dept_id')}
-              disabled={deptLoading}
+              className="input-field"
             >
-              <option value="">
-                {deptLoading ? 'Loading departments…' : '— Select Department —'}
-              </option>
+              <option value="">— Select Department —</option>
               {departments.map(d => (
                 <option key={d.id} value={d.id}>
-                  {d.dept_name}
-                  {d.dept_code ? ` (${d.dept_code})` : ''}
+                  {d.dept_code} — {d.dept_name}
                 </option>
               ))}
             </select>
-            {departments.length === 0 && !deptLoading && (
-              <p className="mt-1 text-xs text-amber-600">
-                No active departments found. Please create a department first.
-              </p>
-            )}
-          </Field>
+          </div>
 
-          {/* Auto-code info banner for new records */}
-          {!isEdit && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-xs text-blue-700">
-                Category code will be auto-generated (CATG-0001, CATG-0002…)
-              </p>
-            </div>
-          )}
+          {/* Discount */}
+          <div>
+            <label className="label">Discount %</label>
+            <input
+              type="number"
+              min="0" max="100" step="0.01"
+              placeholder="0.00"
+              value={form.discount}
+              onChange={set('discount')}
+              className="input-field"
+            />
+          </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="btn-secondary" disabled={pending}>
               Cancel
             </button>
@@ -208,22 +185,16 @@ export default function CategoryMaster() {
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
   const [search, setSearch]         = useState('')
-  const [filterDept, setFilterDept] = useState('')
-  const [filterActive, setFilterActive] = useState('')
   const [showModal, setShowModal]   = useState(false)
   const [editItem, setEditItem]     = useState(null)
 
   const params = {}
-  if (search.trim())       params.search    = search.trim()
-  if (filterDept)          params.dept_id   = filterDept
-  if (filterActive !== '') params.is_active = filterActive
+  if (search.trim()) params.search = search.trim()
 
   const { data, isLoading } = useCategories(params)
-  const { data: deptData }  = useDepartments({ is_active: 'true' })
   const updateMut = useUpdateCategory()
 
-  const categories  = Array.isArray(data)     ? data     : []
-  const departments = Array.isArray(deptData) ? deptData : []
+  const categories = Array.isArray(data) ? data : []
 
   const openCreate = () => { setEditItem(null); setShowModal(true) }
   const openEdit   = (c) => { setEditItem(c);   setShowModal(true) }
@@ -279,31 +250,6 @@ export default function CategoryMaster() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-
-        {/* Department filter */}
-        <select
-          id="catg-dept-filter"
-          className="input-field w-auto min-w-[170px]"
-          value={filterDept}
-          onChange={e => setFilterDept(e.target.value)}
-        >
-          <option value="">All Departments</option>
-          {departments.map(d => (
-            <option key={d.id} value={d.id}>{d.dept_name}</option>
-          ))}
-        </select>
-
-        {/* Status filter */}
-        <select
-          id="catg-status-filter"
-          className="input-field w-auto min-w-[140px]"
-          value={filterActive}
-          onChange={e => setFilterActive(e.target.value)}
-        >
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
       </div>
 
       {/* Table */}
@@ -316,9 +262,9 @@ export default function CategoryMaster() {
               <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase text-xs font-semibold">
                 <tr>
                   <th className="px-5 py-3 whitespace-nowrap">Code</th>
-                  <th className="px-5 py-3">Category Name</th>
+                  <th className="px-5 py-3">Description</th>
                   <th className="px-5 py-3">Department</th>
-                  <th className="px-5 py-3 hidden md:table-cell">Description</th>
+                  <th className="px-5 py-3">Discount %</th>
                   <th className="px-5 py-3 text-center">Status</th>
                   {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
                 </tr>
@@ -339,68 +285,32 @@ export default function CategoryMaster() {
                     </td>
                   </tr>
                 ) : categories.map(c => (
-                  <tr
-                    key={c.id}
-                    className={`hover:bg-gray-50/60 transition-colors ${!c.is_active ? 'opacity-55' : ''}`}
-                  >
-                    {/* Code */}
+                  <tr key={c.id} className={`hover:bg-gray-50/60 transition-colors ${!c.is_active ? 'opacity-55' : ''}`}>
                     <td className="px-5 py-3 font-mono font-bold text-xs whitespace-nowrap text-violet-700">
                       {c.catg_code || <span className="text-gray-300 italic">—</span>}
                     </td>
-
-                    {/* Name */}
                     <td className="px-5 py-3 font-semibold text-gray-900">
-                      {c.category_name}
+                      {c.catg_name}
                     </td>
-
-                    {/* Department */}
                     <td className="px-5 py-3">
-                      {c.dept_name ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
-                          <span className="text-gray-700 text-xs font-medium">{c.dept_name}</span>
-                          {c.dept_code && (
-                            <span className="text-gray-400 text-xs font-mono">({c.dept_code})</span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
+                      {c.dept_code ? `${c.dept_code} — ${c.dept_name}` : '—'}
                     </td>
-
-                    {/* Description */}
-                    <td className="px-5 py-3 text-gray-400 text-xs hidden md:table-cell max-w-[220px]">
-                      <span className="truncate block">{c.description || '—'}</span>
+                    <td className="px-5 py-3">
+                      {c.discount ? `${c.discount}%` : '—'}
                     </td>
-
-                    {/* Status */}
                     <td className="px-5 py-3 text-center">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        c.is_active
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-500'
+                        c.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
                       }`}>
                         {c.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-
-                    {/* Actions */}
                     {canEdit && (
                       <td className="px-5 py-3 text-right whitespace-nowrap space-x-3">
-                        <button
-                          onClick={() => openEdit(c)}
-                          className="text-blue-600 hover:text-blue-800 text-xs font-semibold"
-                        >
+                        <button onClick={() => openEdit(c)} className="text-blue-600 hover:text-blue-800 text-xs font-semibold">
                           Edit
                         </button>
-                        <button
-                          onClick={() => handleToggle(c)}
-                          className={`text-xs font-semibold ${
-                            c.is_active
-                              ? 'text-red-500 hover:text-red-700'
-                              : 'text-green-600 hover:text-green-800'
-                          }`}
-                        >
+                        <button onClick={() => handleToggle(c)} className={`text-xs font-semibold ${c.is_active ? 'text-red-500 hover:text-red-700' : 'text-green-600 hover:text-green-800'}`}>
                           {c.is_active ? 'Deactivate' : 'Activate'}
                         </button>
                       </td>
@@ -410,19 +320,9 @@ export default function CategoryMaster() {
               </tbody>
             </table>
           </div>
-
-          {/* Footer row count */}
-          {categories.length > 0 && (
-            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-              <p className="text-xs text-gray-400">
-                {categories.length} {categories.length === 1 ? 'category' : 'categories'} found
-              </p>
-            </div>
-          )}
         </div>
       )}
 
-      {/* Modal */}
       {showModal && (
         <CategoryModal editItem={editItem} onClose={closeModal} />
       )}

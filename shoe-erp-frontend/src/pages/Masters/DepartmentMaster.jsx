@@ -15,16 +15,7 @@ const EMPTY_FORM = {
   discount: '',
 }
 
-// ─── Field wrapper ─────────────────────────────────────────────────────────────
-const Field = ({ label, required, error, children }) => (
-  <div>
-    <label className="label">
-      {label}{required && <span className="text-red-500 ml-0.5">*</span>}
-    </label>
-    {children}
-    {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
-  </div>
-)
+
 
 // ─── Modal ─────────────────────────────────────────────────────────────────────
 function DepartmentModal({ editItem, onClose }) {

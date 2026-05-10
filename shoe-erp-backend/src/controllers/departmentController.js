@@ -15,29 +15,11 @@ const generateCode = async () => {
 // ─── GET /api/departments ─────────────────────────────────────────────────────
 const listDepartments = async (req, res) => {
   try {
-    const { search, is_active } = req.query
-    const conditions = []
-    const params = []
-
-    // Default: show active only unless caller explicitly passes is_active=false
-    if (is_active !== undefined) {
-      params.push(is_active === 'true')
-      conditions.push(`is_active = $${params.length}`)
-    }
-
-    if (search) {
-      params.push(`%${search}%`)
-      conditions.push(`(dept_name ILIKE $${params.length} OR dept_code ILIKE $${params.length})`)
-    }
-
-    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
-
     const { rows } = await query(`
-      SELECT *
-      FROM department_master
-      ${where}
+      SELECT * FROM department_master
+      WHERE is_active = true
       ORDER BY dept_code
-    `, params)
+    `)
 
     res.json({ success: true, data: rows })
   } catch (err) {
