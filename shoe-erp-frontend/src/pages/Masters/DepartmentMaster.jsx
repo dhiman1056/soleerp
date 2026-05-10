@@ -5,7 +5,6 @@ import {
   useUpdateDepartment,
   useDeleteDepartment
 } from '../../hooks/useDepartments'
-import { useLocations } from '../../hooks/useLocations'
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
@@ -13,8 +12,7 @@ import toast from 'react-hot-toast'
 // ─── Empty form ────────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
   dept_name:   '',
-  description: '',
-  location_id: '',
+  discount: '',
 }
 
 // ─── Field wrapper ─────────────────────────────────────────────────────────────
@@ -35,18 +33,14 @@ function DepartmentModal({ editItem, onClose }) {
   const updateMut = useUpdateDepartment()
   const pending   = createMut.isPending || updateMut.isPending
 
-  const { data: locData, isLoading: locLoading } = useLocations({ all: '1' })
-  const locations = Array.isArray(locData) ? locData.filter(l => l.is_active) : []
-
   const [form, setForm]   = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
     if (editItem) {
       setForm({
-        dept_name:   editItem.dept_name   || '',
-        description: editItem.description || '',
-        location_id: editItem.location_id ? String(editItem.location_id) : '',
+        dept_name: editItem.dept_name || '',
+        discount: editItem.discount || '',
       })
     } else {
       setForm(EMPTY_FORM)
@@ -61,8 +55,7 @@ function DepartmentModal({ editItem, onClose }) {
 
   const validate = () => {
     const errs = {}
-    if (!form.dept_name.trim())  errs.dept_name   = 'Department name is required'
-    if (!form.location_id)       errs.location_id  = 'Location is required'
+    if (!form.dept_name.trim()) errs.dept_name = 'Department name is required'
     return errs
   }
 
@@ -72,9 +65,8 @@ function DepartmentModal({ editItem, onClose }) {
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     const payload = {
-      dept_name:   form.dept_name.trim(),
-      description: form.description || null,
-      location_id: Number(form.location_id),
+      dept_name: form.dept_name.trim(),
+      discount: form.discount || null,
     }
 
     if (isEdit) {
@@ -121,70 +113,48 @@ function DepartmentModal({ editItem, onClose }) {
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
 
-          {/* Dept Name */}
-          <Field label="Department Name" required error={errors.dept_name}>
+          {/* Auto Code - Read Only */}
+          <div>
+            <label className="label">Department Code</label>
             <input
-              id="dept_name"
+              value={isEdit ? editItem.dept_code : "Auto Generated (DEPT-0001)"}
+              disabled
+              className="input-field bg-gray-50 text-gray-500 font-mono"
+            />
+          </div>
+
+          {/* Department Name */}
+          <div>
+            <label className="label">Department Name *</label>
+            <input
+              type="text"
+              required
               className={`input-field ${errors.dept_name ? 'border-red-400 focus:ring-red-300' : ''}`}
+              placeholder="Enter department name"
               value={form.dept_name}
               onChange={set('dept_name')}
-              placeholder="e.g. Cutting Section"
               autoFocus
             />
-          </Field>
+            {errors.dept_name && <p className="mt-1 text-xs text-red-500">{errors.dept_name}</p>}
+          </div>
 
-          {/* Description */}
-          <Field label="Description">
-            <textarea
-              id="dept_description"
-              className="input-field resize-none"
-              rows={3}
-              value={form.description}
-              onChange={set('description')}
-              placeholder="Short description of this department…"
+          {/* Discount */}
+          <div>
+            <label className="label">Discount %</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              className="input-field"
+              placeholder="0.00"
+              value={form.discount}
+              onChange={set('discount')}
             />
-          </Field>
-
-          {/* Location dropdown */}
-          <Field label="Location" required error={errors.location_id}>
-            <select
-              id="dept_location"
-              className={`input-field ${errors.location_id ? 'border-red-400 focus:ring-red-300' : ''}`}
-              value={form.location_id}
-              onChange={set('location_id')}
-              disabled={locLoading}
-            >
-              <option value="">
-                {locLoading ? 'Loading locations…' : '— Select Location —'}
-              </option>
-              {locations.map(loc => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.location_name}
-                  {loc.location_code ? ` (${loc.location_code})` : ''}
-                </option>
-              ))}
-            </select>
-            {locations.length === 0 && !locLoading && (
-              <p className="mt-1 text-xs text-amber-600">
-                No active locations found. Please create a location first.
-              </p>
-            )}
-          </Field>
-
-          {/* Auto-code info for new */}
-          {!isEdit && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-xs text-blue-700">
-                Department code will be auto-generated (DEPT-0001, DEPT-0002…)
-              </p>
-            </div>
-          )}
+          </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="btn-secondary" disabled={pending}>
               Cancel
             </button>
@@ -204,7 +174,6 @@ export default function DepartmentMaster() {
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
   const [search, setSearch]         = useState('')
-  const [filterLocation, setFilterLocation] = useState('')
   const [filterActive, setFilterActive]     = useState('')
   const [showModal, setShowModal]   = useState(false)
   const [editItem, setEditItem]     = useState(null)
@@ -212,15 +181,12 @@ export default function DepartmentMaster() {
   // Filters for query
   const params = {}
   if (search.trim())      params.search      = search.trim()
-  if (filterLocation)     params.location_id = filterLocation
   if (filterActive !== '') params.is_active  = filterActive
 
   const { data, isLoading } = useDepartments(params)
-  const { data: locData }   = useLocations({ all: '1' })
   const updateMut = useUpdateDepartment()
 
   const departments = Array.isArray(data)    ? data    : []
-  const locations   = Array.isArray(locData) ? locData : []
 
   const openCreate = () => { setEditItem(null); setShowModal(true) }
   const openEdit   = (d) => { setEditItem(d);   setShowModal(true) }
@@ -276,19 +242,6 @@ export default function DepartmentMaster() {
           />
         </div>
 
-        {/* Location filter */}
-        <select
-          id="dept-location-filter"
-          className="input-field w-auto min-w-[160px]"
-          value={filterLocation}
-          onChange={e => setFilterLocation(e.target.value)}
-        >
-          <option value="">All Locations</option>
-          {locations.filter(l => l.is_active).map(l => (
-            <option key={l.id} value={l.id}>{l.location_name}</option>
-          ))}
-        </select>
-
         {/* Status filter */}
         <select
           id="dept-status-filter"
@@ -313,8 +266,7 @@ export default function DepartmentMaster() {
                 <tr>
                   <th className="px-5 py-3 whitespace-nowrap">Code</th>
                   <th className="px-5 py-3">Department Name</th>
-                  <th className="px-5 py-3">Location</th>
-                  <th className="px-5 py-3 hidden md:table-cell">Description</th>
+                  <th className="px-5 py-3">Discount %</th>
                   <th className="px-5 py-3 text-center">Status</th>
                   {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
                 </tr>
@@ -349,25 +301,9 @@ export default function DepartmentMaster() {
                       {d.dept_name}
                     </td>
 
-                    {/* Location */}
+                    {/* Discount */}
                     <td className="px-5 py-3">
-                      {d.location_name
-                        ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
-                            <span className="text-gray-700 text-xs font-medium">{d.location_name}</span>
-                            {d.location_code && (
-                              <span className="text-gray-400 text-xs font-mono">({d.location_code})</span>
-                            )}
-                          </div>
-                        )
-                        : <span className="text-gray-400">—</span>
-                      }
-                    </td>
-
-                    {/* Description */}
-                    <td className="px-5 py-3 text-gray-400 text-xs hidden md:table-cell max-w-[240px]">
-                      <span className="truncate block">{d.description || '—'}</span>
+                      {d.discount ? `${d.discount}%` : '—'}
                     </td>
 
                     {/* Status */}

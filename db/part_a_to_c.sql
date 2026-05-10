@@ -163,6 +163,13 @@ CREATE TABLE IF NOT EXISTS notifications (
   severity VARCHAR(10) DEFAULT 'INFO',
   -- INFO / WARNING / CRITICAL
   is_read BOOLEAN DEFAULT FALSE,
-  target_roles TEXT DEFAULT 'admin,manager',
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Update suppliers table
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES category_master(id),
+ADD COLUMN IF NOT EXISTS brand_id INTEGER REFERENCES brand_master(id),
+ADD COLUMN IF NOT EXISTS msme_certificate VARCHAR(100),
+ADD COLUMN IF NOT EXISTS customer_care_no VARCHAR(20),
+ADD COLUMN IF NOT EXISTS licence_no VARCHAR(50);

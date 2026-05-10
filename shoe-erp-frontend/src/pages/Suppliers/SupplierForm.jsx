@@ -1,13 +1,23 @@
 import React from 'react';
 import { useState } from 'react'
 import { useCreateSupplier, useUpdateSupplier } from '../../hooks/useSuppliers'
+import { useCategories } from '../../hooks/useCategories.js'
+import { useBrands } from '../../hooks/useBrands.js'
 import toast from 'react-hot-toast'
 
 export default function SupplierForm({ supplier, onClose }) {
+  const { data: categories = [] } = useCategories()
+  const { data: brands = [] } = useBrands()
+
   const [form, setForm] = useState(supplier || {
     supplier_name: '', contact_person: '', phone: '', email: '',
     address: '', city: '', state: '', pincode: '', gstin: '', payment_terms: '',
-    credit_limit: 0, is_active: true
+    credit_limit: 0, is_active: true,
+    category_id: '',
+    brand_id: '',
+    msme_certificate: '',
+    customer_care_no: '',
+    licence_no: '',
   })
 
   const createMut = useCreateSupplier()
@@ -81,6 +91,52 @@ export default function SupplierForm({ supplier, onClose }) {
                  <label className="text-xs font-semibold text-gray-600">Pincode</label>
                  <input type="text" className="input-field mt-1" value={form.pincode} onChange={e => setForm({...form, pincode: e.target.value})} />
                </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600">
+                Category
+              </label>
+              <select
+                className="input-field mt-1"
+                value={form.category_id}
+                onChange={e => setForm({...form, category_id: e.target.value})}
+              >
+                <option value="">— Select Category —</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.catg_name} ({c.dept_name || ''})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600">
+                Brand
+              </label>
+              <select
+                className="input-field mt-1"
+                value={form.brand_id}
+                onChange={e => setForm({...form, brand_id: e.target.value})}
+              >
+                <option value="">— Select Brand —</option>
+                {brands.map(b => (
+                  <option key={b.id} value={b.id}>
+                    {b.brand_name} ({b.brand_code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600">MSME Certificate</label>
+              <input type="text" className="input-field mt-1" value={form.msme_certificate} onChange={e => setForm({...form, msme_certificate: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600">Customer Care No</label>
+              <input type="text" className="input-field mt-1" value={form.customer_care_no} onChange={e => setForm({...form, customer_care_no: e.target.value})} />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-gray-600">Licence No</label>
+              <input type="text" className="input-field mt-1" value={form.licence_no} onChange={e => setForm({...form, licence_no: e.target.value})} />
             </div>
             {isEdit && (
               <div className="col-span-2 mt-2">
