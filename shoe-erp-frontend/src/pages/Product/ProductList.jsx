@@ -6,6 +6,7 @@ import { useProducts, useDeleteProduct } from '../../hooks/useProducts.js'
 import { PRODUCT_TYPE_LABELS } from '../../utils/constants.js'
 import { formatCurrency }      from '../../utils/formatCurrency.js'
 import { useAuth }             from '../../hooks/useAuth.js'
+import { useCategories }       from '../../hooks/useCategories.js'
 
 const TYPE_BADGE = {
   RAW_MATERIAL:  'bg-gray-100 text-gray-700',
@@ -20,7 +21,6 @@ const TYPE_LABEL = {
 }
 
 const TYPE_FILTERS   = ['All', 'RAW_MATERIAL', 'SEMI_FINISHED', 'FINISHED']
-const ALL_CATEGORIES = ['All', 'Footwear', 'Accessories', 'Components', 'Packaging', 'Leather', 'Sole', 'Other']
 
 // ── Expandable detail row ──────────────────────────────────────────────────────
 function DetailRow({ product, onEdit, onDelete, canDelete }) {
@@ -180,6 +180,12 @@ export default function ProductList() {
   const canEdit   = ['admin', 'manager'].includes(role)
   const canDelete = role === 'admin'
 
+  const { data: categoriesData = [] } = useCategories()
+  const categoriesList = useMemo(() => {
+    const names = categoriesData.map(c => c.catg_name).filter(Boolean)
+    return ['All', ...Array.from(new Set(names))]
+  }, [categoriesData])
+
   const apiParams = {
     page,
     limit: 50,
@@ -259,7 +265,7 @@ export default function ProductList() {
           onChange={(e) => { setCatFilter(e.target.value); setPage(1) }}
           className="input-field w-auto"
         >
-          {ALL_CATEGORIES.map((c) => (
+          {categoriesList.map((c) => (
             <option key={c} value={c}>{c === 'All' ? 'All Categories' : c}</option>
           ))}
         </select>

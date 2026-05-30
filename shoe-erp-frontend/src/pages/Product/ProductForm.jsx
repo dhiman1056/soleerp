@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import Modal from '../../components/common/Modal.jsx'
@@ -18,7 +18,6 @@ import { useSizes } from '../../hooks/useSizes.js'
 import { useSuppliers } from '../../hooks/useSuppliers.js'
 
 const TABS = ['Basic Info', 'Classification', 'Pricing & Tax', 'Images']
-const GST_RATES = [0, 5, 12, 18, 28]
 
 const SIZE_PREVIEWS = {
   'INFANT': 'UK (2,3,5,6,7,8,9,10,11,12) | EURO (19-28)',
@@ -143,9 +142,23 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
   const { data: designs = [] } = useDesigns()
   const { data: colors = [] } = useColors()
   const { data: hsnCodes = [] } = useHSN()
+  const { data: gstRatesData = [] } = useGST({ is_active: 'true' })
   const { data: sizes = [] } = useSizes()
   const { data: suppliers = [] } = useSuppliers()
   const { data: nextSku } = useNextSku(productType)
+
+  // Derive unique GST rates dynamically, with standard rates as fallback
+  const uniqueGstRates = useMemo(() => {
+    const rates = new Set([0, 5, 12, 18, 28])
+    const gstList = Array.isArray(gstRatesData) ? gstRatesData : []
+    gstList.forEach(g => {
+      const r = parseFloat(g.gst_rate)
+      if (!isNaN(r)) {
+        rates.add(r)
+      }
+    })
+    return Array.from(rates).sort((a, b) => a - b)
+  }, [gstRatesData])
 
   const createBrand = useCreateBrand()
   const createDesign = useCreateDesign()
@@ -155,6 +168,14 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
 
   useEffect(() => {
     if (isEdit && existing) {
+      // Find supplier_id based on supplier_name from suppliers master list
+      let resolvedSupplierId = ''
+      if (existing.supplier_name && suppliers.length > 0) {
+        const foundSupplier = suppliers.find(s => s.supplier_name === existing.supplier_name)
+        if (foundSupplier) {
+          resolvedSupplierId = foundSupplier.id
+        }
+      }
       reset({
         product_type: existing.product_type,
         sku_code: existing.sku_code,
@@ -164,7 +185,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
         pack_size: existing.pack_size || 1,
         pack_size_uom_id: existing.pack_size_uom_id || '',
         brand_id: existing.brand_id || '',
-        supplier_id: existing.supplier_id || '',
+        supplier_id: resolvedSupplierId || existing.supplier_id || '',
         category_id: existing.category_id || '',
         sub_category_id: existing.sub_category_id || '',
         design_id: existing.design_id || '',
@@ -206,7 +227,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
       setManualSku('')
       setSkuMode('AUTO')
     }
-  }, [isEdit, existing, reset])
+  }, [isEdit, existing, reset, suppliers])
 
   // Auto-fill GST from HSN selection
   const handleHsnChange = (hsnId) => {
@@ -234,8 +255,14 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
   }, [categoryId, isEdit, setValue])
 
   const onSubmit = (values) => {
-    const uom = uoms.find(u => u.id.toString() === values.uom_id?.toString())
-    const hsn = hsnCodes.find(h => h.id.toString() === values.hsn_id?.toString())
+    const uomObj = uoms.find(u => u.id.toString() === values.uom_id?.toString())
+    const hsnObj = hsnCodes.find(h => h.id.toString() === values.hsn_id?.toString())
+    const brandObj = brands.find(b => b.id.toString() === values.brand_id?.toString())
+    const supplierObj = suppliers.find(s => s.id.toString() === values.supplier_id?.toString())
+    const categoryObj = categories.find(c => c.id.toString() === values.category_id?.toString())
+    const subCatObj = subCategories.find(sc => sc.id.toString() === values.sub_category_id?.toString())
+    const designObj = designs.find(d => d.id.toString() === values.design_id?.toString())
+    const colorObj = colors.find(c => c.id.toString() === values.color_id?.toString())
 
     const payload = {
       ...values,
@@ -243,8 +270,14 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
         ? values.sku_code
         : (skuMode === 'MANUAL' ? manualSku : (nextSku?.sku_code || nextSku || '')),
       description: values.short_description, // Map to legacy description field
-      uom: uom ? uom.uom_code : '',
-      hsn_code: hsn ? hsn.hsn_code : '',
+      uom: uomObj ? uomObj.uom_code : '',
+      brand_name: brandObj ? brandObj.brand_name : '',
+      supplier_name: supplierObj ? supplierObj.supplier_name : '',
+      category: categoryObj ? categoryObj.catg_name : '',
+      sub_category: subCatObj ? subCatObj.sub_category_name : '',
+      design_no: designObj ? designObj.design_no : '',
+      color: colorObj ? colorObj.color_name : '',
+      hsn_code: hsnObj ? hsnObj.hsn_code : '',
       images
     }
 
@@ -262,15 +295,25 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
   const handleAddBrand = () => {
     if (newBrand.trim()) {
       createBrand.mutate({ brand_name: newBrand.trim() }, {
-        onSuccess: () => setNewBrand('')
+        onSuccess: (res) => {
+          setNewBrand('')
+          if (res?.data?.data?.id) {
+            setValue('brand_id', res.data.data.id.toString())
+          }
+        }
       })
     }
   }
 
   const handleAddDesign = () => {
     if (newDesign.trim()) {
-      createDesign.mutate({ design_no: newDesign.trim() }, {
-        onSuccess: () => setNewDesign('')
+      createDesign.mutate({ design_no: newDesign.trim(), design_name: newDesign.trim() }, {
+        onSuccess: (res) => {
+          setNewDesign('')
+          if (res?.data?.data?.id) {
+            setValue('design_id', res.data.data.id.toString())
+          }
+        }
       })
     }
   }
@@ -561,7 +604,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                 <div>
                   <label className="label">GST Rate %</label>
                   <select {...register('gst_rate')} className="input-field">
-                    {GST_RATES.map(r => <option key={r} value={r}>{r}%</option>)}
+                    {uniqueGstRates.map(r => <option key={r} value={r}>{r}%</option>)}
                   </select>
                 </div>
               </div>
