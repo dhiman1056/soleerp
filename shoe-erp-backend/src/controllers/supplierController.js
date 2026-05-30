@@ -20,11 +20,14 @@ exports.getAllSuppliers = async (req, res, next) => {
 
     let q = `
       SELECT s.*, 
+        b.brand_name,
+        b.brand_code,
         (SELECT COALESCE(running_balance, 0) 
          FROM supplier_ledger sl 
          WHERE sl.supplier_id = s.id 
          ORDER BY id DESC LIMIT 1) as outstanding_balance
       FROM suppliers s
+      LEFT JOIN brand_master b ON s.brand_id = b.id
       WHERE 1=1
     `;
     const params = [];
@@ -40,9 +43,11 @@ exports.getAllSuppliers = async (req, res, next) => {
     if (is_active !== undefined) {
       params.push(is_active === 'true');
       q += ` AND s.is_active = $${params.length}`;
+    } else {
+      q += ` AND s.is_active = true`;
     }
 
-    q += ` ORDER BY s.id DESC`;
+    q += ` ORDER BY s.supplier_code`;
 
     const { rows } = await query(q, params);
     return res.json({ success: true, count: rows.length, data: rows });
@@ -58,7 +63,13 @@ exports.getSupplierById = async (req, res, next) => {
   try {
     const { id } = req.params;
     
-    const { rows: supRows } = await query(`SELECT * FROM suppliers WHERE id = $1`, [id]);
+    const { rows: supRows } = await query(`
+      SELECT s.*, b.brand_name, b.brand_code 
+      FROM suppliers s
+      LEFT JOIN brand_master b ON s.brand_id = b.id
+      WHERE s.id = $1
+    `, [id]);
+
     if (supRows.length === 0) {
       return res.status(404).json({ success: false, message: 'Supplier not found' });
     }
@@ -92,21 +103,46 @@ exports.getSupplierById = async (req, res, next) => {
 exports.createSupplier = async (req, res, next) => {
   try {
     const { 
-      supplier_name, contact_person, phone, email, address, 
-      city, state, pincode, gstin, payment_terms, credit_limit 
+      supplier_name, gstin, brand_id, payment_terms,
+      address, city, state, pincode,
+      contact_person, phone, email,
+      customer_care_no, msme_certificate, licence_no,
+      credit_limit
     } = req.body;
+
+    if (!supplier_name?.trim()) {
+      return res.status(400).json({ 
+        message: 'Supplier name is required' 
+      });
+    }
 
     const supplier_code = await generateSupplierCode();
 
     const { rows } = await query(`
       INSERT INTO suppliers (
-        supplier_code, supplier_name, contact_person, phone, email, address, 
-        city, state, pincode, gstin, payment_terms, credit_limit, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        supplier_code, supplier_name, gstin, brand_id, payment_terms,
+        address, city, state, pincode, contact_person, phone, email,
+        customer_care_no, msme_certificate, licence_no, credit_limit, created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
     `, [
-      supplier_code, supplier_name, contact_person, phone, email, address, 
-      city, state, pincode, gstin, payment_terms, credit_limit || 0, req.user.id
+      supplier_code,
+      supplier_name.trim(),
+      gstin ? gstin.trim().toUpperCase() : null,
+      brand_id ? Number(brand_id) : null,
+      payment_terms ? payment_terms.trim() : null,
+      address ? address.trim() : null,
+      city ? city.trim() : null,
+      state ? state.trim() : null,
+      pincode ? pincode.trim() : null,
+      contact_person ? contact_person.trim() : null,
+      phone ? phone.trim() : null,
+      email ? email.trim().toLowerCase() : null,
+      customer_care_no ? customer_care_no.trim() : null,
+      msme_certificate ? msme_certificate.trim() : null,
+      licence_no ? licence_no.trim() : null,
+      credit_limit || 0,
+      req.user.id
     ]);
 
     return res.status(201).json({ success: true, data: rows[0] });
@@ -123,29 +159,60 @@ exports.updateSupplier = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { 
-      supplier_name, contact_person, phone, email, address, 
-      city, state, pincode, gstin, payment_terms, credit_limit, is_active 
+      supplier_name, gstin, brand_id, payment_terms,
+      address, city, state, pincode,
+      contact_person, phone, email,
+      customer_care_no, msme_certificate, licence_no,
+      credit_limit, is_active 
     } = req.body;
+
+    if (supplier_name !== undefined && !supplier_name?.trim()) {
+      return res.status(400).json({ 
+        message: 'Supplier name is required' 
+      });
+    }
 
     const { rows } = await query(`
       UPDATE suppliers SET
         supplier_name = COALESCE($1, supplier_name),
-        contact_person = COALESCE($2, contact_person),
-        phone = COALESCE($3, phone),
-        email = COALESCE($4, email),
+        gstin = COALESCE($2, gstin),
+        brand_id = COALESCE($3, brand_id),
+        payment_terms = COALESCE($4, payment_terms),
         address = COALESCE($5, address),
         city = COALESCE($6, city),
         state = COALESCE($7, state),
         pincode = COALESCE($8, pincode),
-        gstin = COALESCE($9, gstin),
-        payment_terms = COALESCE($10, payment_terms),
-        credit_limit = COALESCE($11, credit_limit),
-        is_active = COALESCE($12, is_active)
-      WHERE id = $13
+        contact_person = COALESCE($9, contact_person),
+        phone = COALESCE($10, phone),
+        email = COALESCE($11, email),
+        customer_care_no = COALESCE($12, customer_care_no),
+        msme_certificate = COALESCE($13, msme_certificate),
+        licence_no = COALESCE($14, licence_no),
+        credit_limit = COALESCE($15, credit_limit),
+        is_active = COALESCE($16, is_active),
+        updated_at = NOW(),
+        updated_by = $17
+      WHERE id = $18
       RETURNING *
     `, [
-      supplier_name, contact_person, phone, email, address, 
-      city, state, pincode, gstin, payment_terms, credit_limit, is_active, id
+      supplier_name !== undefined ? supplier_name.trim() : null,
+      gstin !== undefined ? (gstin ? gstin.trim().toUpperCase() : null) : null,
+      brand_id !== undefined ? (brand_id ? Number(brand_id) : null) : null,
+      payment_terms !== undefined ? (payment_terms ? payment_terms.trim() : null) : null,
+      address !== undefined ? (address ? address.trim() : null) : null,
+      city !== undefined ? (city ? city.trim() : null) : null,
+      state !== undefined ? (state ? state.trim() : null) : null,
+      pincode !== undefined ? (pincode ? pincode.trim() : null) : null,
+      contact_person !== undefined ? (contact_person ? contact_person.trim() : null) : null,
+      phone !== undefined ? (phone ? phone.trim() : null) : null,
+      email !== undefined ? (email ? email.trim().toLowerCase() : null) : null,
+      customer_care_no !== undefined ? (customer_care_no ? customer_care_no.trim() : null) : null,
+      msme_certificate !== undefined ? (msme_certificate ? msme_certificate.trim() : null) : null,
+      licence_no !== undefined ? (licence_no ? licence_no.trim() : null) : null,
+      credit_limit !== undefined ? credit_limit : null,
+      is_active !== undefined ? is_active : null,
+      req.user.id,
+      id
     ]);
 
     if (rows.length === 0) return res.status(404).json({ success: false, message: 'Supplier not found' });
