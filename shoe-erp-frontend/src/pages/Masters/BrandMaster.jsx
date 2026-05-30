@@ -5,7 +5,6 @@ import {
   useUpdateBrand,
   useDeleteBrand
 } from '../../hooks/useBrands'
-import { useCompanies } from '../../hooks/useCompany'
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
@@ -13,7 +12,6 @@ import toast from 'react-hot-toast'
 // ─── Empty form ────────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
   brand_name: '',
-  company_id: '',
   discount: '',
 }
 
@@ -24,8 +22,6 @@ function BrandModal({ editItem, onClose }) {
   const updateMut = useUpdateBrand()
   const pending   = createMut.isPending || updateMut.isPending
 
-  const { data: companies = [] } = useCompanies()
-
   const [form, setForm]     = useState(EMPTY_FORM)
   const [errors, setErrors] = useState({})
 
@@ -33,7 +29,6 @@ function BrandModal({ editItem, onClose }) {
     if (editItem) {
       setForm({
         brand_name: editItem.brand_name || '',
-        company_id: editItem.company_id ? String(editItem.company_id) : '',
         discount:   editItem.discount || '',
       })
     } else {
@@ -60,8 +55,7 @@ function BrandModal({ editItem, onClose }) {
 
     const payload = {
       brand_name: form.brand_name.trim(),
-      company_id: form.company_id ? Number(form.company_id) : null,
-      discount:   form.discount || null,
+      discount:   form.discount !== '' && form.discount !== null ? Number(form.discount) : null,
     }
 
     if (isEdit) {
@@ -132,23 +126,6 @@ function BrandModal({ editItem, onClose }) {
               autoFocus
             />
             {errors.brand_name && <p className="mt-1 text-xs text-red-500">{errors.brand_name}</p>}
-          </div>
-
-          {/* Company */}
-          <div>
-            <label className="label">Company</label>
-            <select
-              value={form.company_id}
-              onChange={set('company_id')}
-              className="input-field"
-            >
-              <option value="">— Select Company —</option>
-              {companies.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.company_code} — {c.company_name}
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Discount % */}
@@ -260,8 +237,7 @@ export default function BrandMaster() {
               <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase text-xs font-semibold">
                 <tr>
                   <th className="px-5 py-3 whitespace-nowrap">Code</th>
-                  <th className="px-5 py-3">Description</th>
-                  <th className="px-5 py-3">Company</th>
+                  <th className="px-5 py-3">Brand Name</th>
                   <th className="px-5 py-3">Discount %</th>
                   <th className="px-5 py-3 text-center">Status</th>
                   {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
@@ -270,7 +246,7 @@ export default function BrandMaster() {
               <tbody className="divide-y divide-gray-100">
                 {brands.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 6 : 5} className="p-10 text-center text-gray-400">
+                    <td colSpan={canEdit ? 5 : 4} className="p-10 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
@@ -290,10 +266,6 @@ export default function BrandMaster() {
 
                     <td className="px-5 py-3 font-semibold text-gray-900">
                       {b.brand_name}
-                    </td>
-
-                    <td className="px-5 py-3">
-                      {b.company_name || '—'}
                     </td>
 
                     <td className="px-5 py-3">

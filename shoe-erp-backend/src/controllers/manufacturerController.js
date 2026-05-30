@@ -12,42 +12,29 @@ const generateCode = async () => {
   return `MFR-${String(rows[0].next_num).padStart(4, '0')}`
 }
 
-// ─── Shared SELECT with JOIN ──────────────────────────────────────────────────
-const WITH_BRAND = `
-  SELECT
-    m.*,
-    b.brand_name,
-    b.brand_code
-  FROM manufacturer_master m
-  LEFT JOIN brand_master b ON m.brand_id = b.id
-`
-
 // ─── GET /api/manufacturers ───────────────────────────────────────────────────
 const listManufacturers = async (req, res) => {
   try {
-    const { search, brand_id, is_active } = req.query
+    const { search, is_active } = req.query
     const conditions = []
     const params = []
 
     if (is_active !== undefined) {
       params.push(is_active === 'true')
-      conditions.push(`m.is_active = $${params.length}`)
-    }
-
-    if (brand_id) {
-      params.push(brand_id)
-      conditions.push(`m.brand_id = $${params.length}`)
+      conditions.push(`is_active = $${params.length}`)
+    } else {
+      conditions.push(`is_active = true`)
     }
 
     if (search) {
       params.push(`%${search}%`)
-      conditions.push(`(m.mfr_name ILIKE $${params.length} OR m.mfr_code ILIKE $${params.length} OR m.city ILIKE $${params.length} OR m.contact_person ILIKE $${params.length})`)
+      conditions.push(`(mfr_name ILIKE $${params.length} OR mfr_code ILIKE $${params.length} OR city ILIKE $${params.length} OR contact_person ILIKE $${params.length})`)
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
 
     const { rows } = await query(
-      `${WITH_BRAND} ${where} ORDER BY m.mfr_code`,
+      `SELECT * FROM manufacturer_master ${where} ORDER BY mfr_code`,
       params
     )
     res.json({ success: true, data: rows })
@@ -60,7 +47,7 @@ const listManufacturers = async (req, res) => {
 // ─── GET /api/manufacturers/:id ───────────────────────────────────────────────
 const getManufacturer = async (req, res) => {
   try {
-    const { rows } = await query(`${WITH_BRAND} WHERE m.id = $1`, [req.params.id])
+    const { rows } = await query(`SELECT * FROM manufacturer_master WHERE id = $1`, [req.params.id])
     if (!rows.length) return res.status(404).json({ success: false, message: 'Manufacturer not found' })
     res.json({ success: true, data: rows[0] })
   } catch (err) {
@@ -73,7 +60,7 @@ const getManufacturer = async (req, res) => {
 const createManufacturer = async (req, res) => {
   try {
     const {
-      mfr_name, description, brand_id,
+      mfr_name, description,
       licence_no, address, state, city, pincode,
       contact_person, contact_mobile, email, customer_care_no,
       msme_certificate, gstin
@@ -87,17 +74,16 @@ const createManufacturer = async (req, res) => {
 
     const { rows } = await query(`
       INSERT INTO manufacturer_master (
-        mfr_code, mfr_name, description, brand_id,
+        mfr_code, mfr_name, description,
         licence_no, address, state, city, pincode,
         contact_person, contact_mobile, email, customer_care_no,
         msme_certificate, gstin
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *
     `, [
       mfr_code,
       mfr_name.trim(),
       description        || null,
-      brand_id           || null,
       licence_no         || null,
       address            || null,
       state              || null,
@@ -111,9 +97,7 @@ const createManufacturer = async (req, res) => {
       gstin              || null
     ])
 
-    // Re-fetch with JOIN
-    const { rows: full } = await query(`${WITH_BRAND} WHERE m.id = $1`, [rows[0].id])
-    res.status(201).json({ success: true, data: full[0] })
+    res.status(201).json({ success: true, data: rows[0] })
   } catch (err) {
     console.error('[manufacturerController] createManufacturer:', err.message)
     if (err.code === '23505') return res.status(409).json({ success: false, message: 'Manufacturer code already exists' })
@@ -126,7 +110,7 @@ const updateManufacturer = async (req, res) => {
   try {
     const { id } = req.params
     const {
-      mfr_name, description, brand_id,
+      mfr_name, description,
       licence_no, address, state, city, pincode,
       contact_person, contact_mobile, email, customer_care_no,
       msme_certificate, gstin, is_active
@@ -136,26 +120,24 @@ const updateManufacturer = async (req, res) => {
       UPDATE manufacturer_master SET
         mfr_name         = COALESCE($1,  mfr_name),
         description      = COALESCE($2,  description),
-        brand_id         = COALESCE($3,  brand_id),
-        licence_no       = COALESCE($4,  licence_no),
-        address          = COALESCE($5,  address),
-        state            = COALESCE($6,  state),
-        city             = COALESCE($7,  city),
-        pincode          = COALESCE($8,  pincode),
-        contact_person   = COALESCE($9,  contact_person),
-        contact_mobile   = COALESCE($10, contact_mobile),
-        email            = COALESCE($11, email),
-        customer_care_no = COALESCE($12, customer_care_no),
-        msme_certificate = COALESCE($13, msme_certificate),
-        gstin            = COALESCE($14, gstin),
-        is_active        = COALESCE($15, is_active),
+        licence_no       = COALESCE($3,  licence_no),
+        address          = COALESCE($4,  address),
+        state            = COALESCE($5,  state),
+        city             = COALESCE($6,  city),
+        pincode          = COALESCE($7,  pincode),
+        contact_person   = COALESCE($8,  contact_person),
+        contact_mobile   = COALESCE($9,  contact_mobile),
+        email            = COALESCE($10, email),
+        customer_care_no = COALESCE($11, customer_care_no),
+        msme_certificate = COALESCE($12, msme_certificate),
+        gstin            = COALESCE($13, gstin),
+        is_active        = COALESCE($14, is_active),
         updated_at       = NOW()
-      WHERE id = $16
+      WHERE id = $15
       RETURNING *
     `, [
       mfr_name ? mfr_name.trim() : null,
       description        ?? null,
-      brand_id           || null,
       licence_no         ?? null,
       address            ?? null,
       state              ?? null,
@@ -173,8 +155,7 @@ const updateManufacturer = async (req, res) => {
 
     if (!rows.length) return res.status(404).json({ success: false, message: 'Manufacturer not found' })
 
-    const { rows: full } = await query(`${WITH_BRAND} WHERE m.id = $1`, [rows[0].id])
-    res.json({ success: true, data: full[0] })
+    res.json({ success: true, data: rows[0] })
   } catch (err) {
     console.error('[manufacturerController] updateManufacturer:', err.message)
     res.status(500).json({ success: false, message: err.message })

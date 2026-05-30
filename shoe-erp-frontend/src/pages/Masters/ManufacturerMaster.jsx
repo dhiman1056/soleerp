@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useManufacturers, useCreateManufacturer, useUpdateManufacturer, useDeleteManufacturer } from '../../hooks/useManufacturers'
-import { useBrands } from '../../hooks/useBrands'
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
 
 const EMPTY = {
-  mfr_name:'', brand_id:'',
+  mfr_name:'',
   licence_no:'', gstin:'', msme_certificate:'',
   address:'', city:'', state:'', pincode:'',
   contact_person:'', contact_mobile:'', email:'', customer_care_no:''
@@ -33,9 +32,6 @@ function ManufacturerModal({ editItem, onClose }) {
   const updateMut = useUpdateManufacturer()
   const pending   = createMut.isPending || updateMut.isPending
 
-  const { data: brandData } = useBrands({ is_active: 'true' })
-  const brands = Array.isArray(brandData) ? brandData : []
-
   const [form, setForm]     = useState(EMPTY)
   const [errors, setErrors] = useState({})
 
@@ -43,7 +39,6 @@ function ManufacturerModal({ editItem, onClose }) {
     if (editItem) {
       setForm({
         mfr_name:         editItem.mfr_name         || '',
-        brand_id:         editItem.brand_id ? String(editItem.brand_id) : '',
         licence_no:       editItem.licence_no        || '',
         gstin:            editItem.gstin             || '',
         msme_certificate: editItem.msme_certificate  || '',
@@ -67,14 +62,54 @@ function ManufacturerModal({ editItem, onClose }) {
     if (errors[key]) setErrors(er => ({ ...er, [key]: '' }))
   }
 
+  const validate = () => {
+    const errs = {}
+    
+    if (!form.mfr_name?.trim()) {
+      errs.mfr_name = 'Manufacturer name is required'
+    } else if (form.mfr_name.trim().length < 2) {
+      errs.mfr_name = 'Manufacturer name must be at least 2 characters'
+    }
+    
+    if (form.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(form.gstin)) {
+      errs.gstin = 'Invalid GSTIN format (e.g. 22AAAAA0000A1Z5)'
+    }
+    
+    if (form.contact_mobile && !/^[0-9]{10}$/.test(form.contact_mobile)) {
+      errs.contact_mobile = 'Mobile must be 10 digits'
+    }
+    
+    if (form.customer_care_no && !/^[0-9]{10}$/.test(form.customer_care_no)) {
+      errs.customer_care_no = 'Customer care no must be 10 digits'
+    }
+    
+    if (form.pincode && !/^[0-9]{6}$/.test(form.pincode)) {
+      errs.pincode = 'Pincode must be 6 digits'
+    }
+    
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      errs.email = 'Invalid email format'
+    }
+
+    if (form.licence_no && form.licence_no.length > 50) {
+      errs.licence_no = 'Licence number cannot exceed 50 characters'
+    }
+
+    if (form.msme_certificate && form.msme_certificate.length > 100) {
+      errs.msme_certificate = 'MSME certificate cannot exceed 100 characters'
+    }
+    
+    return errs
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!form.mfr_name.trim()) { setErrors({ mfr_name: 'Manufacturer name is required' }); return }
+    const errs = validate()
+    if (Object.keys(errs).length) { setErrors(errs); return }
 
     const payload = {
       ...form,
       mfr_name: form.mfr_name.trim(),
-      brand_id: form.brand_id ? Number(form.brand_id) : null,
     }
     Object.keys(payload).forEach(k => { if (payload[k] === '') payload[k] = null })
 
@@ -90,14 +125,6 @@ function ManufacturerModal({ editItem, onClose }) {
       })
     }
   }
-
-  const inp = (key, placeholder, type = 'text') => (
-    <input
-      id={`mfr_${key}`} type={type}
-      className={`input-field ${errors[key] ? 'border-red-400' : ''}`}
-      value={form[key]} onChange={set(key)} placeholder={placeholder}
-    />
-  )
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 overflow-y-auto">
@@ -134,54 +161,157 @@ function ManufacturerModal({ editItem, onClose }) {
             </div>
 
             <div className="sm:col-span-2">
-              <Field label="Manufacturer Name" required error={errors.mfr_name}>
+              <Field label="Manufacturer Name *" required error={errors.mfr_name}>
                 <input
                   type="text"
                   required
                   placeholder="Enter manufacturer name"
                   value={form.mfr_name}
                   onChange={set('mfr_name')}
-                  className={`input-field ${errors.mfr_name ? 'border-red-400' : ''}`}
+                  className={`input-field ${errors.mfr_name ? 'border-red-400 focus:ring-red-300' : ''}`}
                 />
               </Field>
             </div>
             
-            <Field label="Brand">
-              <select id="mfr_brand" className="input-field" value={form.brand_id} onChange={set('brand_id')}>
-                <option value="">— No Brand —</option>
-                {brands.map(b => (
-                  <option key={b.id} value={b.id}>
-                    {b.brand_name}{b.brand_code ? ` (${b.brand_code})` : ''}
-                  </option>
-                ))}
-              </select>
+            <Field label="Licence No" error={errors.licence_no}>
+              <input
+                type="text"
+                placeholder="Licence number"
+                value={form.licence_no}
+                onChange={set('licence_no')}
+                className={`input-field ${errors.licence_no ? 'border-red-400 focus:ring-red-300' : ''}`}
+                maxLength={50}
+              />
             </Field>
-            <Field label="Licence No">{inp('licence_no', 'Licence number')}</Field>
-            <Field label="GSTIN">{inp('gstin', '22AAAAA0000A1Z5')}</Field>
-            <Field label="MSME Certificate">{inp('msme_certificate', 'MSME cert number')}</Field>
+
+            <Field label="GSTIN" error={errors.gstin}>
+              <input
+                type="text"
+                placeholder="22AAAAA0000A1Z5"
+                value={form.gstin}
+                onChange={e => {
+                  const val = e.target.value.toUpperCase().slice(0, 15)
+                  setForm({ ...form, gstin: val })
+                  if (errors.gstin) setErrors(er => ({ ...er, gstin: '' }))
+                }}
+                className={`input-field uppercase ${errors.gstin ? 'border-red-400 focus:ring-red-300' : ''}`}
+                maxLength={15}
+              />
+            </Field>
+
+            <Field label="MSME Certificate" error={errors.msme_certificate}>
+              <input
+                type="text"
+                placeholder="MSME cert number"
+                value={form.msme_certificate}
+                onChange={set('msme_certificate')}
+                className={`input-field ${errors.msme_certificate ? 'border-red-400 focus:ring-red-300' : ''}`}
+                maxLength={100}
+              />
+            </Field>
           </div>
 
           {/* ── Section 2: Address ── */}
           <SectionHeader icon="📍" title="Address" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="sm:col-span-2">
-              <Field label="Address">
+              <Field label="Address" error={errors.address}>
                 <textarea id="mfr_addr" className="input-field resize-none" rows={2}
                   value={form.address} onChange={set('address')} placeholder="Street / Area" />
               </Field>
             </div>
-            <Field label="City">{inp('city', 'City')}</Field>
-            <Field label="State">{inp('state', 'State')}</Field>
-            <Field label="Pincode">{inp('pincode', '400001')}</Field>
+            
+            <Field label="City" error={errors.city}>
+              <input
+                type="text"
+                placeholder="City"
+                value={form.city}
+                onChange={set('city')}
+                className="input-field"
+              />
+            </Field>
+
+            <Field label="State" error={errors.state}>
+              <input
+                type="text"
+                placeholder="State"
+                value={form.state}
+                onChange={set('state')}
+                className="input-field"
+              />
+            </Field>
+
+            <Field label="Pincode" error={errors.pincode}>
+              <input
+                type="text"
+                placeholder="400001"
+                value={form.pincode}
+                onChange={e => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6)
+                  setForm({ ...form, pincode: val })
+                  if (errors.pincode) setErrors(er => ({ ...er, pincode: '' }))
+                }}
+                className={`input-field ${errors.pincode ? 'border-red-400 focus:ring-red-300' : ''}`}
+                maxLength={6}
+              />
+            </Field>
           </div>
 
           {/* ── Section 3: Contact ── */}
           <SectionHeader icon="📞" title="Contact" />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Contact Person">{inp('contact_person', 'Full name')}</Field>
-            <Field label="Contact Mobile">{inp('contact_mobile', '+91 98765 43210')}</Field>
-            <Field label="Email">{inp('email', 'info@manufacturer.com', 'email')}</Field>
-            <Field label="Customer Care No">{inp('customer_care_no', '1800-xxx-xxxx')}</Field>
+            
+            <Field label="Contact Person" error={errors.contact_person}>
+              <input
+                type="text"
+                placeholder="Full name"
+                value={form.contact_person}
+                onChange={set('contact_person')}
+                className="input-field"
+              />
+            </Field>
+
+            <Field label="Contact Mobile" error={errors.contact_mobile}>
+              <input
+                type="tel"
+                placeholder="10 digit mobile number"
+                value={form.contact_mobile}
+                onChange={e => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 10)
+                  setForm({ ...form, contact_mobile: val })
+                  if (errors.contact_mobile) setErrors(er => ({ ...er, contact_mobile: '' }))
+                }}
+                className={`input-field ${errors.contact_mobile ? 'border-red-400 focus:ring-red-300' : ''}`}
+                maxLength={10}
+                pattern="[0-9]{10}"
+              />
+            </Field>
+
+            <Field label="Email" error={errors.email}>
+              <input
+                type="email"
+                placeholder="info@manufacturer.com"
+                value={form.email}
+                onChange={set('email')}
+                className={`input-field ${errors.email ? 'border-red-400 focus:ring-red-300' : ''}`}
+              />
+            </Field>
+
+            <Field label="Customer Care No" error={errors.customer_care_no}>
+              <input
+                type="tel"
+                placeholder="10 digit customer care no"
+                value={form.customer_care_no}
+                onChange={e => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 10)
+                  setForm({ ...form, customer_care_no: val })
+                  if (errors.customer_care_no) setErrors(er => ({ ...er, customer_care_no: '' }))
+                }}
+                className={`input-field ${errors.customer_care_no ? 'border-red-400 focus:ring-red-300' : ''}`}
+                maxLength={10}
+                pattern="[0-9]{10}"
+              />
+            </Field>
           </div>
 
           {/* Auto-code banner */}
@@ -212,23 +342,19 @@ export default function ManufacturerMaster() {
   const { user } = useAuth()
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
-  const [search, setSearch]         = useState('')
-  const [filterBrand, setFilterBrand]   = useState('')
+  const [search, setSearch]             = useState('')
   const [filterActive, setFilterActive] = useState('')
-  const [showModal, setShowModal]   = useState(false)
-  const [editItem, setEditItem]     = useState(null)
+  const [showModal, setShowModal]       = useState(false)
+  const [editItem, setEditItem]         = useState(null)
 
   const params = {}
   if (search.trim())       params.search    = search.trim()
-  if (filterBrand)         params.brand_id  = filterBrand
   if (filterActive !== '') params.is_active = filterActive
 
   const { data, isLoading } = useManufacturers(params)
-  const { data: brandData } = useBrands({ is_active: 'true' })
   const updateMut = useUpdateManufacturer()
 
-  const manufacturers = Array.isArray(data)      ? data      : []
-  const brands        = Array.isArray(brandData) ? brandData : []
+  const manufacturers = Array.isArray(data) ? data : []
 
   const openCreate = () => { setEditItem(null); setShowModal(true) }
   const openEdit   = (m) => { setEditItem(m);   setShowModal(true) }
@@ -271,11 +397,6 @@ export default function ManufacturerMaster() {
           <input id="mfr-search" className="input-field pl-9" placeholder="Search by name, code, city or contact…"
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select id="mfr-brand-filter" className="input-field w-auto min-w-[150px]"
-          value={filterBrand} onChange={e => setFilterBrand(e.target.value)}>
-          <option value="">All Brands</option>
-          {brands.map(b => <option key={b.id} value={b.id}>{b.brand_name}</option>)}
-        </select>
         <select id="mfr-status-filter" className="input-field w-auto min-w-[140px]"
           value={filterActive} onChange={e => setFilterActive(e.target.value)}>
           <option value="">All Status</option>
@@ -294,9 +415,9 @@ export default function ManufacturerMaster() {
               <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase text-xs font-semibold">
                 <tr>
                   <th className="px-5 py-3 whitespace-nowrap">Code</th>
-                  <th className="px-5 py-3">Manufacturer</th>
-                  <th className="px-5 py-3 hidden md:table-cell">Brand</th>
-                  <th className="px-5 py-3 hidden lg:table-cell">City</th>
+                  <th className="px-5 py-3">Name</th>
+                  <th className="px-5 py-3 hidden md:table-cell">City</th>
+                  <th className="px-5 py-3 hidden lg:table-cell">GSTIN</th>
                   <th className="px-5 py-3 hidden lg:table-cell">Contact</th>
                   <th className="px-5 py-3 text-center">Status</th>
                   {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
@@ -327,25 +448,18 @@ export default function ManufacturerMaster() {
                         </div>
                         <div>
                           <p className="font-semibold text-gray-900 leading-tight">{m.mfr_name}</p>
-                          {m.gstin && <p className="text-xs text-gray-400 font-mono">{m.gstin}</p>}
                         </div>
                       </div>
                     </td>
 
-                    {/* Brand */}
-                    <td className="px-5 py-3 hidden md:table-cell">
-                      {m.brand_name ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-orange-400 flex-shrink-0" />
-                          <span className="text-xs text-gray-700 font-medium">{m.brand_name}</span>
-                          {m.brand_code && <span className="text-xs text-gray-400 font-mono">({m.brand_code})</span>}
-                        </div>
-                      ) : <span className="text-gray-400">—</span>}
+                    {/* City */}
+                    <td className="px-5 py-3 hidden md:table-cell text-gray-600 text-xs">
+                      {m.city && m.state ? `${m.city}, ${m.state}` : m.city || m.state || '—'}
                     </td>
 
-                    {/* City */}
-                    <td className="px-5 py-3 hidden lg:table-cell text-gray-600 text-xs">
-                      {m.city && m.state ? `${m.city}, ${m.state}` : m.city || m.state || '—'}
+                    {/* GSTIN */}
+                    <td className="px-5 py-3 hidden lg:table-cell font-mono text-xs text-gray-600">
+                      {m.gstin || '—'}
                     </td>
 
                     {/* Contact */}
