@@ -57,6 +57,7 @@ app.use('/api/designs',        require('./routes/designRoutes'))
 app.use('/api/components',     require('./routes/componentsRoutes'))
 app.use('/api/divisions',      require('./routes/divisionRoutes'))
 app.use('/api/teams',          require('./routes/teamRoutes'))
+app.use('/api/employees',      require('./routes/employeeRoutes'))
 
 app.use((err, req, res, next) => {
   console.error(err.stack)

@@ -51,6 +51,7 @@ import DesignMaster        from './pages/Masters/DesignMaster.jsx'
 import ComponentsMaster    from './pages/Masters/ComponentsMaster.jsx'
 import DivisionMaster      from './pages/Masters/DivisionMaster.jsx'
 import TeamMaster          from './pages/Masters/TeamMaster.jsx'
+import EmployeeMaster      from './pages/Masters/EmployeeMaster.jsx'
 
 export default function App() {
   return (
@@ -112,6 +113,7 @@ export default function App() {
               <Route path="components-master"     element={<ComponentsMaster />} />
               <Route path="division-master"       element={<DivisionMaster />} />
               <Route path="team-master"           element={<TeamMaster />} />
+              <Route path="employee-master"       element={<EmployeeMaster />} />
             </Route>
 
             <Route path="/users" element={<UserManagement />} />
@@ -129,6 +131,7 @@ export default function App() {
             <Route path="/masters/components"      element={<ComponentsMaster />} />
             <Route path="/masters/divisions"       element={<DivisionMaster />} />
             <Route path="/masters/teams"           element={<TeamMaster />} />
+            <Route path="/masters/employees"       element={<EmployeeMaster />} />
 
             {/* Reports */}
             <Route path="/reports" element={<ReportsLayout />}>

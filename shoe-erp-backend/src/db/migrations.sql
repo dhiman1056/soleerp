@@ -674,3 +674,17 @@ CREATE TABLE IF NOT EXISTS team_master (
   created_at  TIMESTAMP DEFAULT NOW(),
   updated_at  TIMESTAMP DEFAULT NOW()
 );
+
+-- Employee Master
+CREATE TABLE IF NOT EXISTS employee_master (
+  id SERIAL PRIMARY KEY,
+  emp_code VARCHAR(20) UNIQUE NOT NULL,
+  emp_name VARCHAR(150) NOT NULL,
+  team_id INTEGER REFERENCES team_master(id),
+  designation VARCHAR(100),
+  mobile VARCHAR(10),
+  email VARCHAR(100),
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
