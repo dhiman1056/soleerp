@@ -13,6 +13,12 @@ const TYPE_BADGE = {
   FINISHED:      'bg-green-100 text-green-700',
 }
 
+const TYPE_LABEL = {
+  RAW_MATERIAL:  'Raw Material',
+  SEMI_FINISHED: 'Semi Finished',
+  FINISHED:      'Finished Goods',
+}
+
 const TYPE_FILTERS   = ['All', 'RAW_MATERIAL', 'SEMI_FINISHED', 'FINISHED']
 const ALL_CATEGORIES = ['All', 'Footwear', 'Accessories', 'Components', 'Packaging', 'Leather', 'Sole', 'Other']
 
@@ -43,7 +49,7 @@ function DetailRow({ product, onEdit, onDelete, canDelete }) {
         </td>
         <td className="px-4 py-3">
           <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-semibold ${TYPE_BADGE[product.product_type] || 'bg-gray-100 text-gray-600'}`}>
-            {PRODUCT_TYPE_LABELS[product.product_type] || product.product_type}
+            {TYPE_LABEL[product.product_type] || product.product_type}
           </span>
         </td>
         <td className="px-4 py-3 text-xs text-gray-600">{product.category || '—'}</td>
@@ -245,7 +251,7 @@ export default function ProductList() {
           className="input-field w-auto"
         >
           {TYPE_FILTERS.map((t) => (
-            <option key={t} value={t}>{t === 'All' ? 'All Types' : PRODUCT_TYPE_LABELS[t]}</option>
+            <option key={t} value={t}>{t === 'All' ? 'All Types' : (TYPE_LABEL[t] || t)}</option>
           ))}
         </select>
         <select

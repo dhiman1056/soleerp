@@ -7,7 +7,7 @@ import {
   useCreateProduct, useUpdateProduct, useProductById, useNextSku
 } from '../../hooks/useProducts.js'
 import { useUOMs } from '../../hooks/useUOM.js'
-import { useColors } from '../../hooks/useColors.js'
+import { useColors } from '../../hooks/useMasters.js'
 import { useBrands, useCreateBrand } from '../../hooks/useBrands.js'
 import { useCategories } from '../../hooks/useCategories.js'
 import { useSubCategoriesByCategory } from '../../hooks/useSubCategories.js'

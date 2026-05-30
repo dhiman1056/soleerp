@@ -5,8 +5,6 @@ import ProtectedRoute   from './components/ProtectedRoute.jsx'
 import LoginPage        from './pages/Auth/LoginPage.jsx'
 import Layout           from './components/layout/Layout.jsx'
 import Dashboard        from './pages/Dashboard.jsx'
-import RawMaterialList  from './pages/RawMaterial/RawMaterialList.jsx'
-import RawMaterialForm  from './pages/RawMaterial/RawMaterialForm.jsx'
 import ProductList      from './pages/Product/ProductList.jsx'
 import ProductForm      from './pages/Product/ProductForm.jsx'
 import BOMList          from './pages/BOM/BOMList.jsx'
@@ -64,9 +62,6 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
-            <Route path="/raw-materials" element={<RawMaterialList />} />
-            <Route path="/raw-materials/new" element={<RawMaterialForm />} />
-            <Route path="/raw-materials/:sku/edit" element={<RawMaterialForm />} />
             <Route path="/products" element={<ProductList />} />
             <Route path="/products/new" element={<ProductForm />} />
             <Route path="/products/:sku/edit" element={<ProductForm />} />
