@@ -66,6 +66,34 @@ const createCompany = async (req, res) => {
       return res.status(400).json({ message: 'Company name is required' })
     }
 
+    if (contact_mobile) {
+      const mobile = contact_mobile.trim()
+      if (mobile && !/^\d{10}$/.test(mobile)) {
+        return res.status(400).json({ message: 'Contact Mobile must be a valid 10-digit number' })
+      }
+    }
+
+    if (email) {
+      const emailStr = email.trim()
+      if (emailStr && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr)) {
+        return res.status(400).json({ message: 'Please enter a valid Email address' })
+      }
+    }
+
+    if (pincode) {
+      const pin = pincode.trim()
+      if (pin && !/^\d{6}$/.test(pin)) {
+        return res.status(400).json({ message: 'Pincode must be a valid 6-digit number' })
+      }
+    }
+
+    if (gstin) {
+      const gst = gstin.trim()
+      if (gst && gst.length !== 15) {
+        return res.status(400).json({ message: 'GSTIN must be exactly 15 characters long' })
+      }
+    }
+
     const company_code = await generateCode()
 
     const { rows } = await query(`
@@ -99,6 +127,38 @@ const updateCompany = async (req, res) => {
       email, customer_care_no, msme_certificate,
       gstin, is_active
     } = req.body
+
+    if (company_name !== undefined && (!company_name || !company_name.trim())) {
+      return res.status(400).json({ message: 'Company name is required' })
+    }
+
+    if (contact_mobile !== undefined && contact_mobile !== null) {
+      const mobile = contact_mobile.trim()
+      if (mobile && !/^\d{10}$/.test(mobile)) {
+        return res.status(400).json({ message: 'Contact Mobile must be a valid 10-digit number' })
+      }
+    }
+
+    if (email !== undefined && email !== null) {
+      const emailStr = email.trim()
+      if (emailStr && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailStr)) {
+        return res.status(400).json({ message: 'Please enter a valid Email address' })
+      }
+    }
+
+    if (pincode !== undefined && pincode !== null) {
+      const pin = pincode.trim()
+      if (pin && !/^\d{6}$/.test(pin)) {
+        return res.status(400).json({ message: 'Pincode must be a valid 6-digit number' })
+      }
+    }
+
+    if (gstin !== undefined && gstin !== null) {
+      const gst = gstin.trim()
+      if (gst && gst.length !== 15) {
+        return res.status(400).json({ message: 'GSTIN must be exactly 15 characters long' })
+      }
+    }
 
     const { rows } = await query(`
       UPDATE company_master SET

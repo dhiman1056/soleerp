@@ -71,8 +71,34 @@ function CompanyModal({ editItem, onClose }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!form.company_name.trim()) {
+
+    const companyName = form.company_name.trim()
+    if (!companyName) {
       toast.error('Company Name is required')
+      return
+    }
+
+    const mobile = form.contact_mobile.trim()
+    if (mobile && !/^\d{10}$/.test(mobile)) {
+      toast.error('Contact Mobile must be a valid 10-digit number')
+      return
+    }
+
+    const email = form.email.trim()
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Please enter a valid Email address')
+      return
+    }
+
+    const pincode = form.pincode.trim()
+    if (pincode && !/^\d{6}$/.test(pincode)) {
+      toast.error('Pincode must be a valid 6-digit number')
+      return
+    }
+
+    const gstin = form.gstin.trim()
+    if (gstin && gstin.length !== 15) {
+      toast.error('GSTIN must be exactly 15 characters long')
       return
     }
 
@@ -209,8 +235,8 @@ function CompanyModal({ editItem, onClose }) {
                   className="input-field"
                   value={form.pincode}
                   onChange={set('pincode')}
-                  placeholder="PIN Code"
-                  maxLength={10}
+                  placeholder="PIN Code (6 digits)"
+                  maxLength={6}
                 />
               </Field>
             </div>
@@ -235,8 +261,8 @@ function CompanyModal({ editItem, onClose }) {
                   className="input-field"
                   value={form.contact_mobile}
                   onChange={set('contact_mobile')}
-                  placeholder="+91 98xxx xxxxx"
-                  maxLength={20}
+                  placeholder="10-digit mobile number"
+                  maxLength={10}
                 />
               </Field>
               <Field label="Email">
