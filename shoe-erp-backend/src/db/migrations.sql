@@ -580,6 +580,8 @@ CREATE TABLE IF NOT EXISTS customer_master (
   updated_at       TIMESTAMP DEFAULT NOW()
 );
 
+ALTER TABLE customer_master ADD COLUMN IF NOT EXISTS customer_type VARCHAR(20) DEFAULT 'B2C';
+
 -- UOM Master — enhance existing table
 ALTER TABLE uom_master ADD COLUMN IF NOT EXISTS uom_master_code VARCHAR(20);
 ALTER TABLE uom_master ADD COLUMN IF NOT EXISTS description      TEXT;

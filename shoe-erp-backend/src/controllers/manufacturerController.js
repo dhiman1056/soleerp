@@ -62,8 +62,7 @@ const createManufacturer = async (req, res) => {
     const {
       mfr_name, description,
       licence_no, address, state, city, pincode,
-      contact_person, contact_mobile, email, customer_care_no,
-      msme_certificate, gstin
+      contact_person, contact_mobile, email, customer_care_no
     } = req.body
 
     if (!mfr_name || !mfr_name.trim()) {
@@ -76,9 +75,8 @@ const createManufacturer = async (req, res) => {
       INSERT INTO manufacturer_master (
         mfr_code, mfr_name, description,
         licence_no, address, state, city, pincode,
-        contact_person, contact_mobile, email, customer_care_no,
-        msme_certificate, gstin
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+        contact_person, contact_mobile, email, customer_care_no
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       RETURNING *
     `, [
       mfr_code,
@@ -92,9 +90,7 @@ const createManufacturer = async (req, res) => {
       contact_person     || null,
       contact_mobile     || null,
       email              || null,
-      customer_care_no   || null,
-      msme_certificate   || null,
-      gstin              || null
+      customer_care_no   || null
     ])
 
     res.status(201).json({ success: true, data: rows[0] })
@@ -113,7 +109,7 @@ const updateManufacturer = async (req, res) => {
       mfr_name, description,
       licence_no, address, state, city, pincode,
       contact_person, contact_mobile, email, customer_care_no,
-      msme_certificate, gstin, is_active
+      is_active
     } = req.body
 
     const { rows } = await query(`
@@ -129,11 +125,9 @@ const updateManufacturer = async (req, res) => {
         contact_mobile   = COALESCE($9,  contact_mobile),
         email            = COALESCE($10, email),
         customer_care_no = COALESCE($11, customer_care_no),
-        msme_certificate = COALESCE($12, msme_certificate),
-        gstin            = COALESCE($13, gstin),
-        is_active        = COALESCE($14, is_active),
+        is_active        = COALESCE($12, is_active),
         updated_at       = NOW()
-      WHERE id = $15
+      WHERE id = $13
       RETURNING *
     `, [
       mfr_name ? mfr_name.trim() : null,
@@ -147,8 +141,6 @@ const updateManufacturer = async (req, res) => {
       contact_mobile     ?? null,
       email              ?? null,
       customer_care_no   ?? null,
-      msme_certificate   ?? null,
-      gstin              ?? null,
       is_active !== undefined ? is_active : null,
       id
     ])

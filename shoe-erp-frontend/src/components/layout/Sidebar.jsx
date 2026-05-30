@@ -80,10 +80,6 @@ const mastersNav = [
     icon: <Icon path="M4 6h16M4 10h16M4 14h16M4 18h16" />,
   },
   {
-    to: '/masters/sizes', label: 'Size Master',
-    icon: <Icon path="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />,
-  },
-  {
     to: '/masters/brands', label: 'Brand Master',
     icon: <Icon path="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />,
   },

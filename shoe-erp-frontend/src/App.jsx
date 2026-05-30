@@ -41,7 +41,6 @@ import CompanyMaster       from './pages/Masters/CompanyMaster.jsx'
 import DepartmentMaster    from './pages/Masters/DepartmentMaster.jsx'
 import CategoryMaster      from './pages/Masters/CategoryMaster.jsx'
 import SubCategoryMaster   from './pages/Masters/SubCategoryMaster.jsx'
-import SizeMaster          from './pages/Masters/SizeMaster.jsx'
 import BrandMaster         from './pages/Masters/BrandMaster.jsx'
 import ManufacturerMaster  from './pages/Masters/ManufacturerMaster.jsx'
 import CustomerMaster      from './pages/Masters/CustomerMaster.jsx'
@@ -103,7 +102,6 @@ export default function App() {
               <Route path="department-master"  element={<DepartmentMaster />} />
               <Route path="category-master"    element={<CategoryMaster />} />
               <Route path="sub-category-master" element={<SubCategoryMaster />} />
-              <Route path="size-master"          element={<SizeMaster />} />
               <Route path="brand-master"         element={<BrandMaster />} />
               <Route path="manufacturer-master"  element={<ManufacturerMaster />} />
               <Route path="customer-master"       element={<CustomerMaster />} />
@@ -121,7 +119,6 @@ export default function App() {
             <Route path="/masters/departments" element={<DepartmentMaster />} />
             <Route path="/masters/categories"    element={<CategoryMaster />} />
             <Route path="/masters/sub-categories" element={<SubCategoryMaster />} />
-            <Route path="/masters/sizes"           element={<SizeMaster />} />
             <Route path="/masters/brands"          element={<BrandMaster />} />
             <Route path="/masters/manufacturers"   element={<ManufacturerMaster />} />
             <Route path="/masters/customers"       element={<CustomerMaster />} />

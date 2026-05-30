@@ -6,22 +6,21 @@ import toast from 'react-hot-toast'
 
 const EMPTY = {
   mfr_name:'',
-  licence_no:'', gstin:'', msme_certificate:'',
+  licence_no:'',
   address:'', city:'', state:'', pincode:'',
   contact_person:'', contact_mobile:'', email:'', customer_care_no:''
 }
 
 const Field = ({ label, required, error, children }) => (
   <div>
-    <label className="label">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
+    <label className="label text-xs">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
     {children}
     {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
   </div>
 )
 
-const SectionHeader = ({ icon, title }) => (
-  <div className="flex items-center gap-2 pt-2 pb-1 border-b border-gray-100">
-    <span className="text-gray-400">{icon}</span>
+const SectionHeader = ({ title }) => (
+  <div className="pt-2 pb-1 border-b border-gray-100">
     <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider">{title}</h4>
   </div>
 )
@@ -40,8 +39,6 @@ function ManufacturerModal({ editItem, onClose }) {
       setForm({
         mfr_name:         editItem.mfr_name         || '',
         licence_no:       editItem.licence_no        || '',
-        gstin:            editItem.gstin             || '',
-        msme_certificate: editItem.msme_certificate  || '',
         address:          editItem.address           || '',
         city:             editItem.city              || '',
         state:            editItem.state             || '',
@@ -71,10 +68,6 @@ function ManufacturerModal({ editItem, onClose }) {
       errs.mfr_name = 'Manufacturer name must be at least 2 characters'
     }
     
-    if (form.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(form.gstin)) {
-      errs.gstin = 'Invalid GSTIN format (e.g. 22AAAAA0000A1Z5)'
-    }
-    
     if (form.contact_mobile && !/^[0-9]{10}$/.test(form.contact_mobile)) {
       errs.contact_mobile = 'Mobile must be 10 digits'
     }
@@ -93,10 +86,6 @@ function ManufacturerModal({ editItem, onClose }) {
 
     if (form.licence_no && form.licence_no.length > 50) {
       errs.licence_no = 'Licence number cannot exceed 50 characters'
-    }
-
-    if (form.msme_certificate && form.msme_certificate.length > 100) {
-      errs.msme_certificate = 'MSME certificate cannot exceed 100 characters'
     }
     
     return errs
@@ -128,50 +117,48 @@ function ManufacturerModal({ editItem, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl my-8">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-6">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-gray-100">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">{isEdit ? 'Edit Manufacturer' : 'Add New Manufacturer'}</h3>
+            <h3 className="text-base font-bold text-gray-900">{isEdit ? 'Edit Manufacturer' : 'Add New Manufacturer'}</h3>
             {isEdit && editItem.mfr_code && (
               <p className="text-xs font-mono font-semibold text-gray-500 mt-0.5">{editItem.mfr_code}</p>
             )}
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
+          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
 
           {/* ── Section 1: Basic Info ── */}
-          <SectionHeader icon="🏭" title="Basic Info" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SectionHeader title="Basic Info" />
+          <div className="grid grid-cols-1 gap-3">
             
-            <div className="sm:col-span-2">
-              <label className="label">Manufacturer Code</label>
+            <div>
+              <label className="label text-xs">Manufacturer Code</label>
               <input
                 value={isEdit ? editItem.mfr_code : "Auto Generated (MFR-0001)"}
                 disabled
-                className="input-field bg-gray-50 text-gray-500 font-mono"
+                className="input-field bg-gray-50 text-gray-500 font-mono text-xs py-1.5"
               />
             </div>
 
-            <div className="sm:col-span-2">
-              <Field label="Manufacturer Name *" required error={errors.mfr_name}>
-                <input
-                  type="text"
-                  required
-                  placeholder="Enter manufacturer name"
-                  value={form.mfr_name}
-                  onChange={set('mfr_name')}
-                  className={`input-field ${errors.mfr_name ? 'border-red-400 focus:ring-red-300' : ''}`}
-                />
-              </Field>
-            </div>
+            <Field label="Manufacturer Name *" required error={errors.mfr_name}>
+              <input
+                type="text"
+                required
+                placeholder="Enter manufacturer name"
+                value={form.mfr_name}
+                onChange={set('mfr_name')}
+                className={`input-field text-xs py-1.5 ${errors.mfr_name ? 'border-red-400 focus:ring-red-300' : ''}`}
+              />
+            </Field>
             
             <Field label="Licence No" error={errors.licence_no}>
               <input
@@ -179,44 +166,18 @@ function ManufacturerModal({ editItem, onClose }) {
                 placeholder="Licence number"
                 value={form.licence_no}
                 onChange={set('licence_no')}
-                className={`input-field ${errors.licence_no ? 'border-red-400 focus:ring-red-300' : ''}`}
+                className={`input-field text-xs py-1.5 ${errors.licence_no ? 'border-red-400 focus:ring-red-300' : ''}`}
                 maxLength={50}
-              />
-            </Field>
-
-            <Field label="GSTIN" error={errors.gstin}>
-              <input
-                type="text"
-                placeholder="22AAAAA0000A1Z5"
-                value={form.gstin}
-                onChange={e => {
-                  const val = e.target.value.toUpperCase().slice(0, 15)
-                  setForm({ ...form, gstin: val })
-                  if (errors.gstin) setErrors(er => ({ ...er, gstin: '' }))
-                }}
-                className={`input-field uppercase ${errors.gstin ? 'border-red-400 focus:ring-red-300' : ''}`}
-                maxLength={15}
-              />
-            </Field>
-
-            <Field label="MSME Certificate" error={errors.msme_certificate}>
-              <input
-                type="text"
-                placeholder="MSME cert number"
-                value={form.msme_certificate}
-                onChange={set('msme_certificate')}
-                className={`input-field ${errors.msme_certificate ? 'border-red-400 focus:ring-red-300' : ''}`}
-                maxLength={100}
               />
             </Field>
           </div>
 
           {/* ── Section 2: Address ── */}
-          <SectionHeader icon="📍" title="Address" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SectionHeader title="Address" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
               <Field label="Address" error={errors.address}>
-                <textarea id="mfr_addr" className="input-field resize-none" rows={2}
+                <textarea id="mfr_addr" className="input-field resize-none text-xs py-1.5" rows={2}
                   value={form.address} onChange={set('address')} placeholder="Street / Area" />
               </Field>
             </div>
@@ -227,7 +188,7 @@ function ManufacturerModal({ editItem, onClose }) {
                 placeholder="City"
                 value={form.city}
                 onChange={set('city')}
-                className="input-field"
+                className="input-field text-xs py-1.5"
               />
             </Field>
 
@@ -237,7 +198,7 @@ function ManufacturerModal({ editItem, onClose }) {
                 placeholder="State"
                 value={form.state}
                 onChange={set('state')}
-                className="input-field"
+                className="input-field text-xs py-1.5"
               />
             </Field>
 
@@ -251,15 +212,15 @@ function ManufacturerModal({ editItem, onClose }) {
                   setForm({ ...form, pincode: val })
                   if (errors.pincode) setErrors(er => ({ ...er, pincode: '' }))
                 }}
-                className={`input-field ${errors.pincode ? 'border-red-400 focus:ring-red-300' : ''}`}
+                className={`input-field text-xs py-1.5 ${errors.pincode ? 'border-red-400 focus:ring-red-300' : ''}`}
                 maxLength={6}
               />
             </Field>
           </div>
 
           {/* ── Section 3: Contact ── */}
-          <SectionHeader icon="📞" title="Contact" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SectionHeader title="Contact" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             
             <Field label="Contact Person" error={errors.contact_person}>
               <input
@@ -267,7 +228,7 @@ function ManufacturerModal({ editItem, onClose }) {
                 placeholder="Full name"
                 value={form.contact_person}
                 onChange={set('contact_person')}
-                className="input-field"
+                className="input-field text-xs py-1.5"
               />
             </Field>
 
@@ -281,7 +242,7 @@ function ManufacturerModal({ editItem, onClose }) {
                   setForm({ ...form, contact_mobile: val })
                   if (errors.contact_mobile) setErrors(er => ({ ...er, contact_mobile: '' }))
                 }}
-                className={`input-field ${errors.contact_mobile ? 'border-red-400 focus:ring-red-300' : ''}`}
+                className={`input-field text-xs py-1.5 ${errors.contact_mobile ? 'border-red-400 focus:ring-red-300' : ''}`}
                 maxLength={10}
                 pattern="[0-9]{10}"
               />
@@ -293,7 +254,7 @@ function ManufacturerModal({ editItem, onClose }) {
                 placeholder="info@manufacturer.com"
                 value={form.email}
                 onChange={set('email')}
-                className={`input-field ${errors.email ? 'border-red-400 focus:ring-red-300' : ''}`}
+                className={`input-field text-xs py-1.5 ${errors.email ? 'border-red-400 focus:ring-red-300' : ''}`}
               />
             </Field>
 
@@ -307,7 +268,7 @@ function ManufacturerModal({ editItem, onClose }) {
                   setForm({ ...form, customer_care_no: val })
                   if (errors.customer_care_no) setErrors(er => ({ ...er, customer_care_no: '' }))
                 }}
-                className={`input-field ${errors.customer_care_no ? 'border-red-400 focus:ring-red-300' : ''}`}
+                className={`input-field text-xs py-1.5 ${errors.customer_care_no ? 'border-red-400 focus:ring-red-300' : ''}`}
                 maxLength={10}
                 pattern="[0-9]{10}"
               />
@@ -316,18 +277,18 @@ function ManufacturerModal({ editItem, onClose }) {
 
           {/* Auto-code banner */}
           {!isEdit && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-xs text-blue-700">Code auto-generated on save (MFR-0001, MFR-0002…)</p>
+              <p className="text-[11px] text-blue-700">Code auto-generated on save (MFR-0001, MFR-0002…)</p>
             </div>
           )}
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-            <button type="button" onClick={onClose} className="btn-secondary" disabled={pending}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={pending}>
+            <button type="button" onClick={onClose} className="btn-secondary text-xs py-1.5" disabled={pending}>Cancel</button>
+            <button type="submit" className="btn-primary text-xs py-1.5" disabled={pending}>
               {pending ? 'Saving…' : isEdit ? 'Update' : 'Create Manufacturer'}
             </button>
           </div>
@@ -417,7 +378,6 @@ export default function ManufacturerMaster() {
                   <th className="px-5 py-3 whitespace-nowrap">Code</th>
                   <th className="px-5 py-3">Name</th>
                   <th className="px-5 py-3 hidden md:table-cell">City</th>
-                  <th className="px-5 py-3 hidden lg:table-cell">GSTIN</th>
                   <th className="px-5 py-3 hidden lg:table-cell">Contact</th>
                   <th className="px-5 py-3 text-center">Status</th>
                   {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
@@ -426,7 +386,7 @@ export default function ManufacturerMaster() {
               <tbody className="divide-y divide-gray-100">
                 {manufacturers.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 7 : 6} className="p-10 text-center text-gray-400">
+                    <td colSpan={canEdit ? 6 : 5} className="p-10 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -455,11 +415,6 @@ export default function ManufacturerMaster() {
                     {/* City */}
                     <td className="px-5 py-3 hidden md:table-cell text-gray-600 text-xs">
                       {m.city && m.state ? `${m.city}, ${m.state}` : m.city || m.state || '—'}
-                    </td>
-
-                    {/* GSTIN */}
-                    <td className="px-5 py-3 hidden lg:table-cell font-mono text-xs text-gray-600">
-                      {m.gstin || '—'}
                     </td>
 
                     {/* Contact */}
