@@ -688,3 +688,10 @@ CREATE TABLE IF NOT EXISTS employee_master (
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Color Master
+ALTER TABLE color_master
+ADD COLUMN IF NOT EXISTS color_master_code VARCHAR(20),
+ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+
+DELETE FROM color_master;

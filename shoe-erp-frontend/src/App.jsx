@@ -52,6 +52,7 @@ import ComponentsMaster    from './pages/Masters/ComponentsMaster.jsx'
 import DivisionMaster      from './pages/Masters/DivisionMaster.jsx'
 import TeamMaster          from './pages/Masters/TeamMaster.jsx'
 import EmployeeMaster      from './pages/Masters/EmployeeMaster.jsx'
+import ColorMaster         from './pages/Masters/ColorMaster.jsx'
 
 export default function App() {
   return (
@@ -111,10 +112,11 @@ export default function App() {
               <Route path="hsn-master"            element={<HSNMaster />} />
               <Route path="design-master"         element={<DesignMaster />} />
               <Route path="components-master"     element={<ComponentsMaster />} />
-              <Route path="division-master"       element={<DivisionMaster />} />
-              <Route path="team-master"           element={<TeamMaster />} />
-              <Route path="employee-master"       element={<EmployeeMaster />} />
-            </Route>
+               <Route path="division-master"       element={<DivisionMaster />} />
+               <Route path="team-master"           element={<TeamMaster />} />
+               <Route path="employee-master"       element={<EmployeeMaster />} />
+               <Route path="color-master"          element={<ColorMaster />} />
+             </Route>
 
             <Route path="/users" element={<UserManagement />} />
             <Route path="/masters/companies"   element={<CompanyMaster />} />
@@ -132,6 +134,7 @@ export default function App() {
             <Route path="/masters/divisions"       element={<DivisionMaster />} />
             <Route path="/masters/teams"           element={<TeamMaster />} />
             <Route path="/masters/employees"       element={<EmployeeMaster />} />
+            <Route path="/masters/colors"          element={<ColorMaster />} />
 
             {/* Reports */}
             <Route path="/reports" element={<ReportsLayout />}>

@@ -123,6 +123,10 @@ const mastersNav = [
     to: '/masters/employees', label: 'Employee Master',
     icon: <Icon path="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />,
   },
+  {
+    to: '/masters/colors', label: 'Color Master',
+    icon: <Icon path="M9.53 16.122a3 3 0 00-3.078 0L3.94 17.653A2.25 2.25 0 003.5 19.5a2.25 2.25 0 002.25 2.25h12.5A2.25 2.25 0 0020.5 19.5a2.25 2.25 0 00-.44-1.847l-2.512-1.53a3 3 0 00-3.078 0l-4.94 3z" />,
+  },
 ]
 
 const adminNav = [

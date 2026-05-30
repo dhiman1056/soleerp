@@ -4,7 +4,7 @@ import api from '../api/axiosInstance'
 export const useColors = (params = {}) => useQuery({
   queryKey: ['colors', params],
   queryFn: async () => {
-    const res = await api.get('/masters/colors', { params })
+    const res = await api.get('/colors', { params })
     return res.data?.data ?? []
   }
 })
@@ -12,7 +12,7 @@ export const useColors = (params = {}) => useQuery({
 export const useColor = (id) => useQuery({
   queryKey: ['colors', id],
   queryFn: async () => {
-    const res = await api.get(`/masters/colors/${id}`)
+    const res = await api.get(`/colors/${id}`)
     return res.data?.data ?? null
   },
   enabled: !!id
@@ -21,7 +21,7 @@ export const useColor = (id) => useQuery({
 export const useCreateColor = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (data) => api.post('/masters/colors', data),
+    mutationFn: (data) => api.post('/colors', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['colors'] })
       qc.invalidateQueries({ queryKey: ['masters', 'colors'] })
@@ -32,7 +32,7 @@ export const useCreateColor = () => {
 export const useUpdateColor = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, data }) => api.put(`/masters/colors/${id}`, data),
+    mutationFn: ({ id, data }) => api.put(`/colors/${id}`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['colors'] })
       qc.invalidateQueries({ queryKey: ['masters', 'colors'] })
@@ -43,7 +43,7 @@ export const useUpdateColor = () => {
 export const useDeleteColor = () => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id) => api.delete(`/masters/colors/${id}`),
+    mutationFn: (id) => api.delete(`/colors/${id}`),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['colors'] })
       qc.invalidateQueries({ queryKey: ['masters', 'colors'] })
