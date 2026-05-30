@@ -695,3 +695,10 @@ ADD COLUMN IF NOT EXISTS color_master_code VARCHAR(20),
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
 
 DELETE FROM color_master;
+
+-- Suppliers Master - add brand and certificate fields
+ALTER TABLE suppliers
+ADD COLUMN IF NOT EXISTS brand_id INTEGER REFERENCES brand_master(id),
+ADD COLUMN IF NOT EXISTS msme_certificate VARCHAR(100),
+ADD COLUMN IF NOT EXISTS customer_care_no VARCHAR(20),
+ADD COLUMN IF NOT EXISTS licence_no VARCHAR(50);
