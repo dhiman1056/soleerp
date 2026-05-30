@@ -16,16 +16,23 @@ const listDesigns = async (req, res) => {
 
     if (is_active !== undefined) {
       params.push(is_active === 'true')
-      conditions.push(`is_active = $${params.length}`)
+      conditions.push(`d.is_active = $${params.length}`)
     }
     if (search) {
       params.push(`%${search}%`)
-      conditions.push(`(design_no ILIKE $${params.length} OR design_name ILIKE $${params.length} OR design_master_code ILIKE $${params.length})`)
+      conditions.push(`(d.design_no ILIKE $${params.length} OR d.design_master_code ILIKE $${params.length} OR c.catg_name ILIKE $${params.length})`)
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
     const { rows } = await query(
-      `SELECT * FROM design_master ${where} ORDER BY design_master_code NULLS LAST, design_no`,
+      `SELECT 
+        d.*,
+        c.catg_name,
+        c.catg_code
+      FROM design_master d
+      LEFT JOIN category_master c ON d.category_id = c.id
+      ${where} 
+      ORDER BY d.design_master_code NULLS LAST, d.design_no`,
       params
     )
     res.json({ success: true, data: rows })
@@ -49,15 +56,14 @@ const getDesign = async (req, res) => {
 // ─── POST /api/designs ────────────────────────────────────────────────────────
 const createDesign = async (req, res) => {
   try {
-    const { design_no, design_name, description } = req.body
-    if (!design_no?.trim())   return res.status(400).json({ success: false, message: 'Design No is required' })
-    if (!design_name?.trim()) return res.status(400).json({ success: false, message: 'Design Name is required' })
+    const { design_no, category_id } = req.body
+    if (!design_no?.trim()) return res.status(400).json({ success: false, message: 'Design No is required' })
 
     const design_master_code = await generateCode()
     const { rows } = await query(`
-      INSERT INTO design_master (design_master_code, design_no, design_name, description)
-      VALUES ($1, $2, $3, $4) RETURNING *
-    `, [design_master_code, design_no.trim(), design_name.trim(), description || null])
+      INSERT INTO design_master (design_master_code, design_no, category_id)
+      VALUES ($1, $2, $3) RETURNING *
+    `, [design_master_code, design_no.trim(), category_id ? Number(category_id) : null])
 
     res.status(201).json({ success: true, data: rows[0] })
   } catch (err) {
@@ -71,20 +77,18 @@ const createDesign = async (req, res) => {
 const updateDesign = async (req, res) => {
   try {
     const { id } = req.params
-    const { design_no, design_name, description, is_active } = req.body
+    const { design_no, category_id, is_active } = req.body
 
     const { rows } = await query(`
       UPDATE design_master SET
         design_no   = COALESCE($1, design_no),
-        design_name = COALESCE($2, design_name),
-        description = COALESCE($3, description),
-        is_active   = COALESCE($4, is_active),
+        category_id = COALESCE($2, category_id),
+        is_active   = COALESCE($3, is_active),
         updated_at  = NOW()
-      WHERE id = $5 RETURNING *
+      WHERE id = $4 RETURNING *
     `, [
       design_no   ? design_no.trim()   : null,
-      design_name ? design_name.trim() : null,
-      description ?? null,
+      category_id ? Number(category_id) : null,
       is_active !== undefined ? is_active : null,
       id
     ])

@@ -5,16 +5,6 @@ import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
 
-// ─── Footwear HSN reference data ─────────────────────────────────────────────
-const HSN_REFS = [
-  { code: '6401', desc: 'Waterproof footwear',                  gst: '12%' },
-  { code: '6402', desc: 'Other footwear outer soles',           gst: '12%' },
-  { code: '6403', desc: 'Footwear outer soles rubber',          gst: '12%' },
-  { code: '6404', desc: 'Footwear outer soles rubber/plastics', gst: '5%'  },
-  { code: '6405', desc: 'Other footwear',                       gst: '5%'  },
-  { code: '6406', desc: 'Parts of footwear',                    gst: '18%' },
-]
-
 const EMPTY = { hsn_code: '', description: '', gst_id: '' }
 
 // ─── GST Rate preview box ──────────────────────────────────────────────────────
@@ -81,11 +71,6 @@ function HSNModal({ editItem, onClose }) {
     if (errors[key]) setErrors(er => ({ ...er, [key]: '' }))
   }
 
-  const fillRef = (ref) => {
-    setForm(f => ({ ...f, hsn_code: ref.code, description: ref.desc }))
-    setErrors({})
-  }
-
   const validate = () => {
     const errs = {}
     if (!form.hsn_code.trim())    errs.hsn_code    = 'HSN code is required'
@@ -137,27 +122,6 @@ function HSNModal({ editItem, onClose }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-
-          {/* Footwear HSN quick-fill chips */}
-          {!isEdit && (
-            <div>
-              <p className="text-xs text-gray-500 font-medium mb-2">Common footwear HSN codes:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {HSN_REFS.map(r => (
-                  <button key={r.code} type="button" onClick={() => fillRef(r)}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${
-                      form.hsn_code === r.code
-                        ? 'bg-teal-600 text-white border-teal-600'
-                        : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-teal-50 hover:border-teal-300 hover:text-teal-700'
-                    }`}
-                  >
-                    {r.code}
-                    <span className={`text-xs ${form.hsn_code === r.code ? 'text-teal-100' : 'text-gray-400'}`}>{r.gst}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* HSN Code + Description */}
           <div className="grid grid-cols-2 gap-4">
@@ -275,21 +239,6 @@ export default function HSNMaster() {
             Add HSN Code
           </button>
         )}
-      </div>
-
-      {/* Footwear HSN reference bar */}
-      <div className="overflow-x-auto">
-        <div className="flex gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100 min-w-max">
-          <span className="text-xs text-gray-400 font-medium self-center mr-1 whitespace-nowrap">Footwear HSN:</span>
-          {HSN_REFS.map(r => (
-            <div key={r.code} className="flex items-center gap-1 px-2.5 py-1 bg-white border border-gray-200 rounded-lg">
-              <span className="font-mono font-bold text-xs text-teal-700">{r.code}</span>
-              <span className="text-gray-300">·</span>
-              <span className="text-xs text-gray-500 whitespace-nowrap hidden sm:block">{r.desc}</span>
-              <span className="text-xs font-semibold text-gray-400">{r.gst}</span>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Filters */}

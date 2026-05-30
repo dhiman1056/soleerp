@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useDesigns, useCreateDesign, useUpdateDesign, useDeleteDesign } from '../../hooks/useDesigns'
+import { useCategories } from '../../hooks/useCategories'
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
 
-const EMPTY = { design_no: '', design_name: '', description: '' }
+const EMPTY = { design_no: '', category_id: '' }
 
 const Field = ({ label, required, error, children }) => (
   <div>
@@ -21,6 +22,8 @@ function DesignModal({ editItem, onClose }) {
   const updateMut = useUpdateDesign()
   const pending   = createMut.isPending || updateMut.isPending
 
+  const { data: categories = [] } = useCategories()
+
   const [form, setForm]     = useState(EMPTY)
   const [errors, setErrors] = useState({})
 
@@ -28,8 +31,7 @@ function DesignModal({ editItem, onClose }) {
     if (editItem) {
       setForm({
         design_no:   editItem.design_no   || '',
-        design_name: editItem.design_name || '',
-        description: editItem.description || '',
+        category_id: editItem.category_id ? String(editItem.category_id) : '',
       })
     } else {
       setForm(EMPTY)
@@ -44,8 +46,7 @@ function DesignModal({ editItem, onClose }) {
 
   const validate = () => {
     const errs = {}
-    if (!form.design_no.trim())   errs.design_no   = 'Design No is required'
-    if (!form.design_name.trim()) errs.design_name = 'Design Name is required'
+    if (!form.design_no.trim()) errs.design_no = 'Design No is required'
     return errs
   }
 
@@ -56,8 +57,7 @@ function DesignModal({ editItem, onClose }) {
 
     const payload = {
       design_no:   form.design_no.trim(),
-      design_name: form.design_name.trim(),
-      description: form.description || null,
+      category_id: form.category_id ? Number(form.category_id) : null,
     }
 
     if (isEdit) {
@@ -94,28 +94,42 @@ function DesignModal({ editItem, onClose }) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
 
-          {/* Design No + Name side by side */}
-          <div className="grid grid-cols-2 gap-4">
-            <Field label="Design No" required error={errors.design_no}>
-              <input id="design_no"
-                className={`input-field font-mono font-bold ${errors.design_no ? 'border-red-400' : ''}`}
-                value={form.design_no} onChange={set('design_no')}
-                placeholder="e.g. D-001" autoFocus={!isEdit} />
-            </Field>
-            <Field label="Design Name" required error={errors.design_name}>
-              <input id="design_name"
-                className={`input-field ${errors.design_name ? 'border-red-400' : ''}`}
-                value={form.design_name} onChange={set('design_name')}
-                placeholder="e.g. Classic Oxford" autoFocus={isEdit} />
-            </Field>
+          <div>
+            <label className="label">Design Code</label>
+            <input
+              value={isEdit ? editItem.design_master_code : "Auto Generated (DESIGN-0001)"}
+              disabled
+              className="input-field bg-gray-50 text-gray-500 font-mono"
+            />
           </div>
 
-          {/* Description */}
-          <Field label="Description">
-            <textarea id="design_desc" className="input-field resize-none" rows={3}
-              value={form.description} onChange={set('description')}
-              placeholder="Optional — style notes, season, target market…" />
+          <Field label="Design No" required error={errors.design_no}>
+            <input
+              type="text"
+              required
+              placeholder="e.g. D-001, WFL-003"
+              value={form.design_no}
+              onChange={set('design_no')}
+              className="input-field font-mono"
+              autoFocus={!isEdit}
+            />
           </Field>
+
+          <div>
+            <label className="label">Category</label>
+            <select
+              value={form.category_id}
+              onChange={set('category_id')}
+              className="input-field"
+            >
+              <option value="">— Select Category —</option>
+              {categories.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.catg_name || c.category_name}
+                </option>
+              ))}
+            </select>
+          </div>
 
           {/* Auto-code banner */}
           {!isEdit && (
@@ -138,18 +152,6 @@ function DesignModal({ editItem, onClose }) {
     </div>
   )
 }
-
-// ─── Colour avatar (design no → deterministic colour) ─────────────────────────
-const PALETTE = [
-  'from-pink-400 to-rose-500',
-  'from-violet-400 to-purple-600',
-  'from-sky-400 to-blue-600',
-  'from-teal-400 to-emerald-500',
-  'from-orange-400 to-amber-500',
-  'from-indigo-400 to-blue-600',
-  'from-fuchsia-400 to-pink-600',
-]
-const avatarGradient = (str = '') => PALETTE[str.charCodeAt(0) % PALETTE.length] || PALETTE[0]
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function DesignMaster() {
@@ -205,7 +207,7 @@ export default function DesignMaster() {
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
           </svg>
-          <input id="design-search" className="input-field pl-9" placeholder="Search by design no or name…"
+          <input id="design-search" className="input-field pl-9" placeholder="Search by design no or category…"
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select id="design-status-filter" className="input-field w-auto min-w-[140px]"
@@ -237,10 +239,9 @@ export default function DesignMaster() {
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase text-xs font-semibold">
                 <tr>
-                  <th className="px-5 py-3 whitespace-nowrap">Master Code</th>
+                  <th className="px-5 py-3 whitespace-nowrap">Code</th>
                   <th className="px-5 py-3">Design No</th>
-                  <th className="px-5 py-3">Design Name</th>
-                  <th className="px-5 py-3 hidden md:table-cell">Description</th>
+                  <th className="px-5 py-3">Category</th>
                   <th className="px-5 py-3 text-center">Status</th>
                   {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
                 </tr>
@@ -253,26 +254,14 @@ export default function DesignMaster() {
                       {d.design_master_code || <span className="text-gray-300 italic">—</span>}
                     </td>
 
-                    {/* Design No chip */}
-                    <td className="px-5 py-3">
-                      <span className={`px-2.5 py-1 rounded font-mono font-bold text-xs bg-gradient-to-r ${avatarGradient(d.design_no)} text-white`}>
-                        {d.design_no}
-                      </span>
+                    {/* Design No */}
+                    <td className="px-5 py-3 font-mono font-bold text-sm text-gray-900">
+                      {d.design_no}
                     </td>
 
-                    {/* Design Name */}
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${avatarGradient(d.design_no)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
-                          {d.design_name?.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="font-semibold text-gray-900">{d.design_name}</span>
-                      </div>
-                    </td>
-
-                    {/* Description */}
-                    <td className="px-5 py-3 hidden md:table-cell text-xs text-gray-400 max-w-[240px]">
-                      <span className="truncate block">{d.description || '—'}</span>
+                    {/* Category */}
+                    <td className="px-5 py-3 font-semibold text-gray-700">
+                      {d.catg_name || '—'}
                     </td>
 
                     {/* Status */}

@@ -3,19 +3,8 @@ import { useDivisions, useCreateDivision, useUpdateDivision, useDeleteDivision }
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
-import api from '../../api/axiosInstance'
-import { useQuery } from '@tanstack/react-query'
 
-// Fetch active locations for dropdown
-const useLocations = () => useQuery({
-  queryKey: ['masters', 'locations'],
-  queryFn: async () => {
-    const res = await api.get('/locations', { params: { is_active: true } })
-    return res.data?.data ?? []
-  }
-})
-
-const EMPTY = { div_name: '', description: '', location_id: '' }
+const EMPTY = { div_name: '' }
 
 const Field = ({ label, required, error, children }) => (
   <div>
@@ -25,23 +14,6 @@ const Field = ({ label, required, error, children }) => (
   </div>
 )
 
-// ─── Location badge ────────────────────────────────────────────────────────────
-const LocationBadge = ({ location_name, location_code }) => {
-  if (!location_name) return <span className="text-gray-400 text-xs">—</span>
-  return (
-    <div className="flex items-center gap-1.5">
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-sky-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-      <span className="text-xs font-semibold text-gray-700">{location_name}</span>
-      {location_code && (
-        <span className="text-xs font-mono text-gray-400">({location_code})</span>
-      )}
-    </div>
-  )
-}
-
 // ─── Modal ─────────────────────────────────────────────────────────────────────
 function DivisionModal({ editItem, onClose }) {
   const isEdit    = !!editItem
@@ -49,18 +21,13 @@ function DivisionModal({ editItem, onClose }) {
   const updateMut = useUpdateDivision()
   const pending   = createMut.isPending || updateMut.isPending
 
-  const { data: locationData } = useLocations()
-  const locations = Array.isArray(locationData) ? locationData : []
-
   const [form, setForm]     = useState(EMPTY)
   const [errors, setErrors] = useState({})
 
   useEffect(() => {
     if (editItem) {
       setForm({
-        div_name:    editItem.div_name    || '',
-        description: editItem.description || '',
-        location_id: editItem.location_id ? String(editItem.location_id) : '',
+        div_name: editItem.div_name || '',
       })
     } else {
       setForm(EMPTY)
@@ -75,8 +42,7 @@ function DivisionModal({ editItem, onClose }) {
 
   const validate = () => {
     const errs = {}
-    if (!form.div_name.trim())  errs.div_name    = 'Division name is required'
-    if (!form.location_id)      errs.location_id = 'Location is required to save division'
+    if (!form.div_name.trim()) errs.div_name = 'Division name is required'
     return errs
   }
 
@@ -86,9 +52,7 @@ function DivisionModal({ editItem, onClose }) {
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     const payload = {
-      div_name:    form.div_name.trim(),
-      description: form.description || null,
-      location_id: Number(form.location_id),
+      div_name: form.div_name.trim(),
     }
 
     if (isEdit) {
@@ -103,8 +67,6 @@ function DivisionModal({ editItem, onClose }) {
       })
     }
   }
-
-  const selLocation = locations.find(l => String(l.id) === String(form.location_id))
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -125,6 +87,14 @@ function DivisionModal({ editItem, onClose }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="label">Division Code</label>
+            <input
+              value={isEdit ? editItem.div_code : "Auto Generated (DIV-0001)"}
+              disabled
+              className="input-field bg-gray-50 text-gray-500 font-mono"
+            />
+          </div>
 
           {/* Division Name */}
           <Field label="Division Name" required error={errors.div_name}>
@@ -134,49 +104,13 @@ function DivisionModal({ editItem, onClose }) {
               placeholder="e.g. Gents, Ladies, Kids, Export" autoFocus />
           </Field>
 
-          {/* Location — required */}
-          <Field label="Location" required error={errors.location_id}>
-            <select id="div_location"
-              className={`input-field ${errors.location_id ? 'border-red-400' : ''}`}
-              value={form.location_id} onChange={set('location_id')}>
-              <option value="">— Select Location —</option>
-              {locations.map(l => (
-                <option key={l.id} value={l.id}>{l.location_name}</option>
-              ))}
-            </select>
-          </Field>
-
-          {/* Location preview */}
-          {selLocation && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-sky-50 rounded-lg border border-sky-100">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-sky-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span className="text-xs text-sky-700 font-semibold">{selLocation.location_name}</span>
-              {selLocation.location_code && (
-                <>
-                  <span className="text-gray-300">·</span>
-                  <span className="text-xs font-mono text-sky-500">{selLocation.location_code}</span>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Description */}
-          <Field label="Description">
-            <textarea id="div_desc" className="input-field resize-none" rows={2}
-              value={form.description} onChange={set('description')}
-              placeholder="Optional — scope, purpose, floor, shift…" />
-          </Field>
-
           {/* Auto-code banner */}
           {!isEdit && (
             <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-xs text-blue-700">Code auto-generated on save (DIV-0001…). Location is mandatory.</p>
+              <p className="text-xs text-blue-700">Code auto-generated on save (DIV-0001…).</p>
             </div>
           )}
 
@@ -198,22 +132,18 @@ export default function DivisionMaster() {
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
   const [search, setSearch]             = useState('')
-  const [filterLocation, setFilterLocation] = useState('')
   const [filterActive, setFilterActive] = useState('')
   const [showModal, setShowModal]       = useState(false)
   const [editItem, setEditItem]         = useState(null)
 
   const params = {}
-  if (search.trim())       params.search      = search.trim()
-  if (filterLocation)      params.location_id = filterLocation
-  if (filterActive !== '') params.is_active   = filterActive
+  if (search.trim())       params.search    = search.trim()
+  if (filterActive !== '') params.is_active = filterActive
 
   const { data, isLoading } = useDivisions(params)
-  const { data: locationData } = useLocations()
   const updateMut = useUpdateDivision()
 
-  const divisions = Array.isArray(data)         ? data         : []
-  const locations = Array.isArray(locationData) ? locationData : []
+  const divisions = Array.isArray(data) ? data : []
 
   const openCreate = () => { setEditItem(null); setShowModal(true) }
   const openEdit   = (d) => { setEditItem(d);   setShowModal(true) }
@@ -245,19 +175,14 @@ export default function DivisionMaster() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
           </svg>
           <input id="div-search" className="input-field pl-9" placeholder="Search by name or code…"
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select id="div-location-filter" className="input-field w-auto min-w-[180px]"
-          value={filterLocation} onChange={e => setFilterLocation(e.target.value)}>
-          <option value="">All Locations</option>
-          {locations.map(l => <option key={l.id} value={l.id}>{l.location_name}</option>)}
-        </select>
         <select id="div-status-filter" className="input-field w-auto min-w-[140px]"
           value={filterActive} onChange={e => setFilterActive(e.target.value)}>
           <option value="">All Status</option>
@@ -277,8 +202,6 @@ export default function DivisionMaster() {
                 <tr>
                   <th className="px-5 py-3 whitespace-nowrap">Code</th>
                   <th className="px-5 py-3">Division Name</th>
-                  <th className="px-5 py-3">Location</th>
-                  <th className="px-5 py-3 hidden lg:table-cell">Description</th>
                   <th className="px-5 py-3 text-center">Status</th>
                   {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
                 </tr>
@@ -286,7 +209,7 @@ export default function DivisionMaster() {
               <tbody className="divide-y divide-gray-100">
                 {divisions.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 6 : 5} className="p-10 text-center text-gray-400">
+                    <td colSpan={canEdit ? 4 : 3} className="p-10 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -308,16 +231,6 @@ export default function DivisionMaster() {
                         </div>
                         <span className="font-semibold text-gray-900">{d.div_name}</span>
                       </div>
-                    </td>
-
-                    {/* Location */}
-                    <td className="px-5 py-3">
-                      <LocationBadge location_name={d.location_name} location_code={d.location_code} />
-                    </td>
-
-                    {/* Description */}
-                    <td className="px-5 py-3 hidden lg:table-cell text-xs text-gray-400 max-w-[200px]">
-                      <span className="truncate block">{d.description || '—'}</span>
                     </td>
 
                     {/* Status */}
