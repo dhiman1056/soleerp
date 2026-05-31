@@ -7,6 +7,7 @@ router.get('/', auth, ctrl.listUOMs)
 
 router.get('/:id', auth, ctrl.getUOM)
 router.post('/', auth, role('admin','manager'), ctrl.createUOM)
+router.post('/import', auth, role('admin','manager'), ctrl.importUOMs)
 router.put('/:id', auth, role('admin','manager'), ctrl.updateUOM)
 router.delete('/:id', auth, role('admin'), ctrl.deleteUOM)
 

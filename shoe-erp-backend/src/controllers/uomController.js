@@ -118,4 +118,51 @@ const deleteUOM = async (req, res) => {
   }
 }
 
-module.exports = { listUOMs, getUOM, createUOM, updateUOM, deleteUOM }
+const importUOMs = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const uom_code = (row['Short Code'] || row['uom_code'] || '').trim().toUpperCase()
+      const uom_name = (row['UOM Description'] || row['uom_name'] || '').trim()
+
+      if (!uom_code) {
+        errors.push({ row: rowNum, message: 'Short Code is required' })
+        continue
+      }
+      if (!uom_name) {
+        errors.push({ row: rowNum, message: 'UOM Description is required' })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM uom_master WHERE UPPER(uom_code) = UPPER($1)',
+        [uom_code]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const uom_master_code = await generateCode()
+      await query(`
+        INSERT INTO uom_master (uom_master_code, uom_code, uom_name)
+        VALUES ($1, $2, $3)
+      `, [uom_master_code, uom_code, uom_name])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
+module.exports = { listUOMs, getUOM, createUOM, updateUOM, deleteUOM, importUOMs }
