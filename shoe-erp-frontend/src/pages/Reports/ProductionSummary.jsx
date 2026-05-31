@@ -67,10 +67,11 @@ export default function ProductionSummary() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {[
           { label: 'Total Planned Qty',   value: Number(summary?.total_planned_qty  ?? 0).toFixed(0), color: 'text-blue-700'   },
           { label: 'Total Received Qty',  value: Number(summary?.total_received_qty ?? 0).toFixed(0), color: 'text-green-700'  },
+          { label: 'Total Rejection Qty', value: Number(summary?.total_rejection_qty ?? 0).toFixed(0), color: 'text-red-600'   },
           { label: 'Total WIP (Open)',     value: Number(summary?.total_wip_qty      ?? 0).toFixed(0), color: 'text-amber-600'  },
           { label: 'Overall Completion',  value: Number(summary?.completion_rate    ?? 0).toFixed(2) + '%', color: 'text-purple-700' },
         ].map((k, i) => (
@@ -127,6 +128,7 @@ export default function ProductionSummary() {
               <th className="px-5 py-3 text-left font-semibold text-gray-500">Description</th>
               <th className="px-5 py-3 text-right font-semibold text-gray-500">Planned Qty</th>
               <th className="px-5 py-3 text-right font-semibold text-gray-500">Received Qty</th>
+              <th className="px-5 py-3 text-right font-semibold text-gray-500">Rejection Qty</th>
               <th className="px-5 py-3 text-right font-semibold text-gray-500">WIP Qty</th>
               <th className="px-5 py-3 text-right font-semibold text-gray-500">Valuation (₹)</th>
             </tr>
@@ -138,13 +140,14 @@ export default function ProductionSummary() {
                 <td className="px-5 py-3 text-gray-600 line-clamp-1">{p?.fg_desc ?? '-'}</td>
                 <td className="px-5 py-3 text-right tabular-nums">{Number(p?.planned  ?? 0).toFixed(2)}</td>
                 <td className="px-5 py-3 text-right tabular-nums text-green-700 font-bold">{Number(p?.received ?? 0).toFixed(2)}</td>
+                <td className="px-5 py-3 text-right tabular-nums text-red-600 font-bold">{Number(p?.rejection_qty ?? 0).toFixed(2)}</td>
                 <td className="px-5 py-3 text-right tabular-nums text-amber-600">{Number(p?.wip ?? 0).toFixed(2)}</td>
                 <td className="px-5 py-3 text-right tabular-nums font-semibold">{formatCurrency(p?.value ?? 0)}</td>
               </tr>
             ))}
             {byProduct.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-5 py-8 text-center text-gray-400">No data for selected period.</td>
+                <td colSpan={7} className="px-5 py-8 text-center text-gray-400">No data for selected period.</td>
               </tr>
             )}
           </tbody>

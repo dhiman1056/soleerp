@@ -31,15 +31,21 @@ const getProductionSummary = async (req, res) => {
 
     const summary = await query(`
       SELECT
-        COUNT(*) as total_work_orders,
+        COUNT(w.id) as total_work_orders,
         COALESCE(SUM(w.planned_qty), 0) as total_planned_qty,
         COALESCE(SUM(w.received_qty), 0) as total_received_qty,
-        COALESCE(SUM(w.planned_qty - w.received_qty), 0) as total_wip_qty,
+        COALESCE(SUM(r.rejection_qty), 0) as total_rejection_qty,
+        COALESCE(SUM(w.planned_qty - w.received_qty - COALESCE(r.rejection_qty, 0)), 0) as total_wip_qty,
         CASE WHEN SUM(w.planned_qty) > 0
           THEN ROUND((SUM(w.received_qty) / SUM(w.planned_qty)) * 100, 2)
           ELSE 0
         END as completion_rate
       FROM work_order_header w
+      LEFT JOIN (
+        SELECT wo_id, SUM(rejection_qty) as rejection_qty
+        FROM wo_receipt_lines
+        GROUP BY wo_id
+      ) r ON r.wo_id = w.id
       ${where}
     `, params)
 
@@ -49,8 +55,14 @@ const getProductionSummary = async (req, res) => {
         COUNT(*) as orders,
         COALESCE(SUM(w.planned_qty), 0) as planned,
         COALESCE(SUM(w.received_qty), 0) as received,
-        COALESCE(SUM(w.planned_qty - w.received_qty), 0) as wip
+        COALESCE(SUM(r.rejection_qty), 0) as rejection_qty,
+        COALESCE(SUM(w.planned_qty - w.received_qty - COALESCE(r.rejection_qty, 0)), 0) as wip
       FROM work_order_header w
+      LEFT JOIN (
+        SELECT wo_id, SUM(rejection_qty) as rejection_qty
+        FROM wo_receipt_lines
+        GROUP BY wo_id
+      ) r ON r.wo_id = w.id
       ${where}
       GROUP BY w.wo_type
     `, params)
@@ -61,10 +73,16 @@ const getProductionSummary = async (req, res) => {
         p.description as fg_desc,
         COALESCE(SUM(w.planned_qty), 0) as planned,
         COALESCE(SUM(w.received_qty), 0) as received,
-        COALESCE(SUM(w.planned_qty - w.received_qty), 0) as wip
+        COALESCE(SUM(r.rejection_qty), 0) as rejection_qty,
+        COALESCE(SUM(w.planned_qty - w.received_qty - COALESCE(r.rejection_qty, 0)), 0) as wip
       FROM work_order_header w
       JOIN bom_header b ON w.bom_id = b.id
       JOIN product_master p ON b.output_sku = p.sku_code
+      LEFT JOIN (
+        SELECT wo_id, SUM(rejection_qty) as rejection_qty
+        FROM wo_receipt_lines
+        GROUP BY wo_id
+      ) r ON r.wo_id = w.id
       ${where}
       GROUP BY b.output_sku, p.description
       ORDER BY planned DESC
