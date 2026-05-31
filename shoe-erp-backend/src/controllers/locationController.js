@@ -172,11 +172,71 @@ const deleteLocation = async (req, res) => {
   }
 }
 
+const importLocations = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  const VALID_TYPES = [
+    'Raw Material Store', 'Semi-Finished Store',
+    'Finished Goods Warehouse', 'WIP Store',
+    'Rejection Store', 'Dispatch Area', 'Other'
+  ]
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const location_name = (row['Location Name'] || row['location_name'] || '').trim()
+      const location_type = (row['Location Type'] || row['location_type'] || 'Other').trim()
+      const description   = (row['Description']   || row['description']   || '').trim()
+
+      if (!location_name) {
+        errors.push({ row: rowNum, message: 'Location Name is required' })
+        continue
+      }
+      if (!VALID_TYPES.includes(location_type)) {
+        errors.push({
+          row: rowNum,
+          message: `Invalid Location Type "${location_type}". Must be one of: ${VALID_TYPES.join(' | ')}`
+        })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM location_master WHERE LOWER(location_name) = LOWER($1)',
+        [location_name]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const loc_master_code = await generateCode()
+      await query(`
+        INSERT INTO location_master
+          (loc_master_code, location_code, location_name, location_type, description)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [loc_master_code, loc_master_code, location_name,
+          location_type, description || null])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
 module.exports = {
   listLocations,
   getLocation,
   getLocationById,
   createLocation,
   updateLocation,
-  deleteLocation
+  deleteLocation,
+  importLocations
 }

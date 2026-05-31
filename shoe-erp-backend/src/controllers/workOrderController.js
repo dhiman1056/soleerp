@@ -380,12 +380,12 @@ const receiveWorkOrder = async (req, res) => {
     // ── 5. Credit GOOD qty of output SKU into stock_summary (WO_RECEIPT) ────
     const totalAddedStock = goodQty + rejQty;
     if (totalAddedStock > 0) {
-      // STEP 1 — Fetch unit cost from product_master BEFORE ledger entries:
+      // STEP 1 — Fetch unit cost dynamically from bom_lines BEFORE ledger entries:
       const costResult = await client.query(
-        `SELECT COALESCE(basic_cost_price, 0) AS unit_cost
-         FROM product_master
-         WHERE sku_code = $1`,
-        [wo.output_sku]
+        `SELECT COALESCE(SUM(consume_qty * rate_at_bom), 0) AS unit_cost
+         FROM bom_lines
+         WHERE bom_id = $1`,
+        [wo.bom_id]
       );
       const unitCost = parseFloat(costResult.rows[0]?.unit_cost || 0);
 

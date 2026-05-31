@@ -3,6 +3,7 @@ import { useLocations, useCreateLocation, useUpdateLocation } from '../../hooks/
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import ImportModal from '../../components/shared/ImportModal'
 
 const EMPTY = {
   location_name: '',
@@ -269,12 +270,13 @@ export default function LocationMaster() {
   const [filterActive, setFilterActive] = useState('')
   const [showModal, setShowModal]       = useState(false)
   const [editItem, setEditItem]         = useState(null)
+  const [showImport, setShowImport]     = useState(false)
 
   const params = {}
   if (search.trim())       params.search    = search.trim()
   if (filterActive !== '') params.is_active = filterActive
 
-  const { data, isLoading } = useLocations(params)
+  const { data, isLoading, refetch } = useLocations(params)
   const updateMut = useUpdateLocation()
 
   const locations = Array.isArray(data) ? data : []
@@ -299,12 +301,23 @@ export default function LocationMaster() {
           <p className="text-xs text-gray-500 mt-0.5">Manage storage locations — codes auto-generated (LOC-0001…)</p>
         </div>
         {canEdit && (
-          <button id="btn-add-location" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Location
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              className="btn-secondary flex items-center gap-2 whitespace-nowrap bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 shadow-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+              Import CSV
+            </button>
+            <button id="btn-add-location" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Location
+            </button>
+          </div>
         )}
       </div>
 
@@ -419,6 +432,34 @@ export default function LocationMaster() {
       )}
 
       {showModal && <LocationModal editItem={editItem} onClose={closeModal} />}
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="Location Master"
+        templateColumns={[
+          {
+            key: 'location_name',
+            label: 'Location Name',
+            required: true,
+            example: 'Raw Material Store A'
+          },
+          {
+            key: 'location_type',
+            label: 'Location Type',
+            required: true,
+            example: 'Raw Material Store',
+            note: 'Options: Raw Material Store | Semi-Finished Store | Finished Goods Warehouse | WIP Store | Rejection Store | Dispatch Area | Other'
+          },
+          {
+            key: 'description',
+            label: 'Description',
+            required: false,
+            example: 'Main RM storage area'
+          }
+        ]}
+        importUrl="/locations/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
+      />
     </div>
   )
 }
