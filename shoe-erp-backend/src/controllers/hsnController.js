@@ -158,4 +158,78 @@ const deleteHSN = async (req, res) => {
   }
 }
 
-module.exports = { listHSN, getHSN, createHSN, updateHSN, deleteHSN }
+const importHSNs = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const hsn_code    = (row['HSN Code']    || '').trim()
+      const description = (row['Description'] || '').trim()
+      const gst_rate_val = (row['GST Rate %'] || '').trim()
+
+      if (!hsn_code) {
+        errors.push({ row: rowNum, message: 'HSN Code is required' })
+        continue
+      }
+      if (!description) {
+        errors.push({ row: rowNum, message: 'Description is required' })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM hsn_master WHERE hsn_code = $1',
+        [hsn_code]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      // Resolve GST Rate → gst_id (optional)
+      let gst_id = null
+      let gst_rate = 0, sgst_rate = 0, cgst_rate = 0, igst_rate = 0
+
+      if (gst_rate_val) {
+        const gstRes = await query(
+          'SELECT id, gst_rate, sgst_rate, cgst_rate, igst_rate FROM gst_master WHERE gst_rate = $1 AND is_active = true',
+          [parseFloat(gst_rate_val)]
+        )
+        if (gstRes.rows.length === 0) {
+          errors.push({ row: rowNum,
+            message: `GST Rate "${gst_rate_val}%" not found. Create it first in GST Master.` })
+          continue
+        }
+        gst_id     = gstRes.rows[0].id
+        gst_rate   = parseFloat(gstRes.rows[0].gst_rate) || 0
+        sgst_rate  = gstRes.rows[0].sgst_rate
+        cgst_rate  = gstRes.rows[0].cgst_rate
+        igst_rate  = gstRes.rows[0].igst_rate
+      }
+
+      const hsn_master_code = await generateCode()
+      await query(`
+        INSERT INTO hsn_master
+          (hsn_master_code, hsn_code, description,
+           gst_id, gst_rate, sgst_rate, cgst_rate, igst_rate)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [
+        hsn_master_code, hsn_code, description,
+        gst_id, gst_rate, sgst_rate, cgst_rate, igst_rate
+      ])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
+module.exports = { listHSN, getHSN, createHSN, updateHSN, deleteHSN, importHSNs }

@@ -4,6 +4,7 @@ import { useGST } from '../../hooks/useGST'
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import ImportModal from '../../components/shared/ImportModal'
 
 const EMPTY = { hsn_code: '', description: '', gst_id: '' }
 
@@ -196,14 +197,40 @@ export default function HSNMaster() {
   const [filterGST, setFilterGST]   = useState('')
   const [filterActive, setFilterActive] = useState('')
   const [showModal, setShowModal]   = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [editItem, setEditItem]     = useState(null)
+
+  const templateColumns = [
+    {
+      key: 'hsn_code',
+      label: 'HSN Code',
+      required: true,
+      example: '6401',
+      example2: '6402'
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      required: true,
+      example: 'Waterproof footwear',
+      example2: 'Sports footwear'
+    },
+    {
+      key: 'gst_rate',
+      label: 'GST Rate %',
+      required: false,
+      example: '5',
+      example2: '12',
+      note: 'Must match existing GST Master rate. Leave blank for no GST.'
+    }
+  ]
 
   const params = {}
   if (search.trim())       params.search    = search.trim()
   if (filterGST)           params.gst_id   = filterGST
   if (filterActive !== '') params.is_active = filterActive
 
-  const { data, isLoading } = useHSN(params)
+  const { data, isLoading, refetch } = useHSN(params)
   const { data: gstData }   = useGST({ is_active: 'true' })
   const updateMut = useUpdateHSN()
 
@@ -232,12 +259,26 @@ export default function HSNMaster() {
           </p>
         </div>
         {canEdit && (
-          <button id="btn-add-hsn" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add HSN Code
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'8px 14px',
+                border:'0.5px solid #d1d5db',
+                borderRadius:8, background:'white',
+                fontSize:13, cursor:'pointer', color:'#374151'
+              }}
+            >
+              ↑ Import CSV
+            </button>
+            <button id="btn-add-hsn" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add HSN Code
+            </button>
+          </div>
         )}
       </div>
 
@@ -357,6 +398,15 @@ export default function HSNMaster() {
       )}
 
       {showModal && <HSNModal editItem={editItem} onClose={closeModal} />}
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="HSN Master"
+        templateColumns={templateColumns}
+        importUrl="/api/hsn/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
+      />
     </div>
   )
 }
