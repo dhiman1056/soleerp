@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 import api from '../../api/axiosInstance'
@@ -161,7 +162,7 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
     setIsImporting(false)
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-300">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-gray-100 transform scale-100 flex flex-col max-h-[85vh]">
         
@@ -349,6 +350,7 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
         )}
 
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

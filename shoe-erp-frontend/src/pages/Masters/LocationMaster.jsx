@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocations, useCreateLocation, useUpdateLocation } from '../../hooks/useLocations'
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
@@ -108,7 +109,7 @@ function LocationModal({ editItem, onClose }) {
     }
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -257,7 +258,8 @@ function LocationModal({ editItem, onClose }) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
