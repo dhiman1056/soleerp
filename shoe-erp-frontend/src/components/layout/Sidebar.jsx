@@ -127,6 +127,10 @@ const mastersNav = [
     to: '/masters/colors', label: 'Color Master',
     icon: <Icon path="M9.53 16.122a3 3 0 00-3.078 0L3.94 17.653A2.25 2.25 0 003.5 19.5a2.25 2.25 0 002.25 2.25h12.5A2.25 2.25 0 0020.5 19.5a2.25 2.25 0 00-.44-1.847l-2.512-1.53a3 3 0 00-3.078 0l-4.94 3z" />,
   },
+  {
+    to: '/masters/locations', label: 'Location Master',
+    icon: <Icon path="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />,
+  },
 ]
 
 const adminNav = [
