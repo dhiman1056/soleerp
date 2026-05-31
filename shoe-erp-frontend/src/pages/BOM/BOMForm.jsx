@@ -114,9 +114,7 @@ export default function BOMForm() {
     }
   }
 
-  const totalCost = useMemo(() => {
-    return safeLines.reduce((sum, l) => sum + (Number(l.consume_qty) || 0) * (Number(l.rate_at_bom) || 0), 0)
-  }, [safeLines])
+  const totalCost = safeLines.reduce((sum, l) => sum + (Number(l.consume_qty) || 0) * (Number(l.rate_at_bom) || 0), 0)
 
   useEffect(() => {
     if (!isEdit || !bomData) return
