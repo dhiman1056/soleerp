@@ -162,10 +162,65 @@ const deleteColor = async (req, res) => {
   }
 }
 
+const importColors = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const color_code = (row['Color Code'] || '').trim().toUpperCase()
+      const color_name = (row['Color Name'] || '').trim()
+      const hex_code   = (row['Hex Code']   || '').trim()
+
+      if (!color_code) {
+        errors.push({ row: rowNum, message: 'Color Code is required' })
+        continue
+      }
+      if (!color_name) {
+        errors.push({ row: rowNum, message: 'Color Name is required' })
+        continue
+      }
+      if (hex_code && !/^#[0-9A-Fa-f]{6}$/.test(hex_code)) {
+        errors.push({ row: rowNum,
+          message: 'Hex Code must be in format #RRGGBB e.g. #FF0000' })
+        continue
+      }
+
+      // Skip duplicate on color_code
+      const dup = await query(
+        'SELECT id FROM color_master WHERE UPPER(color_code) = UPPER($1)',
+        [color_code]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const color_master_code = await generateCode()
+      await query(`
+        INSERT INTO color_master
+          (color_master_code, color_code, color_name, hex_code)
+        VALUES ($1, $2, $3, $4)
+      `, [color_master_code, color_code, color_name, hex_code || null])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
 module.exports = {
   listColors,
   getColor,
   createColor,
   updateColor,
-  deleteColor
+  deleteColor,
+  importColors
 }

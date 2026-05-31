@@ -3,6 +3,7 @@ import { useColors, useCreateColor, useUpdateColor, useDeleteColor } from '../..
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import ImportModal from '../../components/shared/ImportModal'
 
 const EMPTY = { color_code: '', color_name: '', hex_code: '#000000' }
 
@@ -167,13 +168,40 @@ export default function ColorMaster() {
   const [search, setSearch]             = useState('')
   const [filterActive, setFilterActive] = useState('')
   const [showModal, setShowModal]       = useState(false)
+  const [showImport, setShowImport]     = useState(false)
   const [editItem, setEditItem]         = useState(null)
+
+  const templateColumns = [
+    {
+      key: 'color_code',
+      label: 'Color Code',
+      required: true,
+      example: 'BLK',
+      example2: 'WHT',
+      note: 'Short code e.g. BLK, WHT, RED, BLU'
+    },
+    {
+      key: 'color_name',
+      label: 'Color Name',
+      required: true,
+      example: 'Black',
+      example2: 'White'
+    },
+    {
+      key: 'hex_code',
+      label: 'Hex Code',
+      required: false,
+      example: '#000000',
+      example2: '#FFFFFF',
+      note: 'Format: #RRGGBB e.g. #FF0000'
+    }
+  ]
 
   const params = {}
   if (search.trim())       params.search    = search.trim()
   if (filterActive !== '') params.is_active = filterActive
 
-  const { data, isLoading } = useColors(params)
+  const { data, isLoading, refetch } = useColors(params)
   const updateMut = useUpdateColor()
 
   const colors = Array.isArray(data) ? data : []
@@ -198,12 +226,26 @@ export default function ColorMaster() {
           <p className="text-xs text-gray-500 mt-0.5">Manage color specifications — codes auto-generated (COLOR-0001…)</p>
         </div>
         {canEdit && (
-          <button id="btn-add-color" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Color
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'8px 14px',
+                border:'0.5px solid #d1d5db',
+                borderRadius:8, background:'white',
+                fontSize:13, cursor:'pointer', color:'#374151'
+              }}
+            >
+              ↑ Import CSV
+            </button>
+            <button id="btn-add-color" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Color
+            </button>
+          </div>
         )}
       </div>
 
@@ -313,6 +355,15 @@ export default function ColorMaster() {
       )}
 
       {showModal && <ColorModal editItem={editItem} onClose={closeModal} />}
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="Color Master"
+        templateColumns={templateColumns}
+        importUrl="/api/colors/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
+      />
     </div>
   )
 }
