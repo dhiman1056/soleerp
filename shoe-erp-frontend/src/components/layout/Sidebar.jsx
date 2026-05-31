@@ -177,7 +177,7 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false)
   const { data: wipData }         = useWIPSummaryQuery()
   const navigate                  = useNavigate()
-  const { user, logout }          = useAuth()
+  const { user }                  = useAuth()
 
   const wipCount = wipData?.data?.overall?.total_wo_count || 0
 
@@ -219,25 +219,6 @@ export default function Sidebar() {
           }
         </svg>
       </button>
-
-      {/* User / Logout */}
-      <div className={`p-4 border-t border-gray-100 flex items-center transition-all ${collapsed ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
-        {!collapsed && (
-          <div className="flex flex-col truncate pr-2">
-            <span className="text-sm font-semibold text-gray-900 truncate">{user?.name || 'User'}</span>
-            <span className="text-xs text-gray-500 capitalize">{user?.role || 'Operator'}</span>
-          </div>
-        )}
-        <button
-          onClick={logout}
-          title="Logout"
-          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-        </button>
-      </div>
     </aside>
   )
 }

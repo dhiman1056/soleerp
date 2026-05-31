@@ -70,7 +70,9 @@ const getLabels = (pathname) => {
 export default function Topbar({ onToggleSidebar, onToggleNotifications }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const { user, role } = useAuth()
+  const { user, role, logout } = useAuth()
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  const dropdownRef = useRef(null)
 
   const labels = getLabels(pathname)
   const title = labels[labels.length - 1]
@@ -78,6 +80,18 @@ export default function Topbar({ onToggleSidebar, onToggleNotifications }) {
   useEffect(() => {
     document.title = title ? `${title} — SoleERP` : 'SoleERP'
   }, [title])
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
 
   return (
     <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 relative z-20">
@@ -128,34 +142,65 @@ export default function Topbar({ onToggleSidebar, onToggleNotifications }) {
         {/* Separator */}
         <div className="hidden sm:block h-6 w-px bg-gray-200" />
 
-        {/* User Info & Role Badge */}
-        <div className="hidden sm:flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity">
-          <div className="flex flex-col items-end">
-            <span className="text-xs font-bold text-gray-900 leading-tight">{user?.name || 'User'}</span>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-1 rounded">
-              {role || 'Operator'}
-            </span>
+        {/* User Info & Dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <div
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            className="hidden sm:flex items-center gap-2 cursor-pointer hover:opacity-90 active:opacity-85 transition-opacity"
+          >
+            <div className="flex flex-col items-end">
+              <span className="text-xs font-bold text-gray-900 leading-tight">{user?.name || 'User'}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-1 rounded">
+                {role || 'Operator'}
+              </span>
+            </div>
+            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center border-2 border-white shadow-sm overflow-hidden select-none">
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-white text-[10px] font-bold uppercase tracking-widest">{user?.name?.substring(0, 2) || 'OP'}</span>
+              )}
+            </div>
           </div>
-          <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center border-2 border-white shadow-sm overflow-hidden">
-            {user?.avatar_url ? (
-              <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-white text-[10px] font-bold uppercase tracking-widest">{user?.name?.substring(0, 2) || 'OP'}</span>
-            )}
-          </div>
-        </div>
 
-        {/* Settings Gear */}
-        <button
-          onClick={() => navigate('/settings')}
-          className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors focus:outline-none"
-          aria-label="Settings"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </button>
+          {dropdownOpen && (
+            <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-lg py-1.5 z-50 transition-all">
+              <div className="px-4 py-2 border-b border-gray-50 mb-1">
+                <p className="text-xs font-bold text-gray-900 truncate">{user?.name || 'User'}</p>
+                <p className="text-[10px] font-medium text-gray-500 truncate capitalize">{user?.email || (user?.username ? `@${user.username}` : 'soleerp user')}</p>
+              </div>
+              
+              <button
+                onClick={() => {
+                  setDropdownOpen(false)
+                  navigate('/settings')
+                }}
+                className="w-full text-left px-4 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                System Settings
+              </button>
+
+              <div className="border-t border-gray-50 my-1" />
+
+              <button
+                onClick={() => {
+                  setDropdownOpen(false)
+                  logout()
+                }}
+                className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2.5 transition-colors font-semibold"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Logout
+              </button>
+            </div>
+          )}
+        </div>
 
       </div>
     </header>

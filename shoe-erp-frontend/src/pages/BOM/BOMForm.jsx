@@ -7,6 +7,7 @@ import { useProductsQuery }      from '../../hooks/useProducts.js'
 import { useRawMaterialsQuery }  from '../../hooks/useRawMaterials.js'
 import { formatCurrency }        from '../../utils/formatCurrency.js'
 import { UOM_OPTIONS } from '../../utils/constants.js'
+import { useUOMs } from '../../hooks/useUOM.js'
 
 const emptyLine = { 
   input_sku: '', 
@@ -43,6 +44,15 @@ export default function BOMForm() {
         ? productsRaw.data
         : []
   const allRMs = Array.isArray(rmRaw) ? rmRaw : Array.isArray(rmRaw?.data) ? rmRaw.data : []
+
+  const { data: uomRaw, isLoading: uomsLoading } = useUOMs({ limit: 500, is_active: 'true' })
+  const uomOptions = useMemo(() => {
+    const list = Array.isArray(uomRaw) ? uomRaw : Array.isArray(uomRaw?.data) ? uomRaw.data : []
+    if (list.length > 0) {
+      return list.map(u => u.uom_code)
+    }
+    return UOM_OPTIONS
+  }, [uomRaw])
 
   const [useSizeVariants, setUseSizeVariants] = useState(false)
   const [sizeVariantsMap, setSizeVariantsMap] = useState({})
@@ -246,7 +256,7 @@ export default function BOMForm() {
           <div>
             <label className="label">Output UOM *</label>
             <select {...register('output_uom', { required: true })} className="input-field">
-              {(Array.isArray(UOM_OPTIONS) ? UOM_OPTIONS : []).map((u) => <option key={u}>{u}</option>)}
+              {(Array.isArray(uomOptions) ? uomOptions : []).map((u) => <option key={u}>{u}</option>)}
             </select>
           </div>
 
@@ -330,7 +340,7 @@ export default function BOMForm() {
                     </td>
                     <td className="px-3 py-2">
                       <select {...register(`lines.${index}.uom`)} className="input-field text-xs text-center font-mono">
-                        {(Array.isArray(UOM_OPTIONS) ? UOM_OPTIONS : []).map((u) => <option key={u}>{u}</option>)}
+                        {(Array.isArray(uomOptions) ? uomOptions : []).map((u) => <option key={u}>{u}</option>)}
                       </select>
                     </td>
                     <td className="px-3 py-2">
