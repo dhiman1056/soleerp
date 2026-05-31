@@ -4,17 +4,16 @@ import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
 
-const EMPTY = { location_name: '', location_type: '', description: '' }
-
-const LOCATION_TYPES = [
-  'Raw Material Store',
-  'Semi-Finished Store',
-  'Finished Goods Warehouse',
-  'WIP Store',
-  'Rejection Store',
-  'Dispatch Area',
-  'Other'
-]
+const EMPTY = {
+  location_name: '',
+  address: '',
+  city: '',
+  state: '',
+  pincode: '',
+  contact_name: '',
+  contact_email: '',
+  contact_mobile: '',
+}
 
 const Field = ({ label, required, error, children }) => (
   <div>
@@ -24,30 +23,9 @@ const Field = ({ label, required, error, children }) => (
   </div>
 )
 
-// Helper for type badge colors
-const getTypeBadgeClass = (type) => {
-  switch (type) {
-    case 'Raw Material Store':
-      return 'bg-gray-100 text-gray-700 border-gray-200'
-    case 'Semi-Finished Store':
-      return 'bg-blue-100 text-blue-700 border-blue-200'
-    case 'Finished Goods Warehouse':
-      return 'bg-green-100 text-green-700 border-green-200'
-    case 'WIP Store':
-      return 'bg-amber-100 text-amber-700 border-amber-200'
-    case 'Rejection Store':
-      return 'bg-red-100 text-red-700 border-red-200'
-    case 'Dispatch Area':
-      return 'bg-purple-100 text-purple-700 border-purple-200'
-    default:
-      return 'bg-gray-100 text-gray-700 border-gray-200'
-  }
-}
-
 // ─── Modal ─────────────────────────────────────────────────────────────────────
 function LocationModal({ editItem, onClose }) {
-  const anonymity = !!editItem
-  const isEdit = anonymity
+  const isEdit = !!editItem
   const createMut = useCreateLocation()
   const updateMut = useUpdateLocation()
   const pending   = createMut.isPending || updateMut.isPending
@@ -59,8 +37,13 @@ function LocationModal({ editItem, onClose }) {
     if (editItem) {
       setForm({
         location_name: editItem.location_name || '',
-        location_type: editItem.location_type || '',
-        description: editItem.description || ''
+        address: editItem.address || '',
+        city: editItem.city || '',
+        state: editItem.state || '',
+        pincode: editItem.pincode || '',
+        contact_name: editItem.contact_name || '',
+        contact_email: editItem.contact_email || '',
+        contact_mobile: editItem.contact_mobile || ''
       })
     } else {
       setForm(EMPTY)
@@ -73,11 +56,27 @@ function LocationModal({ editItem, onClose }) {
     if (errors[key]) setErrors(er => ({ ...er, [key]: '' }))
   }
 
+  const validate = () => {
+    const errs = {}
+
+    if (!form.location_name?.trim())
+      errs.location_name = 'Location name is required'
+
+    if (form.pincode && !/^[0-9]{6}$/.test(form.pincode))
+      errs.pincode = 'Pincode must be 6 digits'
+
+    if (form.contact_mobile && !/^[0-9]{10}$/.test(form.contact_mobile))
+      errs.contact_mobile = 'Mobile must be 10 digits'
+
+    if (form.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contact_email))
+      errs.contact_email = 'Invalid email format'
+
+    return errs
+  }
+
   const handleSubmit = (e) => {
     e.preventDefault()
-    const errs = {}
-    if (!form.location_name.trim()) errs.location_name = 'Location name is required'
-    if (!form.location_type.trim()) errs.location_type = 'Location type is required'
+    const errs = validate()
 
     if (Object.keys(errs).length > 0) {
       setErrors(errs)
@@ -86,18 +85,23 @@ function LocationModal({ editItem, onClose }) {
 
     const payload = {
       location_name: form.location_name.trim(),
-      location_type: form.location_type.trim(),
-      description: form.description ? form.description.trim() : null
+      address: form.address ? form.address.trim() : null,
+      city: form.city ? form.city.trim() : null,
+      state: form.state ? form.state.trim() : null,
+      pincode: form.pincode ? form.pincode.trim() : null,
+      contact_name: form.contact_name ? form.contact_name.trim() : null,
+      contact_email: form.contact_email ? form.contact_email.trim().toLowerCase() : null,
+      contact_mobile: form.contact_mobile ? form.contact_mobile.trim() : null
     }
 
     if (isEdit) {
       updateMut.mutate({ id: editItem.id, ...payload }, {
-        onSuccess: () => onClose(),
+        onSuccess: () => { toast.success('Location updated'); onClose() },
         onError: (err) => toast.error(err?.response?.data?.message || 'Update failed')
       })
     } else {
       createMut.mutate(payload, {
-        onSuccess: () => onClose(),
+        onSuccess: () => { toast.success('Location created'); onClose() },
         onError: (err) => toast.error(err?.response?.data?.message || 'Create failed')
       })
     }
@@ -105,7 +109,7 @@ function LocationModal({ editItem, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h3 className="text-lg font-bold text-gray-900">{isEdit ? 'Edit Location' : 'Add New Location'}</h3>
@@ -120,7 +124,7 @@ function LocationModal({ editItem, onClose }) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
           <div>
             <label className="label">Location Code</label>
             <input
@@ -136,32 +140,104 @@ function LocationModal({ editItem, onClose }) {
               placeholder="e.g. Raw Material Store A"
               className={`input-field ${errors.location_name ? 'border-red-400' : ''}`}
               value={form.location_name}
-              onChange={set('location_name')}
+              onChange={e => {
+                setForm({ ...form, location_name: e.target.value })
+                if (errors.location_name) setErrors({ ...errors, location_name: '' })
+              }}
               autoFocus
             />
           </Field>
 
-          <Field label="Location Type" required error={errors.location_type}>
-            <select
-              className={`input-field ${errors.location_type ? 'border-red-400' : ''}`}
-              value={form.location_type}
-              onChange={set('location_type')}
-            >
-              <option value="">— Select Location Type —</option>
-              {LOCATION_TYPES.map(t => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </Field>
-
-          <Field label="Description">
+          <Field label="Address">
             <textarea
-              placeholder="Write a brief location description (optional)..."
-              className="input-field min-h-[80px]"
-              value={form.description}
-              onChange={set('description')}
+              placeholder="Full location address..."
+              className="input-field min-h-[70px]"
+              value={form.address}
+              onChange={set('address')}
             />
           </Field>
+
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="City">
+              <input
+                type="text"
+                placeholder="e.g. Agra"
+                className="input-field"
+                value={form.city}
+                onChange={set('city')}
+              />
+            </Field>
+
+            <Field label="State">
+              <input
+                type="text"
+                placeholder="e.g. UP"
+                className="input-field"
+                value={form.state}
+                onChange={set('state')}
+              />
+            </Field>
+
+            <Field label="Pincode" error={errors.pincode}>
+              <input
+                type="tel"
+                maxLength={6}
+                placeholder="282001"
+                className={`input-field ${errors.pincode ? 'border-red-400' : ''}`}
+                value={form.pincode}
+                onChange={e => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6)
+                  setForm({ ...form, pincode: val })
+                  if (errors.pincode) setErrors({ ...errors, pincode: '' })
+                }}
+              />
+            </Field>
+          </div>
+
+          <div className="border-t border-gray-100 pt-3 mt-3">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Contact Person Details</p>
+            <div className="space-y-4">
+              <Field label="Contact Name">
+                <input
+                  type="text"
+                  placeholder="e.g. John Doe"
+                  className="input-field"
+                  value={form.contact_name}
+                  onChange={set('contact_name')}
+                />
+              </Field>
+
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Contact Email" error={errors.contact_email}>
+                  <input
+                    type="email"
+                    placeholder="e.g. contact@domain.com"
+                    className={`input-field ${errors.contact_email ? 'border-red-400' : ''}`}
+                    value={form.contact_email}
+                    onChange={e => {
+                      setForm({ ...form, contact_email: e.target.value })
+                      if (errors.contact_email) setErrors({ ...errors, contact_email: '' })
+                    }}
+                  />
+                </Field>
+
+                <Field label="Contact Mobile" error={errors.contact_mobile}>
+                  <input
+                    type="tel"
+                    maxLength={10}
+                    placeholder="e.g. 9876543210"
+                    className={`input-field ${errors.contact_mobile ? 'border-red-400' : ''}`}
+                    value={form.contact_mobile}
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 10)
+                      setForm({ ...form, contact_mobile: val })
+                      if (errors.contact_mobile) setErrors({ ...errors, contact_mobile: '' })
+                    }}
+                  />
+                </Field>
+              </div>
+            </div>
+          </div>
 
           {!isEdit && (
             <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
@@ -172,7 +248,7 @@ function LocationModal({ editItem, onClose }) {
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
             <button type="button" onClick={onClose} className="btn-secondary" disabled={pending}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={pending}>
               {pending ? 'Saving…' : isEdit ? 'Update Location' : 'Create Location'}
@@ -190,14 +266,12 @@ export default function LocationMaster() {
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
   const [search, setSearch]             = useState('')
-  const [filterType, setFilterType]     = useState('')
   const [filterActive, setFilterActive] = useState('')
   const [showModal, setShowModal]       = useState(false)
   const [editItem, setEditItem]         = useState(null)
 
   const params = {}
   if (search.trim())       params.search    = search.trim()
-  if (filterType !== '')   params.location_type = filterType
   if (filterActive !== '') params.is_active = filterActive
 
   const { data, isLoading } = useLocations(params)
@@ -240,16 +314,9 @@ export default function LocationMaster() {
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
           </svg>
-          <input id="loc-search" className="input-field pl-9" placeholder="Search by name, code or master code…"
+          <input id="loc-search" className="input-field pl-9" placeholder="Search by name, code, contact or city…"
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select id="loc-type-filter" className="input-field w-auto min-w-[160px]"
-          value={filterType} onChange={e => setFilterType(e.target.value)}>
-          <option value="">All Types</option>
-          {LOCATION_TYPES.map(t => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
         <select id="loc-status-filter" className="input-field w-auto min-w-[140px]"
           value={filterActive} onChange={e => setFilterActive(e.target.value)}>
           <option value="">All Status</option>
@@ -269,8 +336,9 @@ export default function LocationMaster() {
                 <tr>
                   <th className="px-5 py-3 whitespace-nowrap">Code</th>
                   <th className="px-5 py-3">Location Name</th>
-                  <th className="px-5 py-3">Type</th>
-                  <th className="px-5 py-3">Description</th>
+                  <th className="px-5 py-3">City</th>
+                  <th className="px-5 py-3">State</th>
+                  <th className="px-5 py-3">Contact</th>
                   <th className="px-5 py-3 text-center">Status</th>
                   {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
                 </tr>
@@ -278,7 +346,7 @@ export default function LocationMaster() {
               <tbody className="divide-y divide-gray-100">
                 {locations.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 6 : 5} className="p-10 text-center text-gray-400">
+                    <td colSpan={canEdit ? 7 : 6} className="p-10 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -302,15 +370,24 @@ export default function LocationMaster() {
                       </div>
                     </td>
 
-                    {/* Type Badge */}
-                    <td className="px-5 py-3">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getTypeBadgeClass(c.location_type)}`}>
-                        {c.location_type}
-                      </span>
-                    </td>
+                    {/* City */}
+                    <td className="px-5 py-3 text-gray-700 font-semibold">{c.city || '-'}</td>
 
-                    {/* Description */}
-                    <td className="px-5 py-3 text-gray-500 max-w-[200px] truncate">{c.description || '-'}</td>
+                    {/* State */}
+                    <td className="px-5 py-3 text-gray-700 font-semibold">{c.state || '-'}</td>
+
+                    {/* Contact Person details */}
+                    <td className="px-5 py-3">
+                      {c.contact_name ? (
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-gray-900">{c.contact_name}</span>
+                          {c.contact_mobile && <span className="text-xs text-gray-500 font-mono">{c.contact_mobile}</span>}
+                          {c.contact_email && <span className="text-xs text-gray-400">{c.contact_email}</span>}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400 italic">No Contact</span>
+                      )}
+                    </td>
 
                     {/* Status */}
                     <td className="px-5 py-3 text-center">

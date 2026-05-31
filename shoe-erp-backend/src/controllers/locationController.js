@@ -14,20 +14,19 @@ const generateCode = async () => {
 // ─── GET /api/locations ───────────────────────────────────────────────────────
 const listLocations = async (req, res) => {
   try {
-    const { search, location_type, is_active } = req.query
+    const { search, is_active } = req.query
     const conditions = [], params = []
 
     if (is_active !== undefined) {
       params.push(is_active === 'true')
       conditions.push(`is_active = $${params.length}`)
+    } else {
+      conditions.push(`is_active = true`)
     }
-    if (location_type) {
-      params.push(location_type)
-      conditions.push(`location_type = $${params.length}`)
-    }
+
     if (search) {
       params.push(`%${search}%`)
-      conditions.push(`(location_name ILIKE $${params.length} OR location_code ILIKE $${params.length} OR loc_master_code ILIKE $${params.length})`)
+      conditions.push(`(location_name ILIKE $${params.length} OR location_code ILIKE $${params.length} OR loc_master_code ILIKE $${params.length} OR contact_name ILIKE $${params.length} OR city ILIKE $${params.length})`)
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
@@ -61,7 +60,11 @@ const getLocationById = getLocation
 // ─── POST /api/locations ──────────────────────────────────────────────────────
 const createLocation = async (req, res) => {
   try {
-    const { location_name, location_type, description } = req.body
+    const { 
+      location_name, address, city, state, 
+      pincode, contact_name, contact_email, 
+      contact_mobile 
+    } = req.body
 
     if (!location_name?.trim()) {
       return res.status(400).json({ 
@@ -69,29 +72,31 @@ const createLocation = async (req, res) => {
         message: 'Location name is required' 
       })
     }
-    if (!location_type?.trim()) {
-      return res.status(400).json({ 
-        success: false,
-        message: 'Location type is required' 
-      })
-    }
 
     const loc_master_code = await generateCode()
     const location_code = loc_master_code
+    const location_type = 'OTHER' // Default as requested
 
     const { rows } = await query(`
       INSERT INTO location_master (
-        loc_master_code, location_code, location_name, 
-        location_type, description
+        loc_master_code, location_code, location_name, location_type,
+        address, city, state, pincode,
+        contact_name, contact_email, contact_mobile
       )
-      VALUES ($1, $2, $3, $4, $5)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
     `, [
       loc_master_code,
       location_code,
       location_name.trim(),
-      location_type.trim(),
-      description ? description.trim() : null
+      location_type,
+      address ? address.trim() : null,
+      city ? city.trim() : null,
+      state ? state.trim() : null,
+      pincode ? pincode.trim() : null,
+      contact_name ? contact_name.trim() : null,
+      contact_email ? contact_email.trim().toLowerCase() : null,
+      contact_mobile ? contact_mobile.trim() : null
     ])
 
     res.status(201).json({ success: true, data: rows[0] })
@@ -106,27 +111,38 @@ const createLocation = async (req, res) => {
 const updateLocation = async (req, res) => {
   try {
     const { id } = req.params
-    const { location_name, location_type, description, is_active } = req.body
+    const { 
+      location_name, address, city, state, 
+      pincode, contact_name, contact_email, 
+      contact_mobile, is_active 
+    } = req.body
 
     if (location_name !== undefined && !location_name?.trim()) {
       return res.status(400).json({ success: false, message: 'Location name is required' })
-    }
-    if (location_type !== undefined && !location_type?.trim()) {
-      return res.status(400).json({ success: false, message: 'Location type is required' })
     }
 
     const { rows } = await query(`
       UPDATE location_master SET
         location_name = COALESCE($1, location_name),
-        location_type = COALESCE($2, location_type),
-        description   = COALESCE($3, description),
-        is_active     = COALESCE($4, is_active),
-        updated_at    = NOW()
-      WHERE id = $5 RETURNING *
+        address = COALESCE($2, address),
+        city = COALESCE($3, city),
+        state = COALESCE($4, state),
+        pincode = COALESCE($5, pincode),
+        contact_name = COALESCE($6, contact_name),
+        contact_email = COALESCE($7, contact_email),
+        contact_mobile = COALESCE($8, contact_mobile),
+        is_active = COALESCE($9, is_active),
+        updated_at = NOW()
+      WHERE id = $10 RETURNING *
     `, [
       location_name ? location_name.trim() : null,
-      location_type ? location_type.trim() : null,
-      description !== undefined ? (description ? description.trim() : null) : null,
+      address !== undefined ? (address ? address.trim() : null) : null,
+      city !== undefined ? (city ? city.trim() : null) : null,
+      state !== undefined ? (state ? state.trim() : null) : null,
+      pincode !== undefined ? (pincode ? pincode.trim() : null) : null,
+      contact_name !== undefined ? (contact_name ? contact_name.trim() : null) : null,
+      contact_email !== undefined ? (contact_email ? contact_email.trim().toLowerCase() : null) : null,
+      contact_mobile !== undefined ? (contact_mobile ? contact_mobile.trim() : null) : null,
       is_active !== undefined ? is_active : null,
       id
     ])
