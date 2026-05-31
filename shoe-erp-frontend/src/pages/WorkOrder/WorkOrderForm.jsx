@@ -398,7 +398,7 @@ export default function WorkOrderForm({ isOpen, onClose, editWOId = null }) {
                       </td>
                       <td className="px-3 py-3 bg-blue-50/50" />
                     </tr>
-                  </tbody>
+                  </tfoot>
                 </table>
               </div>
 
