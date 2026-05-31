@@ -8,10 +8,10 @@ import {
 } from '../../hooks/useProducts.js'
 import { useUOMs } from '../../hooks/useUOM.js'
 import { useColors } from '../../hooks/useMasters.js'
-import { useBrands, useCreateBrand } from '../../hooks/useBrands.js'
+import { useBrands } from '../../hooks/useBrands.js'
 import { useCategories } from '../../hooks/useCategories.js'
 import { useSubCategoriesByCategory } from '../../hooks/useSubCategories.js'
-import { useDesigns, useCreateDesign } from '../../hooks/useDesigns.js'
+import { useDesigns } from '../../hooks/useDesigns.js'
 import { useHSN } from '../../hooks/useHSN.js'
 import { useGST } from '../../hooks/useGST.js'
 import { useSizes } from '../../hooks/useSizes.js'
@@ -96,6 +96,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
   const [skuMode, setSkuMode] = useState('AUTO') // 'AUTO' or 'MANUAL'
   const [manualSku, setManualSku] = useState('')
   const [images, setImages] = useState([])
+  const [skuType, setSkuType] = useState('parent')
 
   const { data: existing, isLoading: isLoadingExisting } = useProductById(sku)
   const createMut = useCreateProduct()
@@ -110,7 +111,6 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
       long_description: '',
       uom_id: '',
       pack_size: 1,
-      pack_size_uom_id: '',
       brand_id: '',
       supplier_id: '',
       category_id: '',
@@ -134,7 +134,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
   const basicCostPrice = watch('basic_cost_price') || 0
   const gstRate = watch('gst_rate') || 0
 
-  // ── Hooks (new individual API hooks) ──────────────────────────────────────────
+  // ── Hooks ─────────────────────────────────────────────────────────────────────
   const { data: uoms = [] } = useUOMs()
   const { data: brands = [] } = useBrands()
   const { data: categories = [] } = useCategories()
@@ -143,11 +143,10 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
   const { data: colors = [] } = useColors()
   const { data: hsnCodes = [] } = useHSN()
   const { data: gstRatesData = [] } = useGST({ is_active: 'true' })
-  const { data: sizes = [] } = useSizes()
   const { data: suppliers = [] } = useSuppliers()
   const { data: nextSku } = useNextSku(productType)
 
-  // Derive unique GST rates dynamically, with standard rates as fallback
+  // Derive GST rates dynamically
   const uniqueGstRates = useMemo(() => {
     const rates = new Set([0, 5, 12, 18, 28])
     const gstList = Array.isArray(gstRatesData) ? gstRatesData : []
@@ -160,15 +159,8 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
     return Array.from(rates).sort((a, b) => a - b)
   }, [gstRatesData])
 
-  const createBrand = useCreateBrand()
-  const createDesign = useCreateDesign()
-
-  const [newBrand, setNewBrand] = useState('')
-  const [newDesign, setNewDesign] = useState('')
-
   useEffect(() => {
     if (isEdit && existing) {
-      // Find supplier_id based on supplier_name from suppliers master list
       let resolvedSupplierId = ''
       if (existing.supplier_name && suppliers.length > 0) {
         const foundSupplier = suppliers.find(s => s.supplier_name === existing.supplier_name)
@@ -183,7 +175,6 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
         long_description: existing.long_description || '',
         uom_id: existing.uom_id || '',
         pack_size: existing.pack_size || 1,
-        pack_size_uom_id: existing.pack_size_uom_id || '',
         brand_id: existing.brand_id || '',
         supplier_id: resolvedSupplierId || existing.supplier_id || '',
         category_id: existing.category_id || '',
@@ -199,6 +190,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
         sp: existing.sp || 0
       })
       setImages(Array.isArray(existing.images) ? existing.images : [])
+      setSkuType(existing.sku_type || 'parent')
       setSkuMode('MANUAL')
     } else if (!isEdit) {
       reset({
@@ -208,7 +200,6 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
         long_description: '',
         uom_id: '',
         pack_size: 1,
-        pack_size_uom_id: '',
         brand_id: '',
         supplier_id: '',
         category_id: '',
@@ -225,6 +216,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
       })
       setImages([])
       setManualSku('')
+      setSkuType('parent')
       setSkuMode('AUTO')
     }
   }, [isEdit, existing, reset, suppliers])
@@ -266,10 +258,11 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
 
     const payload = {
       ...values,
+      sku_type: skuType,
       sku_code: isEdit
         ? values.sku_code
         : (skuMode === 'MANUAL' ? manualSku : (nextSku?.sku_code || nextSku || '')),
-      description: values.short_description, // Map to legacy description field
+      description: values.short_description,
       uom: uomObj ? uomObj.uom_code : '',
       brand_name: brandObj ? brandObj.brand_name : '',
       supplier_name: supplierObj ? supplierObj.supplier_name : '',
@@ -280,6 +273,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
       hsn_code: hsnObj ? hsnObj.hsn_code : '',
       images
     }
+    delete payload.pack_size_uom_id
 
     if (isEdit) {
       updateMut.mutate({ sku, ...payload }, { 
@@ -288,32 +282,6 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
     } else {
       createMut.mutate(payload, { 
         onSuccess: () => onClose() 
-      })
-    }
-  }
-
-  const handleAddBrand = () => {
-    if (newBrand.trim()) {
-      createBrand.mutate({ brand_name: newBrand.trim() }, {
-        onSuccess: (res) => {
-          setNewBrand('')
-          if (res?.data?.data?.id) {
-            setValue('brand_id', res.data.data.id.toString())
-          }
-        }
-      })
-    }
-  }
-
-  const handleAddDesign = () => {
-    if (newDesign.trim()) {
-      createDesign.mutate({ design_no: newDesign.trim(), design_name: newDesign.trim() }, {
-        onSuccess: (res) => {
-          setNewDesign('')
-          if (res?.data?.data?.id) {
-            setValue('design_id', res.data.data.id.toString())
-          }
-        }
       })
     }
   }
@@ -431,7 +399,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
               </div>
 
               {/* ── UOM ───────────────────────────────────────────────────── */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">UOM *</label>
                   <select {...register('uom_id', { required: true })} className="input-field">
@@ -448,35 +416,20 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                   <label className="label">Pack Size</label>
                   <input type="number" {...register('pack_size')} className="input-field" min="1" />
                 </div>
-                <div>
-                  <label className="label">Pack Size UOM</label>
-                  <select {...register('pack_size_uom_id')} className="input-field">
-                    <option value="">— Select —</option>
-                    {uoms.map(u => (
-                      <option key={u.id} value={u.id}>{u.uom_code}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               {/* ── Brand & Supplier ──────────────────────────────────────── */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">Brand Name</label>
-                  <div className="flex gap-2">
-                    <select {...register('brand_id')} className="input-field">
-                      <option value="">— Select Brand —</option>
-                      {brands.map(b => (
-                        <option key={b.id} value={b.id}>
-                          {b.brand_name} ({b.brand_code})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex gap-1 w-[200px]">
-                      <input type="text" value={newBrand} onChange={e => setNewBrand(e.target.value)} placeholder="New Brand" className="input-field text-xs px-2" />
-                      <button type="button" onClick={handleAddBrand} className="bg-gray-100 px-2 rounded border border-gray-300 text-xs font-bold hover:bg-gray-200">+</button>
-                    </div>
-                  </div>
+                  <select {...register('brand_id')} className="input-field">
+                    <option value="">— Select Brand —</option>
+                    {brands.map(b => (
+                      <option key={b.id} value={b.id}>
+                        {b.brand_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="label">Supplier</label>
@@ -525,20 +478,14 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                 {/* ── Design ─────────────────────────────────────────────── */}
                 <div>
                   <label className="label">Design No</label>
-                  <div className="flex gap-2">
-                    <select {...register('design_id')} className="input-field font-mono">
-                      <option value="">— Select —</option>
-                      {designs.map(d => (
-                        <option key={d.id} value={d.id}>
-                          {d.design_no} — {d.design_name}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="flex gap-1 w-[200px]">
-                      <input type="text" value={newDesign} onChange={e => setNewDesign(e.target.value)} placeholder="New Design" className="input-field text-xs px-2 font-mono" />
-                      <button type="button" onClick={handleAddDesign} className="bg-gray-100 px-2 rounded border border-gray-300 text-xs font-bold hover:bg-gray-200">+</button>
-                    </div>
-                  </div>
+                  <select {...register('design_id')} className="input-field font-mono">
+                    <option value="">— Select —</option>
+                    {designs.map(d => (
+                      <option key={d.id} value={d.id}>
+                        {d.design_no} — {d.design_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 {/* ── Color ──────────────────────────────────────────────── */}
                 <div>
@@ -554,31 +501,65 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-gray-100">
-                <label className="label mb-3">Size Chart</label>
-                {productType === 'RAW_MATERIAL' ? (
-                  <select {...register('size_chart')} className="input-field max-w-xs">
-                    <option value="">— Select Size —</option>
-                    {sizes.map(s => <option key={s.id} value={s.size_code}>{s.size_label}</option>)}
-                  </select>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex gap-4">
-                      {['INFANT', 'KIDS', 'LADIES', 'MEN', 'UNIVERSAL'].map(opt => (
-                        <label key={opt} className="flex items-center gap-2 cursor-pointer">
-                          <input type="radio" value={opt} {...register('size_chart')} className="text-blue-600 focus:ring-blue-500" />
-                          <span className="text-sm text-gray-700 font-medium">{opt}</span>
-                        </label>
-                      ))}
+              {productType !== 'RAW_MATERIAL' && (
+                <div className="pt-4 border-t border-gray-100 space-y-4">
+                  <div className="space-y-3">
+                    <label className="label">SKU Type *</label>
+                    <div className="flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setSkuType('parent')}
+                        className={`flex-1 py-3 rounded-xl border-2 text-sm font-semibold text-left px-4
+                          ${skuType === 'parent'
+                            ? 'border-blue-600 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 text-gray-600'}`}
+                      >
+                        Parent SKU
+                        <p className="text-xs font-normal mt-0.5 opacity-70">
+                          Has size breakup (INFANT/KIDS/LADIES/MEN)
+                        </p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSkuType('child')}
+                        className={`flex-1 py-3 rounded-xl border-2 text-sm font-semibold text-left px-4
+                          ${skuType === 'child'
+                            ? 'border-purple-600 bg-purple-50 text-purple-700'
+                            : 'border-gray-200 text-gray-600'}`}
+                      >
+                        Child SKU
+                        <p className="text-xs font-normal mt-0.5 opacity-70">
+                          Single size variant (no size chart)
+                        </p>
+                      </button>
                     </div>
-                    {watch('size_chart') && (
-                      <div className="p-3 bg-blue-50 text-blue-800 text-sm rounded-lg font-mono border border-blue-100">
-                        <strong>Preview: </strong> {SIZE_PREVIEWS[watch('size_chart')]}
-                      </div>
-                    )}
                   </div>
-                )}
-              </div>
+
+                  {skuType === 'parent' && (
+                    <div className="space-y-3">
+                      <label className="label">Size Chart</label>
+                      <div className="flex gap-3 flex-wrap">
+                        {['INFANT', 'KIDS', 'LADIES', 'MEN', 'UNIVERSAL'].map(opt => (
+                          <label key={opt} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              value={opt}
+                              {...register('size_chart')}
+                              className="text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-medium">{opt}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {watch('size_chart') && (
+                        <div className="p-3 bg-blue-50 text-blue-800 text-sm rounded-lg font-mono border border-blue-100">
+                          <strong>Preview: </strong> {SIZE_PREVIEWS[watch('size_chart')]}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* ── TAB 2: Pricing & Tax ─────────────────────────────────────── */}
@@ -613,10 +594,14 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="label">Basic Cost Price (₹)</label>
-                  <input type="number" step="0.01" {...register('basic_cost_price')} className="input-field text-right bg-gray-50" readOnly />
-                  <p className="text-xs text-gray-500 mt-1">
-                    {productType === 'RAW_MATERIAL' ? 'Auto-updated from purchase GRN avg rate' : 'Auto-updated from BOM total cost'}
-                  </p>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    {...register('basic_cost_price')}
+                    className="input-field text-right"
+                    placeholder="0.00"
+                  />
                 </div>
                 <div>
                   <label className="label">Cost Price (₹)</label>

@@ -678,3 +678,7 @@ ADD COLUMN IF NOT EXISTS pincode VARCHAR(6),
 ADD COLUMN IF NOT EXISTS contact_name VARCHAR(100),
 ADD COLUMN IF NOT EXISTS contact_email VARCHAR(100),
 ADD COLUMN IF NOT EXISTS contact_mobile VARCHAR(10);
+
+-- Product Master - add sku_type
+ALTER TABLE product_master
+ADD COLUMN IF NOT EXISTS sku_type VARCHAR(10) DEFAULT 'parent';
