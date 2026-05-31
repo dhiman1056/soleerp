@@ -77,7 +77,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full btn-primary py-2.5 text-sm"
+              className="w-full btn-primary py-2.5 text-sm justify-center"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
