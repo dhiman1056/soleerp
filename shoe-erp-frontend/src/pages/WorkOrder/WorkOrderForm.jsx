@@ -159,7 +159,11 @@ export default function WorkOrderForm({ isOpen, onClose, editWOId = null }) {
   const productsWithBom = Array.isArray(productsWithBomRaw) ? productsWithBomRaw : []
 
   const { data: stockRaw } = useStockSummaryQuery()
-  const stockSummary = Array.isArray(stockRaw) ? stockRaw : []
+  const stockSummary = useMemo(() => {
+    if (Array.isArray(stockRaw?.items)) return stockRaw.items
+    if (Array.isArray(stockRaw)) return stockRaw
+    return []
+  }, [stockRaw])
 
   const totalPlannedQty = useMemo(() => {
     return bomLines.reduce((total, row) => {
@@ -196,8 +200,11 @@ export default function WorkOrderForm({ isOpen, onClose, editWOId = null }) {
 
     const shortfalls = []
     Object.values(requiredMap).forEach(item => {
-      const available = stockSummary.find(s => s.sku_code === item.sku_code)?.current_qty || 0
+      const available = Number(stockSummary.find(s => s.sku_code === item.sku_code)?.current_qty) || 0
       const shortfall = item.required - available
+      console.log('Component:', item.sku_code)
+      console.log('Available:', available)
+      console.log('Required:', item.required)
       if (shortfall > 0) {
         shortfalls.push({ ...item, shortfall })
       }
@@ -417,7 +424,9 @@ export default function WorkOrderForm({ isOpen, onClose, editWOId = null }) {
                     {insufficientItems.map(item => (
                       <div key={item.sku_code} className="text-xs text-red-600 flex justify-between border-b border-red-100 pb-1 last:border-0">
                         <span>
-                          <span className="font-bold text-red-800">{item.supplier_name || 'Unknown Supplier'}</span>
+                          <span className="font-bold text-red-800">
+                            {item.supplier_name || (item.sku_code.startsWith('SF') ? 'Internal Production' : 'Unknown Supplier')}
+                          </span>
                           <span className="mx-2 text-red-300">|</span>
                           {item.sku_code}
                         </span>
