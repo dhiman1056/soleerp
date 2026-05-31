@@ -5,6 +5,7 @@ const ctrl   = require('../controllers/employeeController')
 
 router.get('/',       auth, ctrl.listEmployees)
 router.get('/:id',   auth, ctrl.getEmployee)
+router.post('/import', auth, role('admin', 'manager'), ctrl.importEmployees)
 router.post('/',      auth, role('admin', 'manager'), ctrl.createEmployee)
 router.put('/:id',    auth, role('admin', 'manager'), ctrl.updateEmployee)
 router.delete('/:id', auth, role('admin'), ctrl.deleteEmployee)

@@ -190,10 +190,84 @@ const deleteEmployee = async (req, res) => {
   }
 }
 
+const importEmployees = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const emp_name    = (row['Employee Name']    || '').trim()
+      const team_name   = (row['Team Name']        || '').trim()
+      const designation = (row['Designation']      || '').trim()
+      const mobile      = (row['Contact Mobile']   || '').trim()
+      const email       = (row['Email Address']    || '').trim()
+
+      if (!emp_name) {
+        errors.push({ row: rowNum, message: 'Employee Name is required' })
+        continue
+      }
+      if (mobile && !/^[0-9]{10}$/.test(mobile)) {
+        errors.push({ row: rowNum, message: 'Contact Mobile must be 10 digits' })
+        continue
+      }
+      if (email && !email.includes('@')) {
+        errors.push({ row: rowNum, message: 'Invalid email format' })
+        continue
+      }
+
+      // Resolve team name → team_id (optional)
+      let team_id = null
+      if (team_name) {
+        const teamRes = await query(
+          'SELECT id FROM team_master WHERE LOWER(team_name) = LOWER($1) AND is_active = true',
+          [team_name]
+        )
+        if (teamRes.rows.length === 0) {
+          errors.push({ row: rowNum,
+            message: `Team "${team_name}" not found. Create it first in Team Master.` })
+          continue
+        }
+        team_id = teamRes.rows[0].id
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM employee_master WHERE LOWER(emp_name) = LOWER($1)',
+        [emp_name]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const emp_code = await generateCode()
+      await query(`
+        INSERT INTO employee_master
+          (emp_code, emp_name, team_id, designation, mobile, email)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [
+        emp_code, emp_name, team_id,
+        designation || null, mobile || null, email || null
+      ])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
 module.exports = {
   listEmployees,
   getEmployee,
   createEmployee,
   updateEmployee,
-  deleteEmployee
+  deleteEmployee,
+  importEmployees
 }

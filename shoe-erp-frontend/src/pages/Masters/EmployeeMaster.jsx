@@ -4,6 +4,7 @@ import { useTeams } from '../../hooks/useTeams'
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import ImportModal from '../../components/shared/ImportModal'
 
 const EMPTY = { emp_name: '', team_id: '', designation: '', mobile: '', email: '' }
 
@@ -227,14 +228,55 @@ export default function EmployeeMaster() {
   const [filterTeam, setFilterTeam]     = useState('')
   const [filterActive, setFilterActive] = useState('')
   const [showModal, setShowModal]       = useState(false)
+  const [showImport, setShowImport]     = useState(false)
   const [editItem, setEditItem]         = useState(null)
+
+  const templateColumns = [
+    {
+      key: 'emp_name',
+      label: 'Employee Name',
+      required: true,
+      example: 'Ramesh Kumar',
+      example2: 'Suresh Singh'
+    },
+    {
+      key: 'team_name',
+      label: 'Team Name',
+      required: false,
+      example: 'Cutting Team A',
+      example2: '',
+      note: 'Must match existing Team Name exactly'
+    },
+    {
+      key: 'designation',
+      label: 'Designation',
+      required: false,
+      example: 'Supervisor',
+      example2: 'Operator'
+    },
+    {
+      key: 'mobile',
+      label: 'Contact Mobile',
+      required: false,
+      example: '9876543210',
+      example2: '',
+      note: '10 digits only'
+    },
+    {
+      key: 'email',
+      label: 'Email Address',
+      required: false,
+      example: 'ramesh@company.com',
+      example2: ''
+    }
+  ]
 
   const params = {}
   if (search.trim())       params.search    = search.trim()
   if (filterTeam)          params.team_id   = filterTeam
   if (filterActive !== '') params.is_active = filterActive
 
-  const { data, isLoading } = useEmployees(params)
+  const { data, isLoading, refetch } = useEmployees(params)
   const { data: teamData }  = useTeams({ is_active: 'true' })
   const updateMut = useUpdateEmployee()
 
@@ -261,12 +303,26 @@ export default function EmployeeMaster() {
           <p className="text-xs text-gray-500 mt-0.5">Manage employees, teams, and production assignments</p>
         </div>
         {canEdit && (
-          <button id="btn-add-employee" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Employee
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'8px 14px',
+                border:'0.5px solid #d1d5db',
+                borderRadius:8, background:'white',
+                fontSize:13, cursor:'pointer', color:'#374151'
+              }}
+            >
+              ↑ Import CSV
+            </button>
+            <button id="btn-add-employee" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Employee
+            </button>
+          </div>
         )}
       </div>
 
@@ -390,6 +446,15 @@ export default function EmployeeMaster() {
       )}
 
       {showModal && <EmployeeModal editItem={editItem} onClose={closeModal} />}
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="Employee Master"
+        templateColumns={templateColumns}
+        importUrl="/api/employees/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
+      />
     </div>
   )
 }
