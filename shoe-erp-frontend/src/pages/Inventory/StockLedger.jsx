@@ -33,7 +33,7 @@ export default function StockLedger() {
   }, [skuCode, fromDate, toDate, txType])
 
   const { data, isLoading } = useStockLedgerQuery(params)
-  const records = data?.data || []
+  const records = Array.isArray(data) ? data : []
 
   // Aggregate totals
   const totals = records.reduce((acc, r) => {

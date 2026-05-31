@@ -188,12 +188,13 @@ export default function Sidebar() {
         ${collapsed ? 'w-20' : 'w-64'}
       `}
     >
-      {/* Logo / Brand */}
       <div
-        className="h-16 flex items-center justify-center gap-3 px-4 border-b border-gray-100 cursor-pointer"
+        className={`h-16 flex items-center border-b border-gray-100 cursor-pointer transition-all duration-300 ${
+          collapsed ? 'justify-center px-4' : 'justify-start px-5'
+        }`}
         onClick={() => navigate('/')}
       >
-        <SoleERPLogo size="sm" showText={!collapsed} />
+        <SoleERPLogo size="sm" showText={!collapsed} alignLeft={!collapsed} />
       </div>
 
       {/* Nav items */}

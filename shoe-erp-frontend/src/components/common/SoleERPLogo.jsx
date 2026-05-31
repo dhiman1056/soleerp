@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function SoleERPLogo({ size = 'md', showText = true }) {
+export default function SoleERPLogo({ size = 'md', showText = true, alignLeft = false }) {
   const sizes = {
     sm: { box: 32, font: 22, tagSize: 8 },
     md: { box: 48, font: 32, tagSize: 10 },
@@ -9,7 +9,13 @@ export default function SoleERPLogo({ size = 'md', showText = true }) {
   const s = sizes[size] || sizes.md
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'center' }}>
+    <div style={{ 
+      display: 'flex', 
+      alignItems: 'center', 
+      gap: 12, 
+      justifyContent: alignLeft ? 'flex-start' : 'center',
+      width: alignLeft ? '100%' : 'auto'
+    }}>
       {/* Icon */}
       <svg
         width={s.box} height={s.box}
