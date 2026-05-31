@@ -115,4 +115,62 @@ const deleteDesign = async (req, res) => {
   }
 }
 
-module.exports = { listDesigns, getDesign, createDesign, updateDesign, deleteDesign }
+const importDesigns = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const design_no  = (row['Design No']      || '').trim()
+      const catg_name  = (row['Category Name']  || '').trim()
+
+      if (!design_no) {
+        errors.push({ row: rowNum, message: 'Design No is required' })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM design_master WHERE LOWER(design_no) = LOWER($1)',
+        [design_no]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      // Resolve category name → category_id (optional)
+      let category_id = null
+      if (catg_name) {
+        const catRes = await query(
+          'SELECT id FROM category_master WHERE LOWER(catg_name) = LOWER($1) AND is_active = true',
+          [catg_name]
+        )
+        if (catRes.rows.length === 0) {
+          errors.push({ row: rowNum,
+            message: `Category "${catg_name}" not found. Create it first in Category Master.` })
+          continue
+        }
+        category_id = catRes.rows[0].id
+      }
+
+      const design_master_code = await generateCode()
+      await query(`
+        INSERT INTO design_master (design_master_code, design_no, category_id)
+        VALUES ($1, $2, $3)
+      `, [design_master_code, design_no, category_id])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
+module.exports = { listDesigns, getDesign, createDesign, updateDesign, deleteDesign, importDesigns }
