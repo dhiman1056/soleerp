@@ -193,8 +193,11 @@ export default function Sidebar() {
         </div>
         {!collapsed && (
           <div className="flex-1">
-            <p className="text-sm font-black text-gray-900 leading-none">Shoe ERP</p>
-            <p className="text-[10px] uppercase font-bold text-blue-500 mt-1">Manufacturing</p>
+            <div>
+              <span className="font-black text-gray-900">Sole</span>
+              <span className="font-black text-blue-600">ERP</span>
+            </div>
+            <p className="text-xs text-blue-600 font-semibold uppercase mt-0.5">MANUFACTURING</p>
           </div>
         )}
       </div>

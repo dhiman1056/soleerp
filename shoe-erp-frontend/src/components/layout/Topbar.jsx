@@ -76,7 +76,7 @@ export default function Topbar({ onToggleSidebar, onToggleNotifications }) {
   const title = labels[labels.length - 1]
 
   useEffect(() => {
-    document.title = title ? `${title} — ShoeERP` : 'ShoeERP'
+    document.title = title ? `${title} — SoleERP` : 'SoleERP'
   }, [title])
 
   return (

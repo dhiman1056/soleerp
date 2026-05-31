@@ -1,6 +1,7 @@
 {
-  "name": "shoe-erp-frontend",
+  "name": "soleerp-frontend",
   "private": true,
+  "description": "SoleERP - Shoe Manufacturing Management System",
   "version": "1.0.0",
   "type": "module",
   "scripts": {

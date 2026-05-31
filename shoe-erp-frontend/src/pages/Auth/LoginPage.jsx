@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router-dom'
@@ -12,6 +12,10 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    document.title = 'SoleERP - Login'
+  }, [])
 
   const onSubmit = async (data) => {
     setLoading(true)
@@ -39,8 +43,14 @@ export default function LoginPage() {
             </div>
           </div>
           
-          <h2 className="text-2xl font-bold text-center text-gray-900 mb-1">ShoeERP</h2>
-          <p className="text-sm text-center text-gray-500 mb-8">Sign in to your account</p>
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-black text-gray-900">
+              Sole<span className="text-blue-600">ERP</span>
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Shoe Manufacturing Management System
+            </p>
+          </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div>
@@ -83,8 +93,8 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-        <div className="bg-gray-50 px-8 py-4 border-t border-gray-100 flex justify-center text-xs text-gray-500">
-          Shoe Manufacturing Enterprise Resource Planning
+        <div className="bg-gray-50 px-8 py-4 border-t border-gray-100 flex justify-center text-xs text-gray-500 text-center">
+          SoleERP - Shoe Manufacturing Management System
         </div>
       </div>
     </div>
