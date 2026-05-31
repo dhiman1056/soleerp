@@ -36,12 +36,6 @@ CREATE TABLE IF NOT EXISTS uom_master (
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT NOW()
 );
-INSERT INTO uom_master (uom_code, uom_name) VALUES
-('PCS', 'Pieces'), ('PAIR', 'Pair'), ('MTR', 'Meter'),
-('KG', 'Kilogram'), ('LTR', 'Litre'), ('SQF', 'Square Feet'),
-('SQMT', 'Square Meter'), ('SET', 'Set'), ('BOX', 'Box'),
-('DOZ', 'Dozen'), ('ROLL', 'Roll'), ('GRAM', 'Gram')
-ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS brand_master (
   id SERIAL PRIMARY KEY,
@@ -56,9 +50,6 @@ CREATE TABLE IF NOT EXISTS category_master (
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT NOW()
 );
-INSERT INTO category_master (category_name) VALUES
-('INFANT'), ('KIDS'), ('LADIES'), ('MEN'), ('UNISEX')
-ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS sub_category_master (
   id SERIAL PRIMARY KEY,
@@ -84,11 +75,6 @@ CREATE TABLE IF NOT EXISTS color_master (
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT NOW()
 );
-INSERT INTO color_master (color_code, color_name) VALUES
-('BLK', 'Black'), ('WHT', 'White'), ('BRN', 'Brown'),
-('TAN', 'Tan'), ('NVY', 'Navy'), ('RED', 'Red'),
-('GRY', 'Grey'), ('BEG', 'Beige')
-ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS hsn_master (
   id SERIAL PRIMARY KEY,
@@ -98,14 +84,6 @@ CREATE TABLE IF NOT EXISTS hsn_master (
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT NOW()
 );
-INSERT INTO hsn_master (hsn_code, description, gst_rate) VALUES
-('6401', 'Waterproof footwear', 12),
-('6402', 'Other footwear with outer soles', 12),
-('6403', 'Footwear with outer soles of rubber', 12),
-('6404', 'Footwear with outer soles of rubber/plastics', 5),
-('6405', 'Other footwear', 5),
-('6406', 'Parts of footwear', 18)
-ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS size_chart_master (
   id SERIAL PRIMARY KEY,
@@ -116,12 +94,6 @@ CREATE TABLE IF NOT EXISTS size_chart_master (
   us_size VARCHAR(10),
   is_active BOOLEAN DEFAULT true
 );
-INSERT INTO size_chart_master (chart_name, category, uk_size, euro_size) VALUES
-('INFANT', 'INFANT', '2', '19'), ('INFANT', 'INFANT', '3', '20'), ('INFANT', 'INFANT', '5', '21'), ('INFANT', 'INFANT', '6', '22'), ('INFANT', 'INFANT', '7', '23'), ('INFANT', 'INFANT', '8', '24'), ('INFANT', 'INFANT', '9', '25'), ('INFANT', 'INFANT', '10', '26'), ('INFANT', 'INFANT', '11', '27'), ('INFANT', 'INFANT', '12', '28'),
-('KIDS', 'KIDS', '6', '24'), ('KIDS', 'KIDS', '7', '25'), ('KIDS', 'KIDS', '8', '26'), ('KIDS', 'KIDS', '9', '27'), ('KIDS', 'KIDS', '10', '28'), ('KIDS', 'KIDS', '11', '29'), ('KIDS', 'KIDS', '11.5', '30'), ('KIDS', 'KIDS', '12', '31'), ('KIDS', 'KIDS', '12.5', '32'), ('KIDS', 'KIDS', '13', '33'), ('KIDS', 'KIDS', '1', '34'), ('KIDS', 'KIDS', '2', '35'), ('KIDS', 'KIDS', '3', '36'), ('KIDS', 'KIDS', '4', '37'), ('KIDS', 'KIDS', '5', '38'), ('KIDS', 'KIDS', '6', '39'),
-('LADIES', 'LADIES', '3', '36'), ('LADIES', 'LADIES', '4', '37'), ('LADIES', 'LADIES', '5', '38'), ('LADIES', 'LADIES', '6', '39'), ('LADIES', 'LADIES', '7', '40'), ('LADIES', 'LADIES', '8', '41'), ('LADIES', 'LADIES', '9', '42'),
-('MEN', 'MEN', '6', '40'), ('MEN', 'MEN', '7', '41'), ('MEN', 'MEN', '8', '42'), ('MEN', 'MEN', '9', '43'), ('MEN', 'MEN', '10', '44'), ('MEN', 'MEN', '11', '45'), ('MEN', 'MEN', '12', '46')
-ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS location_master (
   id SERIAL PRIMARY KEY,
@@ -141,9 +113,6 @@ CREATE TABLE IF NOT EXISTS size_master (
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW()
 );
-INSERT INTO size_master (size_code, size_label, sort_order) VALUES
-('UK5','Size 5 (UK)',10), ('UK6','Size 6 (UK)',20), ('UK7','Size 7 (UK)',30), ('UK8','Size 8 (UK)',40), ('UK9','Size 9 (UK)',50), ('UK10','Size 10 (UK)',60), ('UK11','Size 11 (UK)',70)
-ON CONFLICT (size_code) DO NOTHING;
 
 -- Products & Raw Materials
 CREATE TABLE IF NOT EXISTS raw_material_master (
@@ -608,13 +577,6 @@ CREATE TABLE IF NOT EXISTS gst_master (
   updated_at  TIMESTAMP DEFAULT NOW()
 );
 
-INSERT INTO gst_master (gst_code, description, gst_rate, sgst_rate, cgst_rate, igst_rate) VALUES
-  ('GST-0001', 'GST 0%',  0,  0,    0,    0),
-  ('GST-0002', 'GST 5%',  5,  2.5,  2.5,  5),
-  ('GST-0003', 'GST 12%', 12, 6,    6,    12),
-  ('GST-0004', 'GST 18%', 18, 9,    9,    18),
-  ('GST-0005', 'GST 28%', 28, 14,   14,   28)
-ON CONFLICT DO NOTHING;
 
 -- HSN Master — enhance existing table
 ALTER TABLE hsn_master ADD COLUMN IF NOT EXISTS hsn_master_code VARCHAR(20);
