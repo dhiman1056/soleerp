@@ -3,6 +3,7 @@ import { useCustomers, useCreateCustomer, useUpdateCustomer, useDeleteCustomer }
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import ImportModal from '../../components/shared/ImportModal'
 
 const EMPTY = {
   cust_name: '',
@@ -381,13 +382,112 @@ export default function CustomerMaster() {
   const [search, setSearch]             = useState('')
   const [filterActive, setFilterActive] = useState('')
   const [showModal, setShowModal]       = useState(false)
+  const [showImport, setShowImport]     = useState(false)
   const [editItem, setEditItem]         = useState(null)
+
+  const templateColumns = [
+    {
+      key: 'customer_type',
+      label: 'Customer Type',
+      required: true,
+      example: 'B2C',
+      example2: 'B2B',
+      note: 'B2C or B2B only'
+    },
+    {
+      key: 'cust_name',
+      label: 'Customer Name',
+      required: true,
+      example: 'Reliance Footwear Ltd',
+      example2: 'Delhi Shoe House'
+    },
+    {
+      key: 'gstin',
+      label: 'GSTIN',
+      required: false,
+      example: '',
+      example2: '27AABCU9603R1ZX',
+      note: 'Required for B2B, 15 characters'
+    },
+    {
+      key: 'credit_limit',
+      label: 'Credit Limit',
+      required: false,
+      example: '0',
+      example2: '50000'
+    },
+    {
+      key: 'payment_terms',
+      label: 'Payment Terms',
+      required: false,
+      example: 'COD',
+      example2: 'Net 30'
+    },
+    {
+      key: 'address',
+      label: 'Address',
+      required: false,
+      example: 'Shop 5 Main Market',
+      example2: ''
+    },
+    {
+      key: 'city',
+      label: 'City',
+      required: false,
+      example: 'Mumbai',
+      example2: 'Delhi'
+    },
+    {
+      key: 'state',
+      label: 'State',
+      required: false,
+      example: 'Maharashtra',
+      example2: 'Delhi'
+    },
+    {
+      key: 'pincode',
+      label: 'Pincode',
+      required: false,
+      example: '400001',
+      example2: ''
+    },
+    {
+      key: 'contact_person',
+      label: 'Contact Person',
+      required: false,
+      example: 'Suresh Shah',
+      example2: ''
+    },
+    {
+      key: 'contact_mobile',
+      label: 'Contact Mobile',
+      required: false,
+      example: '9876543210',
+      example2: '',
+      note: '10 digits only'
+    },
+    {
+      key: 'email',
+      label: 'Email',
+      required: false,
+      example: 'info@reliance.com',
+      example2: ''
+    },
+    {
+      key: 'customer_care_no',
+      label: 'Customer Care No',
+      required: false,
+      example: '',
+      example2: '',
+      note: '10 digits only'
+    }
+  ]
 
   const params = {}
   if (search.trim())       params.search    = search.trim()
   if (filterActive !== '') params.is_active = filterActive
 
-  const { data, isLoading } = useCustomers(params)
+  const { data, isLoading, refetch } = useCustomers(params)
   const updateMut = useUpdateCustomer()
 
   const customers = Array.isArray(data) ? data : []
@@ -419,12 +519,26 @@ export default function CustomerMaster() {
           <p className="text-xs text-gray-500 mt-0.5">Manage customers — codes auto-generated (CUST-0001…)</p>
         </div>
         {canEdit && (
-          <button id="btn-add-customer" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Customer
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'8px 14px',
+                border:'0.5px solid #d1d5db',
+                borderRadius:8, background:'white',
+                fontSize:13, cursor:'pointer', color:'#374151'
+              }}
+            >
+              ↑ Import CSV
+            </button>
+            <button id="btn-add-customer" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Customer
+            </button>
+          </div>
         )}
       </div>
 
@@ -531,6 +645,15 @@ export default function CustomerMaster() {
       )}
 
       {showModal && <CustomerModal editItem={editItem} onClose={closeModal} />}
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="Customer Master"
+        templateColumns={templateColumns}
+        importUrl="/api/customers/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
+      />
     </div>
   )
 }

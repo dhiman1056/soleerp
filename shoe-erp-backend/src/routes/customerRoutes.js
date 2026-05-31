@@ -6,6 +6,7 @@ const ctrl   = require('../controllers/customerController')
 router.get('/',       auth,                         ctrl.listCustomers)
 router.get('/:id',    auth,                         ctrl.getCustomer)
 router.post('/',      auth, role('admin','manager'), ctrl.createCustomer)
+router.post('/import', auth, role('admin','manager'), ctrl.importCustomers)
 router.put('/:id',    auth, role('admin','manager'), ctrl.updateCustomer)
 router.delete('/:id', auth, role('admin'),           ctrl.deleteCustomer)
 

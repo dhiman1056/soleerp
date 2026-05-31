@@ -168,4 +168,91 @@ const deleteCustomer = async (req, res) => {
   }
 }
 
-module.exports = { listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer }
+const importCustomers = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const cust_name       = (row['Customer Name']    || '').trim()
+      const customer_type   = (row['Customer Type']    || 'B2C').trim().toUpperCase()
+      const gstin           = (row['GSTIN']            || '').trim()
+      const credit_limit    = parseFloat(row['Credit Limit'] || 0)
+      const payment_terms   = (row['Payment Terms']    || '').trim()
+      const address         = (row['Address']          || '').trim()
+      const city            = (row['City']             || '').trim()
+      const state           = (row['State']            || '').trim()
+      const pincode         = (row['Pincode']          || '').trim()
+      const contact_person  = (row['Contact Person']   || '').trim()
+      const contact_mobile  = (row['Contact Mobile']   || '').trim()
+      const email           = (row['Email']            || '').trim()
+      const customer_care_no = (row['Customer Care No'] || '').trim()
+
+      // Validations
+      if (!cust_name) {
+        errors.push({ row: rowNum, message: 'Customer Name is required' })
+        continue
+      }
+      if (!['B2C', 'B2B'].includes(customer_type)) {
+        errors.push({ row: rowNum, message: 'Customer Type must be B2C or B2B' })
+        continue
+      }
+      if (customer_type === 'B2B' && !gstin) {
+        errors.push({ row: rowNum, message: 'GSTIN is required for B2B customers' })
+        continue
+      }
+      if (gstin && gstin.length !== 15) {
+        errors.push({ row: rowNum, message: 'GSTIN must be 15 characters' })
+        continue
+      }
+      if (contact_mobile && !/^[0-9]{10}$/.test(contact_mobile)) {
+        errors.push({ row: rowNum, message: 'Contact Mobile must be 10 digits' })
+        continue
+      }
+      if (email && !email.includes('@')) {
+        errors.push({ row: rowNum, message: 'Invalid email format' })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM customer_master WHERE LOWER(cust_name) = LOWER($1)',
+        [cust_name]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const cust_code = await generateCode()
+      await query(`
+        INSERT INTO customer_master
+          (cust_code, cust_name, customer_type, gstin,
+           credit_limit, payment_terms,
+           address, city, state, pincode,
+           contact_person, contact_mobile,
+           email, customer_care_no)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      `, [
+        cust_code, cust_name, customer_type,
+        gstin || null, credit_limit, payment_terms || null,
+        address || null, city || null, state || null,
+        pincode || null, contact_person || null,
+        contact_mobile || null, email || null,
+        customer_care_no || null
+      ])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
+module.exports = { listCustomers, getCustomer, createCustomer, updateCustomer, deleteCustomer, importCustomers }
