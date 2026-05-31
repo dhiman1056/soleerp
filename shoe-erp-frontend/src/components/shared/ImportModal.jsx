@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
@@ -6,8 +6,6 @@ import api from '../../api/axiosInstance'
 import toast from 'react-hot-toast'
 
 export default function ImportModal({ isOpen, onClose, masterName, templateColumns, importUrl, onSuccess }) {
-  if (!isOpen) return null
-
   const [step, setStep] = useState(1) // 1: Upload & Preview, 2: Results
   const [fileName, setFileName] = useState('')
   const [parsedRows, setParsedRows] = useState([])
@@ -16,6 +14,25 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
   const [results, setResults] = useState(null) // { imported, skipped, errors }
 
   const fileInputRef = useRef(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [isOpen])
+
+  useEffect(() => {
+    if (isOpen) {
+      setFileName('')
+      setParsedRows([])
+      setResults(null)
+    }
+  }, [isOpen])
+
+  if (!isOpen) return null
 
   // ─── Step 1: Dynamic Sample Template CSV Download ──────────────────────────
   const downloadSampleTemplate = () => {
