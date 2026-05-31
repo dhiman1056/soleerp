@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import ImportModal from '../../components/shared/ImportModal'
 
 // ─── Empty form ────────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
@@ -163,12 +164,31 @@ export default function SubCategoryMaster() {
 
   const [search, setSearch]           = useState('')
   const [showModal, setShowModal]     = useState(false)
+  const [showImport, setShowImport]   = useState(false)
   const [editItem, setEditItem]       = useState(null)
+
+  const templateColumns = [
+    {
+      key: 'sub_category_name',
+      label: 'Sub Category Description',
+      required: true,
+      example: 'Sandals',
+      example2: 'Sports Shoes'
+    },
+    {
+      key: 'discount',
+      label: 'Discount %',
+      required: false,
+      example: '5',
+      example2: '0',
+      note: '0 to 100'
+    }
+  ]
 
   const params = {}
   if (search.trim()) params.search = search.trim()
 
-  const { data, isLoading } = useSubCategories(params)
+  const { data, isLoading, refetch } = useSubCategories(params)
   const updateMut = useUpdateSubCategory()
 
   const subCategories = Array.isArray(data) ? data : []
@@ -199,16 +219,30 @@ export default function SubCategoryMaster() {
           </p>
         </div>
         {canEdit && (
-          <button
-            id="btn-add-subcategory"
-            onClick={openCreate}
-            className="btn-primary flex items-center gap-2 whitespace-nowrap"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Sub-Category
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'8px 14px',
+                border:'0.5px solid #d1d5db',
+                borderRadius:8, background:'white',
+                fontSize:13, cursor:'pointer', color:'#374151'
+              }}
+            >
+              ↑ Import CSV
+            </button>
+            <button
+              id="btn-add-subcategory"
+              onClick={openCreate}
+              className="btn-primary flex items-center gap-2 whitespace-nowrap"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Sub-Category
+            </button>
+          </div>
         )}
       </div>
 
@@ -299,6 +333,15 @@ export default function SubCategoryMaster() {
       {showModal && (
         <SubCategoryModal editItem={editItem} onClose={closeModal} />
       )}
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="Sub-Category Master"
+        templateColumns={templateColumns}
+        importUrl="/api/sub-categories/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
+      />
     </div>
   )
 }

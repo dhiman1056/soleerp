@@ -115,10 +115,59 @@ const deleteSubCategory = async (req, res) => {
   }
 }
 
+const importSubCategories = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const sub_category_name = (row['Sub Category Description'] || '').trim()
+      const discount = parseFloat(row['Discount %'] || 0)
+
+      if (!sub_category_name) {
+        errors.push({ row: rowNum, message: 'Sub Category Description is required' })
+        continue
+      }
+      if (isNaN(discount) || discount < 0 || discount > 100) {
+        errors.push({ row: rowNum, message: 'Discount % must be between 0 and 100' })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM sub_category_master WHERE LOWER(sub_category_name) = LOWER($1)',
+        [sub_category_name]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const sub_catg_code = await generateCode()
+      await query(`
+        INSERT INTO sub_category_master (sub_catg_code, sub_category_name, discount)
+        VALUES ($1, $2, $3)
+      `, [sub_catg_code, sub_category_name, discount])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
 module.exports = {
   listSubCategories,
   getSubCategory,
   createSubCategory,
   updateSubCategory,
-  deleteSubCategory
+  deleteSubCategory,
+  importSubCategories
 }
+
