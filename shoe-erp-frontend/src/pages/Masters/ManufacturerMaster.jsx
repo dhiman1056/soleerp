@@ -3,6 +3,7 @@ import { useManufacturers, useCreateManufacturer, useUpdateManufacturer, useDele
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import ImportModal from '../../components/shared/ImportModal'
 
 const EMPTY = {
   mfr_name:'',
@@ -306,13 +307,89 @@ export default function ManufacturerMaster() {
   const [search, setSearch]             = useState('')
   const [filterActive, setFilterActive] = useState('')
   const [showModal, setShowModal]       = useState(false)
+  const [showImport, setShowImport]     = useState(false)
   const [editItem, setEditItem]         = useState(null)
+
+  const templateColumns = [
+    {
+      key: 'mfr_name',
+      label: 'Manufacturer Name',
+      required: true,
+      example: 'ABC Footwear Pvt Ltd',
+      example2: 'XYZ Sole Industries'
+    },
+    {
+      key: 'licence_no',
+      label: 'Licence No',
+      required: false,
+      example: 'LIC123456',
+      example2: ''
+    },
+    {
+      key: 'address',
+      label: 'Address',
+      required: false,
+      example: 'Plot 12 Industrial Area',
+      example2: ''
+    },
+    {
+      key: 'city',
+      label: 'City',
+      required: false,
+      example: 'Agra',
+      example2: 'Kanpur'
+    },
+    {
+      key: 'state',
+      label: 'State',
+      required: false,
+      example: 'Uttar Pradesh',
+      example2: 'Maharashtra'
+    },
+    {
+      key: 'pincode',
+      label: 'Pincode',
+      required: false,
+      example: '282001',
+      example2: ''
+    },
+    {
+      key: 'contact_person',
+      label: 'Contact Person',
+      required: false,
+      example: 'Ramesh Kumar',
+      example2: ''
+    },
+    {
+      key: 'contact_mobile',
+      label: 'Contact Mobile',
+      required: false,
+      example: '9876543210',
+      example2: '',
+      note: '10 digits only'
+    },
+    {
+      key: 'email',
+      label: 'Email',
+      required: false,
+      example: 'info@abcfootwear.com',
+      example2: ''
+    },
+    {
+      key: 'customer_care_no',
+      label: 'Customer Care No',
+      required: false,
+      example: '1800123456',
+      example2: '',
+      note: '10 digits only'
+    }
+  ]
 
   const params = {}
   if (search.trim())       params.search    = search.trim()
   if (filterActive !== '') params.is_active = filterActive
 
-  const { data, isLoading } = useManufacturers(params)
+  const { data, isLoading, refetch } = useManufacturers(params)
   const updateMut = useUpdateManufacturer()
 
   const manufacturers = Array.isArray(data) ? data : []
@@ -340,12 +417,26 @@ export default function ManufacturerMaster() {
           <p className="text-xs text-gray-500 mt-0.5">Manage shoe manufacturers — codes auto-generated (MFR-0001…)</p>
         </div>
         {canEdit && (
-          <button id="btn-add-manufacturer" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Manufacturer
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'8px 14px',
+                border:'0.5px solid #d1d5db',
+                borderRadius:8, background:'white',
+                fontSize:13, cursor:'pointer', color:'#374151'
+              }}
+            >
+              ↑ Import CSV
+            </button>
+            <button id="btn-add-manufacturer" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Manufacturer
+            </button>
+          </div>
         )}
       </div>
 
@@ -458,6 +549,15 @@ export default function ManufacturerMaster() {
       )}
 
       {showModal && <ManufacturerModal editItem={editItem} onClose={closeModal} />}
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="Manufacturer Master"
+        templateColumns={templateColumns}
+        importUrl="/api/manufacturers/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
+      />
     </div>
   )
 }

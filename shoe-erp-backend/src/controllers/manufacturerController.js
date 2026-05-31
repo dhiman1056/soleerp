@@ -172,10 +172,83 @@ const deleteManufacturer = async (req, res) => {
   }
 }
 
+const importManufacturers = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const mfr_name        = (row['Manufacturer Name']  || '').trim()
+      const licence_no      = (row['Licence No']         || '').trim()
+      const address         = (row['Address']            || '').trim()
+      const city            = (row['City']               || '').trim()
+      const state           = (row['State']              || '').trim()
+      const pincode         = (row['Pincode']            || '').trim()
+      const contact_person  = (row['Contact Person']     || '').trim()
+      const contact_mobile  = (row['Contact Mobile']     || '').trim()
+      const email           = (row['Email']              || '').trim()
+      const customer_care_no = (row['Customer Care No']  || '').trim()
+
+      if (!mfr_name) {
+        errors.push({ row: rowNum, message: 'Manufacturer Name is required' })
+        continue
+      }
+      if (contact_mobile && !/^[0-9]{10}$/.test(contact_mobile)) {
+        errors.push({ row: rowNum, message: 'Contact Mobile must be 10 digits' })
+        continue
+      }
+      if (customer_care_no && !/^[0-9]{10}$/.test(customer_care_no)) {
+        errors.push({ row: rowNum, message: 'Customer Care No must be 10 digits' })
+        continue
+      }
+      if (email && !email.includes('@')) {
+        errors.push({ row: rowNum, message: 'Invalid email format' })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM manufacturer_master WHERE LOWER(mfr_name) = LOWER($1)',
+        [mfr_name]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const mfr_code = await generateCode()
+      await query(`
+        INSERT INTO manufacturer_master
+          (mfr_code, mfr_name, licence_no, address, city, state,
+           pincode, contact_person, contact_mobile, email, customer_care_no)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      `, [
+        mfr_code, mfr_name, licence_no || null,
+        address || null, city || null, state || null,
+        pincode || null, contact_person || null,
+        contact_mobile || null, email || null,
+        customer_care_no || null
+      ])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
 module.exports = {
   listManufacturers,
   getManufacturer,
   createManufacturer,
   updateManufacturer,
-  deleteManufacturer
+  deleteManufacturer,
+  importManufacturers
 }
+
