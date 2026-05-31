@@ -380,6 +380,15 @@ const receiveWorkOrder = async (req, res) => {
     // ── 5. Credit GOOD qty of output SKU into stock_summary (WO_RECEIPT) ────
     const totalAddedStock = goodQty + rejQty;
     if (totalAddedStock > 0) {
+      // STEP 1 — Fetch unit cost from product_master BEFORE ledger entries:
+      const costResult = await client.query(
+        `SELECT COALESCE(basic_cost_price, 0) AS unit_cost
+         FROM product_master
+         WHERE sku_code = $1`,
+        [wo.output_sku]
+      );
+      const unitCost = parseFloat(costResult.rows[0]?.unit_cost || 0);
+
       await client.query(`
         INSERT INTO stock_summary (sku_code, sku_description, uom, current_qty, current_value, avg_rate, last_updated)
         VALUES ($1, $2, $3, $4, 0, 0, NOW())
@@ -396,6 +405,17 @@ const receiveWorkOrder = async (req, res) => {
       // Ledger entry for Good Qty
       if (goodQty > 0) {
         const goodRunBal = rejQty > 0 ? (finalBalance - rejQty) : finalBalance;
+        const goodValueIn = unitCost * goodQty;
+
+        const rvResult = await client.query(
+          `SELECT COALESCE(running_value, 0) AS rv
+           FROM stock_ledger
+           WHERE sku_code = $1
+           ORDER BY id DESC LIMIT 1`,
+          [wo.output_sku]
+        );
+        const currentRV = parseFloat(rvResult.rows[0]?.rv || 0);
+        const newRunningValue = currentRV + goodValueIn;
 
         await client.query(`
           INSERT INTO stock_ledger
@@ -404,10 +424,10 @@ const receiveWorkOrder = async (req, res) => {
              qty_in, qty_out, rate, value_in, value_out,
              running_balance, running_value, remarks,
              location_id, location_name)
-          VALUES ($1, $2, $3, $4, 'WO_RECEIPT', $5, 'WO', $6, 0, 0, 0, 0, $7, 0, $8, $9, $10)
+          VALUES ($1, $2, $3, $4, 'WO_RECEIPT', $5, 'WO', $6, 0, $7, $8, 0, $9, $10, $11, $12, $13)
         `, [
           rcvDate, wo.output_sku, wo.product_name, wo.output_uom || 'PCS',
-          wo.wo_number, goodQty, goodRunBal,
+          wo.wo_number, goodQty, unitCost, goodValueIn, goodRunBal, newRunningValue,
           remarks || `WO Receipt: ${wo.wo_number}`,
           toLoc?.id   || null,
           toLoc?.location_name || to_store || null,
@@ -434,6 +454,18 @@ const receiveWorkOrder = async (req, res) => {
           rejLoc = newLocRows[0];
         }
 
+        const rejValueOut = unitCost * rejQty;
+
+        const rvResult2 = await client.query(
+          `SELECT COALESCE(running_value, 0) AS rv
+           FROM stock_ledger
+           WHERE sku_code = $1
+           ORDER BY id DESC LIMIT 1`,
+          [wo.output_sku]
+        );
+        const currentRV2 = parseFloat(rvResult2.rows[0]?.rv || 0);
+        const newRunningValue2 = currentRV2 - rejValueOut;
+
         await client.query(`
           INSERT INTO stock_ledger
             (transaction_date, sku_code, sku_description, uom,
@@ -441,10 +473,10 @@ const receiveWorkOrder = async (req, res) => {
              qty_in, qty_out, rate, value_in, value_out,
              running_balance, running_value, remarks,
              location_id, location_name)
-          VALUES ($1, $2, $3, $4, 'WO_REJECTION', $5, 'WO', $6, 0, 0, 0, 0, $7, 0, $8, $9, $10)
+          VALUES ($1, $2, $3, $4, 'WO_REJECTION', $5, 'WO', $6, 0, $7, 0, $8, $9, $10, $11, $12, $13)
         `, [
           rcvDate, wo.output_sku, wo.product_name, wo.output_uom || 'PCS',
-          wo.wo_number, rejQty, finalBalance,
+          wo.wo_number, rejQty, unitCost, rejValueOut, finalBalance, newRunningValue2,
           remarks || `WO Rejection: ${wo.wo_number}`,
           rejLoc?.id || null,
           rejLoc?.location_name || 'Rejection Store',
