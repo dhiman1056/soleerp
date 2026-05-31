@@ -51,30 +51,36 @@ export default function WorkOrderList() {
     {
       key: 'wip_qty', label: 'WIP Qty', align: 'right',
       render: (r) => {
-        const w = (Number(r.planned_qty) || 0) - (Number(r.received_qty) || 0)
-        return <span className={`tabular-nums font-semibold ${w > 0 ? 'text-amber-700' : 'text-gray-400'}`}>{w.toFixed(2)}</span>
+        // Use backend-provided wip_qty which accounts for rejection_qty
+        // wip_qty = GREATEST(0, planned - received - rejected)
+        const w = Number(r.wip_qty) ?? ((Number(r.planned_qty) || 0) - (Number(r.received_qty) || 0))
+        return <span className={`tabular-nums font-semibold ${w > 0 ? 'text-amber-700' : 'text-gray-400'}`}>{(w || 0).toFixed(2)}</span>
       },
     },
     {
       key: 'status', label: 'Status', align: 'center',
-      render: (r) => <StatusBadge status={r.status} />,
+      render: (r) => <StatusBadge status={r.effective_status || r.status} />,
     },
     {
       key: 'actions', label: 'Actions', align: 'right',
-      render: (r) => (
-        <div className="flex items-center justify-end gap-1.5">
-          <button onClick={(e) => { e.stopPropagation(); navigate(`/work-orders/${r.id}`) }} className="px-2.5 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 transition-colors">View</button>
-          {role === 'admin' && (Number(r.received_qty) || 0) === 0 && (
-            <button onClick={(e) => { e.stopPropagation(); setEditWOId(r.id) }} className="px-2.5 py-1 text-xs rounded border border-amber-200 text-amber-600 hover:bg-amber-50 transition-colors">Edit</button>
-          )}
-          {!['RECEIVED'].includes(r.status) && (
-            <button onClick={(e) => { e.stopPropagation(); setReceiveWO(r) }} className="px-2.5 py-1 text-xs rounded border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors">Receive</button>
-          )}
-          {['DRAFT', 'ISSUED'].includes(r.status) && role !== 'operator' && (
-            <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(r) }} className="px-2.5 py-1 text-xs rounded border border-red-200 text-red-600 hover:bg-red-50 transition-colors">Cancel</button>
-          )}
-        </div>
-      ),
+      render: (r) => {
+        const effStatus = r.effective_status || r.status
+        const wipQty = Number(r.wip_qty) ?? 0
+        return (
+          <div className="flex items-center justify-end gap-1.5">
+            <button onClick={(e) => { e.stopPropagation(); navigate(`/work-orders/${r.id}`) }} className="px-2.5 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 transition-colors">View</button>
+            {role === 'admin' && (Number(r.received_qty) || 0) === 0 && (
+              <button onClick={(e) => { e.stopPropagation(); setEditWOId(r.id) }} className="px-2.5 py-1 text-xs rounded border border-amber-200 text-amber-600 hover:bg-amber-50 transition-colors">Edit</button>
+            )}
+            {effStatus !== 'RECEIVED' && wipQty > 0 && (
+              <button onClick={(e) => { e.stopPropagation(); setReceiveWO(r) }} className="px-2.5 py-1 text-xs rounded border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors">Receive</button>
+            )}
+            {['DRAFT', 'ISSUED'].includes(r.status) && role !== 'operator' && (
+              <button onClick={(e) => { e.stopPropagation(); setDeleteTarget(r) }} className="px-2.5 py-1 text-xs rounded border border-red-200 text-red-600 hover:bg-red-50 transition-colors">Cancel</button>
+            )}
+          </div>
+        )
+      },
     },
   ]
 

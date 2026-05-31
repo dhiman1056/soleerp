@@ -31,7 +31,13 @@ const listWorkOrders = async (req, res) => {
         w.id, w.wo_number, w.wo_date, w.planned_qty,
         w.received_qty, w.status, w.wo_type,
         w.from_store, w.to_store,
+        COALESCE((SELECT SUM(rl2.rejection_qty) FROM wo_receipt_lines rl2 WHERE rl2.wo_id = w.id), 0) AS total_rejection_qty,
         GREATEST(0, w.planned_qty - w.received_qty - COALESCE((SELECT SUM(rl2.rejection_qty) FROM wo_receipt_lines rl2 WHERE rl2.wo_id = w.id), 0)) AS wip_qty,
+        CASE
+          WHEN w.received_qty + COALESCE((SELECT SUM(rl2.rejection_qty) FROM wo_receipt_lines rl2 WHERE rl2.wo_id = w.id), 0) >= w.planned_qty
+          THEN 'RECEIVED'
+          ELSE w.status
+        END AS effective_status,
         fl.location_name AS from_location_name,
         tl.location_name AS to_location_name,
         bh.bom_code, bh.output_sku,
