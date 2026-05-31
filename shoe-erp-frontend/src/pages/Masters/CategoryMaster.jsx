@@ -9,6 +9,7 @@ import { useDepartments } from '../../hooks/useDepartments'
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import ImportModal from '../../components/shared/ImportModal'
 
 // ─── Empty form ────────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
@@ -187,11 +188,38 @@ export default function CategoryMaster() {
   const [search, setSearch]         = useState('')
   const [showModal, setShowModal]   = useState(false)
   const [editItem, setEditItem]     = useState(null)
+  const [showImport, setShowImport] = useState(false)
+
+  const templateColumns = [
+    {
+      key: 'catg_name',
+      label: 'Category Description',
+      required: true,
+      example: 'Ladies Footwear',
+      example2: 'Mens Casual'
+    },
+    {
+      key: 'dept_name',
+      label: 'Department Name',
+      required: false,
+      example: 'Production',
+      example2: 'Sales',
+      note: 'Must exactly match an existing Department Name'
+    },
+    {
+      key: 'discount',
+      label: 'Discount %',
+      required: false,
+      example: '5',
+      example2: '0',
+      note: '0 to 100'
+    }
+  ]
 
   const params = {}
   if (search.trim()) params.search = search.trim()
 
-  const { data, isLoading } = useCategories(params)
+  const { data, isLoading, refetch } = useCategories(params)
   const updateMut = useUpdateCategory()
 
   const categories = Array.isArray(data) ? data : []
@@ -222,16 +250,30 @@ export default function CategoryMaster() {
           </p>
         </div>
         {canEdit && (
-          <button
-            id="btn-add-category"
-            onClick={openCreate}
-            className="btn-primary flex items-center gap-2 whitespace-nowrap"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Category
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'8px 14px',
+                border:'0.5px solid #d1d5db',
+                borderRadius:8, background:'white',
+                fontSize:13, cursor:'pointer', color:'#374151'
+              }}
+            >
+              ↑ Import CSV
+            </button>
+            <button
+              id="btn-add-category"
+              onClick={openCreate}
+              className="btn-primary flex items-center gap-2 whitespace-nowrap"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Category
+            </button>
+          </div>
         )}
       </div>
 
@@ -326,6 +368,14 @@ export default function CategoryMaster() {
       {showModal && (
         <CategoryModal editItem={editItem} onClose={closeModal} />
       )}
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="Category Master"
+        templateColumns={templateColumns}
+        importUrl="/categories/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
+      />
     </div>
   )
 }

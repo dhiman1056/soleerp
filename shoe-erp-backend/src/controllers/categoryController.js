@@ -141,10 +141,74 @@ const deleteCategory = async (req, res) => {
   }
 }
 
+const importCategories = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const catg_name = (row['Category Description'] || '').trim()
+      const dept_name = (row['Department Name'] || '').trim()
+      const discount  = parseFloat(row['Discount %'] || 0)
+
+      if (!catg_name) {
+        errors.push({ row: rowNum, message: 'Category Description is required' })
+        continue
+      }
+      if (isNaN(discount) || discount < 0 || discount > 100) {
+        errors.push({ row: rowNum, message: 'Discount % must be between 0 and 100' })
+        continue
+      }
+
+      // Resolve department name → dept_id (optional)
+      let dept_id = null
+      if (dept_name) {
+        const deptRes = await query(
+          'SELECT id FROM department_master WHERE LOWER(dept_name) = LOWER($1) AND is_active = true',
+          [dept_name]
+        )
+        if (deptRes.rows.length === 0) {
+          errors.push({ row: rowNum,
+            message: `Department "${dept_name}" not found. Create it first in Department Master.` })
+          continue
+        }
+        dept_id = deptRes.rows[0].id
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM category_master WHERE LOWER(catg_name) = LOWER($1)',
+        [catg_name]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const catg_code = await generateCode()
+      await query(`
+        INSERT INTO category_master (catg_code, catg_name, dept_id, discount)
+        VALUES ($1, $2, $3, $4)
+      `, [catg_code, catg_name.toUpperCase(), dept_id, discount])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
 module.exports = {
   listCategories,
   getCategory,
   createCategory,
   updateCategory,
-  deleteCategory
+  deleteCategory,
+  importCategories
 }

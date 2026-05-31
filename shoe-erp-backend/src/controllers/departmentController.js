@@ -117,10 +117,58 @@ const deleteDepartment = async (req, res) => {
   }
 }
 
+const importDepartments = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const dept_name = (row['Department Name'] || row['dept_name'] || '').trim()
+      const discount  = parseFloat(row['Discount %'] || row['discount'] || 0)
+
+      if (!dept_name) {
+        errors.push({ row: rowNum, message: 'Department Name is required' })
+        continue
+      }
+      if (isNaN(discount) || discount < 0 || discount > 100) {
+        errors.push({ row: rowNum, message: 'Discount % must be between 0 and 100' })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM department_master WHERE LOWER(dept_name) = LOWER($1)',
+        [dept_name]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const dept_code = await generateCode()
+      await query(`
+        INSERT INTO department_master (dept_code, dept_name, discount)
+        VALUES ($1, $2, $3)
+      `, [dept_code, dept_name, discount])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
 module.exports = {
   listDepartments,
   getDepartment,
   createDepartment,
   updateDepartment,
-  deleteDepartment
+  deleteDepartment,
+  importDepartments
 }
