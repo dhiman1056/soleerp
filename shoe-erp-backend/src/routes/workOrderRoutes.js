@@ -84,6 +84,11 @@ router.get('/:id',         auth, ctrl.getWorkOrder);
 router.post('/',           auth, roleMiddleware('admin', 'manager'), createRules, ctrl.createWorkOrder);
 
 /**
+ * @route  PUT /api/work-orders/:id
+ */
+router.put('/:id',         auth, roleMiddleware('admin'), createRules, ctrl.updateWorkOrder);
+
+/**
  * @route  PUT /api/work-orders/:id/receive
  * @body   { received_qty, receipt_date?, remarks? }
  */

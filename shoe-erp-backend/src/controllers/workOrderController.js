@@ -77,7 +77,7 @@ const getWorkOrder = async (req, res) => {
       SELECT 
         w.id, w.wo_number, w.bom_id, w.wo_date,
         w.planned_qty, w.received_qty, w.status, w.wo_type,
-        w.from_store, w.to_store,
+        w.from_store, w.to_store, w.from_location_id, w.to_location_id,
         (w.planned_qty - w.received_qty) as wip_qty,
         b.bom_code, b.output_sku,
         p.description as product_name
@@ -549,6 +549,122 @@ const getWOSizeBreakup = async (req, res) => {
   }
 }
 
+const updateWorkOrder = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const woId = req.params.id;
+    const {
+      boms,
+      wo_date,
+      from_store,
+      to_store,
+      from_location_id,
+      to_location_id,
+      notes,
+    } = req.body;
+
+    // Load current WO header
+    const { rows: woRows } = await client.query(
+      `SELECT received_qty, status FROM work_order_header WHERE id = $1 FOR UPDATE`, [woId]
+    );
+
+    if (woRows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Work Order not found' });
+    }
+
+    const wo = woRows[0];
+    if (Number(wo.received_qty) > 0 || ['RECEIVED', 'PARTIAL'].includes(wo.status)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Cannot edit work order because it has already received quantities' });
+    }
+
+    if (!Array.isArray(boms) || boms.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'At least one BOM is required' });
+    }
+
+    const totalPlannedQty = boms.reduce((s, b) => s + parseFloat(b.planned_qty || 0), 0);
+    if (totalPlannedQty <= 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Total planned_qty must be > 0' });
+    }
+
+    const primaryBomId = boms[0]?.bom_id || null;
+
+    // Update work_order_header
+    const { rows: updatedRows } = await client.query(`
+      UPDATE work_order_header
+      SET bom_id = $1,
+          wo_date = $2,
+          planned_qty = $3,
+          from_store = $4,
+          to_store = $5,
+          from_location_id = $6,
+          to_location_id = $7,
+          notes = $8
+      WHERE id = $9
+      RETURNING *
+    `, [
+      primaryBomId,
+      wo_date || new Date().toISOString().slice(0, 10),
+      totalPlannedQty,
+      from_store || null,
+      to_store || null,
+      from_location_id ? parseInt(from_location_id) : null,
+      to_location_id ? parseInt(to_location_id) : null,
+      notes || null,
+      woId
+    ]);
+
+    // Delete old bom lines and size breakups
+    await client.query('DELETE FROM work_order_bom_lines WHERE wo_id = $1', [woId]);
+    await client.query('DELETE FROM wo_size_breakup WHERE wo_id = $1', [woId]);
+
+    // Insert new work_order_bom_lines
+    for (const bomLine of boms) {
+      const { rows: bomRows } = await client.query(
+        'SELECT bom_code, output_sku FROM bom_header WHERE id = $1', [bomLine.bom_id]
+      );
+      if (!bomRows.length) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ success: false, message: `BOM id ${bomLine.bom_id} not found` });
+      }
+      await client.query(`
+        INSERT INTO work_order_bom_lines (wo_id, bom_id, planned_qty, received_qty, bom_code, output_sku)
+        VALUES ($1, $2, $3, 0, $4, $5)
+      `, [woId, bomLine.bom_id, parseFloat(bomLine.planned_qty), bomRows[0].bom_code, bomRows[0].output_sku]);
+    }
+
+    // Insert new size breakup
+    const aggregatedSizes = {};
+    for (const bomLine of boms) {
+      if (bomLine.size_breakup) {
+        for (const [sizeCode, qty] of Object.entries(bomLine.size_breakup)) {
+          aggregatedSizes[sizeCode] = (aggregatedSizes[sizeCode] || 0) + parseFloat(qty || 0);
+        }
+      }
+    }
+    for (const [sizeCode, qty] of Object.entries(aggregatedSizes)) {
+      if (qty > 0) {
+        await client.query(`
+          INSERT INTO wo_size_breakup (wo_id, size_code, planned_qty, received_qty)
+          VALUES ($1, $2, $3, 0)
+        `, [woId, sizeCode, qty]);
+      }
+    }
+
+    await client.query('COMMIT');
+    return res.status(200).json({ success: true, data: updatedRows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ message: err.message });
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   listWorkOrders,
   getWorkOrder,
@@ -557,5 +673,6 @@ module.exports = {
   deleteWorkOrder,
   getWip,
   getWipSummary,
-  getWOSizeBreakup
+  getWOSizeBreakup,
+  updateWorkOrder
 };

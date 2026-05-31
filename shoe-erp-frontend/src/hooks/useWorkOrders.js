@@ -93,6 +93,19 @@ export const useDeleteWorkOrder = () => {
   })
 }
 
+export const useUpdateWorkOrder = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }) => api.put(`/work-orders/${id}`, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['work-orders'] })
+      qc.invalidateQueries({ queryKey: ['wip'] })
+      toast.success('Work Order updated successfully!')
+    },
+    onError: (err) => toast.error(err.response?.data?.message || err.message || 'Failed to update Work Order'),
+  })
+}
+
 // ── Backward-compatible aliases ───────────────────────────────────────────────
 export const useWorkOrdersQuery  = useWorkOrders
 export const useWorkOrderQuery   = useWorkOrderById

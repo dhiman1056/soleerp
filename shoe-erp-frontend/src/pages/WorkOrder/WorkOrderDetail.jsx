@@ -5,6 +5,8 @@ import StatusBadge from '../../components/common/StatusBadge.jsx'
 import Loader      from '../../components/common/Loader.jsx'
 import ReceiveModal from './ReceiveModal.jsx'
 import { useWorkOrderQuery } from '../../hooks/useWorkOrders.js'
+import { useAuth } from '../../hooks/useAuth.js'
+import WorkOrderForm from './WorkOrderForm.jsx'
 import { formatCurrency }    from '../../utils/formatCurrency.js'
 import { formatDate }        from '../../utils/formatDate.js'
 import { WO_TYPE_LABELS }    from '../../utils/constants.js'
@@ -14,6 +16,8 @@ export default function WorkOrderDetail() {
   const navigate = useNavigate()
   const { id }   = useParams()
   const [receiveOpen, setReceiveOpen] = useState(false)
+  const [editOpen, setEditOpen]       = useState(false)
+  const { role }                      = useAuth()
 
   const { data, isLoading, error } = useWorkOrderQuery(id)
   // useWorkOrderById returns data directly (already unwrapped in queryFn)
@@ -38,6 +42,9 @@ export default function WorkOrderDetail() {
       <div className="flex items-center justify-between">
         <button onClick={() => navigate('/work-orders')} className="btn-secondary text-xs">← Back</button>
         <div className="flex gap-2">
+          {role === 'admin' && (Number(wo.received_qty) || 0) === 0 && (
+            <button onClick={() => setEditOpen(true)} className="btn-secondary text-amber-600 border-amber-200 hover:bg-amber-50">Edit</button>
+          )}
           <button onClick={() => printWorkOrder(wo)} className="btn-secondary">Print</button>
           {!['RECEIVED', 'DRAFT'].includes(wo.status) && (
             <button onClick={() => setReceiveOpen(true)} className="btn-primary">Record Receipt</button>
@@ -167,6 +174,7 @@ export default function WorkOrderDetail() {
       </div>
 
       <ReceiveModal isOpen={receiveOpen} onClose={() => setReceiveOpen(false)} wo={wo} />
+      <WorkOrderForm isOpen={editOpen} onClose={() => setEditOpen(false)} editWOId={id} />
     </div>
   )
 }

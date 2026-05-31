@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import Modal  from '../../components/common/Modal.jsx'
-import { useCreateWorkOrder }  from '../../hooks/useWorkOrders.js'
+import { useCreateWorkOrder, useUpdateWorkOrder, useWorkOrderById }  from '../../hooks/useWorkOrders.js'
 import { useStockSummaryQuery } from '../../hooks/useInventory.js'
 import { useProductsWithBom } from '../../hooks/useBOM.js'
 import { useLocations }         from '../../hooks/useLocations.js'
@@ -25,7 +25,7 @@ const SIZE_CHART_SIZES = {
   MEN: ['6','7','8','9','10','11','12'],
 }
 
-function BomRow({ index, row, productsWithBom, bomsLoading, onUpdate, onRemove, canRemove }) {
+function BomRow({ index, row, productsWithBom, bomsLoading, onUpdate, onRemove, canRemove, isEdit }) {
   const selectedProduct = productsWithBom.find(p => p.sku_code === row.sku_code)
   const sizes = SIZE_CHART_SIZES[row.size_chart] || []
   const totalQty = Object.values(row.size_breakup || {}).reduce((s,v) => s + (parseInt(v)||0), 0)
@@ -49,6 +49,7 @@ function BomRow({ index, row, productsWithBom, bomsLoading, onUpdate, onRemove, 
                 onUpdate(index, 'components', product?.components || [])
                 onUpdate(index, 'size_breakup', {})
               }}
+              disabled={isEdit}
               className="input-field py-1.5 text-sm"
             >
               <option value="">— Choose Product SKU —</option>
@@ -110,14 +111,19 @@ function BomRow({ index, row, productsWithBom, bomsLoading, onUpdate, onRemove, 
   )
 }
 
-export default function WorkOrderForm({ isOpen, onClose }) {
+export default function WorkOrderForm({ isOpen, onClose, editWOId = null }) {
+  const isEdit = !!editWOId
   const [selectedType, setSelectedType] = useState(null)
 
   const { register, handleSubmit, watch, reset, formState: { errors } } = useForm({
     defaultValues: { wo_date: today(), notes: '' },
   })
 
+  const { data: editWO, isLoading: editWOLoading } = useWorkOrderById(editWOId)
+
   const createMut   = useCreateWorkOrder()
+  const updateMut   = useUpdateWorkOrder()
+  const isBusy      = createMut.isPending || updateMut.isPending
 
   const [bomLines, setBomLines] = useState([{ 
     sku_code: '', bom_id: '', bom_code: '', 
@@ -200,18 +206,67 @@ export default function WorkOrderForm({ isOpen, onClose }) {
   }, [bomLines, stockSummary])
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !isEdit) {
       setSelectedType(null)
       reset({ wo_date: today(), notes: '' })
       setBomLines([{ sku_code: '', bom_id: '', bom_code: '', size_chart: '', total_cost: 0, components: [], size_breakup: {} }])
       setFromLocationId('')
       setToLocationId('')
     }
-  }, [isOpen, reset])
+  }, [isOpen, isEdit, reset])
 
   useEffect(() => {
-    setBomLines([{ sku_code: '', bom_id: '', bom_code: '', size_chart: '', total_cost: 0, components: [], size_breakup: {} }])
-  }, [selectedType])
+    if (isOpen && isEdit && editWO) {
+      setSelectedType(editWO.wo_type)
+      reset({
+        wo_date: editWO.wo_date ? editWO.wo_date.substring(0, 10) : today(),
+        notes: editWO.notes || ''
+      })
+      setFromLocationId(editWO.from_location_id ? String(editWO.from_location_id) : '')
+      setToLocationId(editWO.to_location_id ? String(editWO.to_location_id) : '')
+
+      // Map size breakup array to key-value map
+      const sizeBreakupMap = {}
+      if (Array.isArray(editWO.size_breakup)) {
+        editWO.size_breakup.forEach(row => {
+          sizeBreakupMap[row.size_code] = String(row.planned_qty)
+        })
+      }
+
+      setBomLines([{
+        sku_code: editWO.output_sku || '',
+        bom_id: editWO.bom_id ? String(editWO.bom_id) : '',
+        bom_code: editWO.bom_code || '',
+        size_chart: '', 
+        total_cost: 0,
+        components: [],
+        size_breakup: sizeBreakupMap
+      }])
+    }
+  }, [isOpen, isEdit, editWO, reset])
+
+  useEffect(() => {
+    if (isEdit && productsWithBom.length > 0 && bomLines.length > 0 && !bomLines[0].size_chart) {
+      const firstLine = bomLines[0]
+      const product = productsWithBom.find(p => p.sku_code === firstLine.sku_code)
+      if (product) {
+        setBomLines(prev => [
+          {
+            ...prev[0],
+            size_chart: product.size_chart || '',
+            total_cost: product.total_cost || 0,
+            components: product.components || []
+          }
+        ])
+      }
+    }
+  }, [isEdit, productsWithBom, bomLines])
+
+  useEffect(() => {
+    if (!isEdit) {
+      setBomLines([{ sku_code: '', bom_id: '', bom_code: '', size_chart: '', total_cost: 0, components: [], size_breakup: {} }])
+    }
+  }, [selectedType, isEdit])
 
   const onSubmit = (values) => {
     const validBoms = bomLines
@@ -231,26 +286,29 @@ export default function WorkOrderForm({ isOpen, onClose }) {
     const fromLoc = allLocations.find(l => String(l.id) === String(fromLocationId))
     const toLoc   = allLocations.find(l => String(l.id) === String(toLocationId))
 
-    createMut.mutate(
-      {
-        boms:             validBoms,
-        wo_date:          values.wo_date,
-        wo_type:          selectedType,
-        from_location_id: fromLocationId ? parseInt(fromLocationId) : undefined,
-        to_location_id:   toLocationId   ? parseInt(toLocationId)   : undefined,
-        from_store:       fromLoc?.location_name || '',
-        to_store:         toLoc?.location_name   || '',
-        notes:            values.notes || null,
-      },
-      { onSuccess: onClose }
-    )
+    const payload = {
+      boms:             validBoms,
+      wo_date:          values.wo_date,
+      wo_type:          selectedType,
+      from_location_id: fromLocationId ? parseInt(fromLocationId) : undefined,
+      to_location_id:   toLocationId   ? parseInt(toLocationId)   : undefined,
+      from_store:       fromLoc?.location_name || '',
+      to_store:         toLoc?.location_name   || '',
+      notes:            values.notes || null,
+    }
+
+    if (isEdit) {
+      updateMut.mutate({ id: editWOId, ...payload }, { onSuccess: onClose })
+    } else {
+      createMut.mutate(payload, { onSuccess: onClose })
+    }
   }
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Create Work Order"
+      title={isEdit ? "Edit Work Order" : "Create Work Order"}
       size="xl"
       footer={
         <>
@@ -259,157 +317,167 @@ export default function WorkOrderForm({ isOpen, onClose }) {
             type="submit"
             form="wo-form"
             className="btn-primary"
-            disabled={!selectedType || createMut.isPending}
+            disabled={!selectedType || isBusy || (isEdit && editWOLoading)}
           >
-            {createMut.isPending ? 'Creating…' : 'Create Work Order'}
+            {isBusy ? 'Saving…' : isEdit ? 'Update Work Order' : 'Create Work Order'}
           </button>
         </>
       }
     >
-      <div className="mb-6">
-        <p className="label mb-3">Step 1 — Select Work Order Type</p>
-        <div className="grid grid-cols-2 gap-4">
-          {WO_TYPE_OPTIONS.map(type => (
-            <button
-              key={type.value}
-              type="button"
-              onClick={() => setSelectedType(type.value)}
-              className={`p-4 rounded-xl border-2 text-center transition-all ${
-                selectedType === type.value
-                  ? 'border-gray-900 bg-gray-900 text-white shadow-lg border-transparent transform scale-[1.02]'
-                  : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400 hover:shadow-sm'
-              }`}
-            >
-              <p className="text-sm font-bold">{type.label}</p>
-              <p className="text-xs mt-1 opacity-60 font-mono">{type.sub}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {selectedType && (
-        <form id="wo-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          <div className="h-px bg-gray-100" />
-          <p className="label">Step 2 — Add Products & Size Quantities</p>
-
-          <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-3 py-3 text-left text-xs font-bold text-gray-600 tracking-wide uppercase">Product SKU</th>
-                  <th className="px-3 py-3 text-left text-xs font-bold text-gray-600 tracking-wide uppercase">Description</th>
-                  <th className="px-3 py-3 text-right text-xs font-bold text-gray-600 w-28 tracking-wide uppercase">Total Qty</th>
-                  <th className="px-3 py-3 w-10" />
-                </tr>
-              </thead>
-              <tbody>
-                {bomLines.map((row, i) => (
-                  <BomRow
-                    key={i}
-                    index={i}
-                    row={row}
-                    productsWithBom={productsWithBom}
-                    bomsLoading={bomsLoading}
-                    onUpdate={updateBomLine}
-                    onRemove={removeBomLine}
-                    canRemove={bomLines.length > 1}
-                  />
-                ))}
-              </tbody>
-              <tfoot className="bg-white border-t border-gray-200">
-                <tr>
-                  <td className="px-3 py-3" colSpan={2}>
-                    <button
-                      type="button"
-                      onClick={addBomLine}
-                      className="text-xs text-blue-600 font-bold hover:text-blue-800 hover:underline flex items-center gap-1 transition-all"
-                    >
-                      <span className="text-lg leading-none">+</span> Add Product
-                    </button>
-                  </td>
-                  <td className="px-3 py-3 text-right font-bold text-gray-900 tabular-nums text-base bg-blue-50/50">
-                    {totalPlannedQty}
-                  </td>
-                  <td className="px-3 py-3 bg-blue-50/50" />
-                </tr>
-              </tfoot>
-            </table>
+      {isEdit && editWOLoading ? (
+        <div className="py-12 text-center text-gray-500">Loading Work Order details…</div>
+      ) : (
+        <>
+          <div className="mb-6">
+            <p className="label mb-3">Step 1 — Select Work Order Type</p>
+            <div className="grid grid-cols-2 gap-4">
+              {WO_TYPE_OPTIONS.map(type => (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() => setSelectedType(type.value)}
+                  disabled={isEdit}
+                  className={`p-4 rounded-xl border-2 text-center transition-all ${
+                    selectedType === type.value
+                      ? 'border-gray-900 bg-gray-900 text-white shadow-lg border-transparent transform scale-[1.02]'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-400 hover:shadow-sm'
+                  } ${isEdit ? 'opacity-80 cursor-not-allowed' : ''}`}
+                >
+                  <p className="text-sm font-bold">{type.label}</p>
+                  <p className="text-xs mt-1 opacity-60 font-mono">{type.sub}</p>
+                </button>
+              ))}
+            </div>
           </div>
 
-          {!bomsLoading && productsWithBom.length === 0 && (
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
-              <span className="text-lg">⚠️</span> No products found with active BOMs for this workflow. Create a BOM first.
-            </p>
-          )}
+          {selectedType && (
+            <form id="wo-form" onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              <div className="h-px bg-gray-100" />
+              <p className="label">Step 2 — Add Products & Size Quantities</p>
 
-          {insufficientItems.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 shadow-sm animate-fade-in">
-              <p className="text-sm font-bold text-red-700 mb-2 flex items-center gap-2">
-                <span className="text-lg">🚨</span> Insufficient Stock — Create Purchase Orders:
-              </p>
-              <div className="space-y-1 mt-3">
-                {insufficientItems.map(item => (
-                  <div key={item.sku_code} className="text-xs text-red-600 flex justify-between border-b border-red-100 pb-1 last:border-0">
-                    <span>
-                      <span className="font-bold text-red-800">{item.supplier_name || 'Unknown Supplier'}</span>
-                      <span className="mx-2 text-red-300">|</span>
-                      {item.sku_code}
-                    </span>
-                    <span className="font-semibold">Needs {item.shortfall.toFixed(3)} {item.uom} more</span>
-                  </div>
-                ))}
+              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-3 py-3 text-left text-xs font-bold text-gray-600 tracking-wide uppercase">Product SKU</th>
+                      <th className="px-3 py-3 text-left text-xs font-bold text-gray-600 tracking-wide uppercase">Description</th>
+                      <th className="px-3 py-3 text-right text-xs font-bold text-gray-600 w-28 tracking-wide uppercase">Total Qty</th>
+                      <th className="px-3 py-3 w-10" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bomLines.map((row, i) => (
+                      <BomRow
+                        key={i}
+                        index={i}
+                        row={row}
+                        productsWithBom={productsWithBom}
+                        bomsLoading={bomsLoading}
+                        onUpdate={updateBomLine}
+                        onRemove={removeBomLine}
+                        canRemove={!isEdit && bomLines.length > 1}
+                        isEdit={isEdit}
+                      />
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-white border-t border-gray-200">
+                    <tr>
+                      <td className="px-3 py-3" colSpan={2}>
+                        {!isEdit && (
+                          <button
+                            type="button"
+                            onClick={addBomLine}
+                            className="text-xs text-blue-600 font-bold hover:text-blue-800 hover:underline flex items-center gap-1 transition-all"
+                          >
+                            <span className="text-lg leading-none">+</span> Add Product
+                          </button>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-right font-bold text-gray-900 tabular-nums text-base bg-blue-50/50">
+                        {totalPlannedQty}
+                      </td>
+                      <td className="px-3 py-3 bg-blue-50/50" />
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-            </div>
+
+              {!bomsLoading && productsWithBom.length === 0 && (
+                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-center gap-2">
+                  <span className="text-lg">⚠️</span> No products found with active BOMs for this workflow. Create a BOM first.
+                </p>
+              )}
+
+              {insufficientItems.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 shadow-sm animate-fade-in">
+                  <p className="text-sm font-bold text-red-700 mb-2 flex items-center gap-2">
+                    <span className="text-lg">🚨</span> Insufficient Stock — Create Purchase Orders:
+                  </p>
+                  <div className="space-y-1 mt-3">
+                    {insufficientItems.map(item => (
+                      <div key={item.sku_code} className="text-xs text-red-600 flex justify-between border-b border-red-100 pb-1 last:border-0">
+                        <span>
+                          <span className="font-bold text-red-800">{item.supplier_name || 'Unknown Supplier'}</span>
+                          <span className="mx-2 text-red-300">|</span>
+                          {item.sku_code}
+                        </span>
+                        <span className="font-semibold">Needs {item.shortfall.toFixed(3)} {item.uom} more</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="h-px bg-gray-100" />
+              <div className="flex items-center justify-between">
+                <p className="label m-0">Step 3 — Locations & Date</p>
+                <span className="text-xs font-bold text-blue-900 bg-blue-50 px-3 py-1.5 rounded-full shadow-sm border border-blue-100">
+                  Est. Total Cost: {formatCurrency(totalEstCost)}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-5">
+                <div>
+                  <label className="label text-gray-600">From Location</label>
+                  <select
+                    value={fromLocationId}
+                    onChange={e => setFromLocationId(e.target.value)}
+                    className="input-field border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">— Select —</option>
+                    {allLocations.map(l => (
+                      <option key={l.id} value={l.id}>{l.location_name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="label text-gray-600">To Location</label>
+                  <select
+                    value={toLocationId}
+                    onChange={e => setToLocationId(e.target.value)}
+                    className="input-field border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">— Select —</option>
+                    {allLocations.map(l => (
+                      <option key={l.id} value={l.id}>{l.location_name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="label text-gray-600">WO Date *</label>
+                  <input type="date" {...register('wo_date', { required: true })} className="input-field shadow-sm" />
+                </div>
+
+                <div>
+                  <label className="label text-gray-600">Notes</label>
+                  <input {...register('notes')} placeholder="Optional notes…" className="input-field shadow-sm" />
+                </div>
+              </div>
+            </form>
           )}
-
-          <div className="h-px bg-gray-100" />
-          <div className="flex items-center justify-between">
-            <p className="label m-0">Step 3 — Locations & Date</p>
-            <span className="text-xs font-bold text-blue-900 bg-blue-50 px-3 py-1.5 rounded-full shadow-sm border border-blue-100">
-              Est. Total Cost: {formatCurrency(totalEstCost)}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-5">
-            <div>
-              <label className="label text-gray-600">From Location</label>
-              <select
-                value={fromLocationId}
-                onChange={e => setFromLocationId(e.target.value)}
-                className="input-field border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">— Select —</option>
-                {allLocations.map(l => (
-                  <option key={l.id} value={l.id}>{l.location_name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="label text-gray-600">To Location</label>
-              <select
-                value={toLocationId}
-                onChange={e => setToLocationId(e.target.value)}
-                className="input-field border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">— Select —</option>
-                {allLocations.map(l => (
-                  <option key={l.id} value={l.id}>{l.location_name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="label text-gray-600">WO Date *</label>
-              <input type="date" {...register('wo_date', { required: true })} className="input-field shadow-sm" />
-            </div>
-
-            <div>
-              <label className="label text-gray-600">Notes</label>
-              <input {...register('notes')} placeholder="Optional notes…" className="input-field shadow-sm" />
-            </div>
-          </div>
-        </form>
+        </>
       )}
     </Modal>
   )

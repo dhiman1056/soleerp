@@ -20,6 +20,7 @@ export default function WorkOrderList() {
   const [showForm,     setShowForm]     = useState(false)
   const [receiveWO,    setReceiveWO]    = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [editWOId,     setEditWOId]     = useState(null)
 
   const params = {
     page,
@@ -63,6 +64,9 @@ export default function WorkOrderList() {
       render: (r) => (
         <div className="flex items-center justify-end gap-1.5">
           <button onClick={(e) => { e.stopPropagation(); navigate(`/work-orders/${r.id}`) }} className="px-2.5 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 transition-colors">View</button>
+          {role === 'admin' && (Number(r.received_qty) || 0) === 0 && (
+            <button onClick={(e) => { e.stopPropagation(); setEditWOId(r.id) }} className="px-2.5 py-1 text-xs rounded border border-amber-200 text-amber-600 hover:bg-amber-50 transition-colors">Edit</button>
+          )}
           {!['RECEIVED'].includes(r.status) && (
             <button onClick={(e) => { e.stopPropagation(); setReceiveWO(r) }} className="px-2.5 py-1 text-xs rounded border border-blue-200 text-blue-600 hover:bg-blue-50 transition-colors">Receive</button>
           )}
@@ -117,7 +121,11 @@ export default function WorkOrderList() {
         pagination={{ page, pages: 1, total: records.length, limit: 20, onPageChange: setPage }}
       />
 
-      <WorkOrderForm isOpen={showForm} onClose={() => setShowForm(false)} />
+      <WorkOrderForm
+        isOpen={showForm || !!editWOId}
+        onClose={() => { setShowForm(false); setEditWOId(null) }}
+        editWOId={editWOId}
+      />
 
       {receiveWO && (
         <ReceiveModal isOpen={!!receiveWO} onClose={() => setReceiveWO(null)} wo={receiveWO} />
