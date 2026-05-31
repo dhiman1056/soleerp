@@ -302,7 +302,7 @@ const receiveWorkOrder = async (req, res) => {
     const receipt_no = `${rcptPrefix}-${String(rcptNumRes.rows[0].next_num).padStart(4, '0')}`;
     const rcvQty  = parseFloat(total_received) || 0;
     const rejQty  = parseFloat(total_rejected) || 0;
-    const goodQty = parseFloat(total_good) || Math.max(0, rcvQty - rejQty);
+    const goodQty = Math.max(0, rcvQty - rejQty);
     const totalRcv = parseFloat(wo.received_qty) + rcvQty;
 
     // ── 2. Resolve to-location name for ledger tagging ───────────────────────
@@ -378,35 +378,78 @@ const receiveWorkOrder = async (req, res) => {
     ]);
 
     // ── 5. Credit GOOD qty of output SKU into stock_summary (WO_RECEIPT) ────
-    if (goodQty > 0) {
+    const totalAddedStock = goodQty + rejQty;
+    if (totalAddedStock > 0) {
       await client.query(`
         INSERT INTO stock_summary (sku_code, sku_description, uom, current_qty, current_value, avg_rate, last_updated)
         VALUES ($1, $2, $3, $4, 0, 0, NOW())
         ON CONFLICT (sku_code) DO UPDATE
           SET current_qty  = stock_summary.current_qty + EXCLUDED.current_qty,
               last_updated = NOW()
-      `, [wo.output_sku, wo.product_name, wo.output_uom || 'PCS', goodQty]);
+      `, [wo.output_sku, wo.product_name, wo.output_uom || 'PCS', totalAddedStock]);
 
       const { rows: fgBal } = await client.query(
         'SELECT current_qty FROM stock_summary WHERE sku_code = $1', [wo.output_sku]
       );
-      const fgBalance = parseFloat(fgBal[0]?.current_qty || 0);
+      const finalBalance = parseFloat(fgBal[0]?.current_qty || 0);
 
-      await client.query(`
-        INSERT INTO stock_ledger
-          (transaction_date, sku_code, sku_description, uom,
-           transaction_type, reference_no, reference_type,
-           qty_in, qty_out, rate, value_in, value_out,
-           running_balance, running_value, remarks,
-           location_id, location_name)
-        VALUES ($1, $2, $3, $4, 'WO_RECEIPT', $5, 'WO', $6, 0, 0, 0, 0, $7, 0, $8, $9, $10)
-      `, [
-        rcvDate, wo.output_sku, wo.product_name, wo.output_uom || 'PCS',
-        wo.wo_number, goodQty, fgBalance,
-        remarks || `WO Receipt: ${wo.wo_number}`,
-        toLoc?.id   || null,
-        toLoc?.location_name || to_store || null,
-      ]);
+      // Ledger entry for Good Qty
+      if (goodQty > 0) {
+        const goodRunBal = rejQty > 0 ? (finalBalance - rejQty) : finalBalance;
+
+        await client.query(`
+          INSERT INTO stock_ledger
+            (transaction_date, sku_code, sku_description, uom,
+             transaction_type, reference_no, reference_type,
+             qty_in, qty_out, rate, value_in, value_out,
+             running_balance, running_value, remarks,
+             location_id, location_name)
+          VALUES ($1, $2, $3, $4, 'WO_RECEIPT', $5, 'WO', $6, 0, 0, 0, 0, $7, 0, $8, $9, $10)
+        `, [
+          rcvDate, wo.output_sku, wo.product_name, wo.output_uom || 'PCS',
+          wo.wo_number, goodQty, goodRunBal,
+          remarks || `WO Receipt: ${wo.wo_number}`,
+          toLoc?.id   || null,
+          toLoc?.location_name || to_store || null,
+        ]);
+      }
+
+      // Ledger entry for Rejection Qty to Rejection Store
+      if (rejQty > 0) {
+        let rejLoc = null;
+        const { rows: rejLocRows } = await client.query(`
+          SELECT id, location_name FROM location_master 
+          WHERE location_code = 'REJ-STORE' OR location_name ILIKE '%rejection%' 
+          LIMIT 1
+        `);
+        if (rejLocRows.length > 0) {
+          rejLoc = rejLocRows[0];
+        } else {
+          const { rows: newLocRows } = await client.query(`
+            INSERT INTO location_master (location_code, location_name, location_type, description)
+            VALUES ('REJ-STORE', 'Rejection Store', 'STORE', 'Store for rejected items')
+            ON CONFLICT (location_code) DO UPDATE SET location_name = EXCLUDED.location_name
+            RETURNING id, location_name
+          `);
+          rejLoc = newLocRows[0];
+        }
+
+        await client.query(`
+          INSERT INTO stock_ledger
+            (transaction_date, sku_code, sku_description, uom,
+             transaction_type, reference_no, reference_type,
+             qty_in, qty_out, rate, value_in, value_out,
+             running_balance, running_value, remarks,
+             location_id, location_name)
+          VALUES ($1, $2, $3, $4, 'WO_REJECTION', $5, 'WO', $6, 0, 0, 0, 0, $7, 0, $8, $9, $10)
+        `, [
+          rcvDate, wo.output_sku, wo.product_name, wo.output_uom || 'PCS',
+          wo.wo_number, rejQty, finalBalance,
+          remarks || `WO Rejection: ${wo.wo_number}`,
+          rejLoc?.id || null,
+          rejLoc?.location_name || 'Rejection Store',
+        ]);
+      }
     }
 
     // ── 6. Deduct each BOM component from stock_summary (WO_ISSUE) ───────────
