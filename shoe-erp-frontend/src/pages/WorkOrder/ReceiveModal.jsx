@@ -121,7 +121,9 @@ export default function ReceiveModal({ isOpen, onClose, wo }) {
 
     const totalReceived = Object.values(receiveMap).reduce((s,v) => s+(parseInt(v)||0), 0)
     const totalRejected = Object.values(rejectionMap).reduce((s,v) => s+(parseInt(v)||0), 0)
-    const totalGood = Math.max(0, totalReceived - totalRejected)
+    // totalGood = totalReceived (Receive Qty column = good items going to stock)
+    // Rejection is tracked separately, NOT subtracted from received
+    const totalGood = totalReceived
 
     const size_receipts = sizeBreakup
       .filter(s => parseInt(receiveMap[s.size_code]) > 0)
@@ -138,6 +140,8 @@ export default function ReceiveModal({ isOpen, onClose, wo }) {
     receiveWO.mutate(
       {
         id:               wo.id,
+        // total_received for WO header = good qty (goes to stock)
+        // total batch = totalReceived + totalRejected
         received_qty:     totalReceived,
         rejection_qty:    totalRejected,
         receipt_date:     values.receipt_date,
@@ -307,12 +311,12 @@ export default function ReceiveModal({ isOpen, onClose, wo }) {
                         <td className="px-3 py-2">
                           <input
                             type="number" min="0" 
-                            max={parseInt(receiveMap[s.size_code]) || 0}
+                            max={wipForSize}
                             step="1"
                             value={rejectionMap[s.size_code] || ''}
                             onChange={e => {
                               let v = parseInt(e.target.value)
-                              const maxRej = parseInt(receiveMap[s.size_code]) || 0
+                              const maxRej = wipForSize
                               if (v > maxRej) v = maxRej
                               if (isNaN(v) || v < 0) v = ''
                               setRejectionMap(p => ({...p, [s.size_code]: v === '' ? '' : String(v)}))

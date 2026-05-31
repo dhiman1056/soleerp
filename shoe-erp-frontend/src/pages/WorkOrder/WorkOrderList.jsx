@@ -49,6 +49,15 @@ export default function WorkOrderList() {
     { key: 'planned_qty', label: 'Planned', align: 'right', className: 'tabular-nums font-medium' },
     { key: 'received_qty', label: 'Received', align: 'right', className: 'tabular-nums text-green-700' },
     {
+      key: 'total_rejection_qty', label: 'Rejection', align: 'right',
+      render: (r) => {
+        const rej = Number(r.total_rejection_qty) || 0
+        return <span className={`tabular-nums font-semibold ${rej > 0 ? 'text-red-600' : 'text-gray-300'}`}>
+          {rej > 0 ? rej.toFixed(2) : '—'}
+        </span>
+      },
+    },
+    {
       key: 'wip_qty', label: 'WIP Qty', align: 'right',
       render: (r) => {
         // Use backend-provided wip_qty which accounts for rejection_qty
