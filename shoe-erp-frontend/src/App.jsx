@@ -36,7 +36,7 @@ import FinancialSettings   from './pages/Settings/FinancialSettings.jsx'
 import InventorySettings   from './pages/Settings/InventorySettings.jsx'
 import NotificationSettings from './pages/Settings/NotificationSettings.jsx'
 import UserManagement      from './pages/Users/UserManagement.jsx'
-import LocationMaster      from './pages/Settings/LocationMaster.jsx'
+import LocationMaster      from './pages/Masters/LocationMaster.jsx'
 import CompanyMaster       from './pages/Masters/CompanyMaster.jsx'
 import DepartmentMaster    from './pages/Masters/DepartmentMaster.jsx'
 import CategoryMaster      from './pages/Masters/CategoryMaster.jsx'
@@ -135,6 +135,7 @@ export default function App() {
             <Route path="/masters/teams"           element={<TeamMaster />} />
             <Route path="/masters/employees"       element={<EmployeeMaster />} />
             <Route path="/masters/colors"          element={<ColorMaster />} />
+            <Route path="/masters/locations"       element={<LocationMaster />} />
 
             {/* Reports */}
             <Route path="/reports" element={<ReportsLayout />}>
