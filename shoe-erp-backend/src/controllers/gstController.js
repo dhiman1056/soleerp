@@ -123,4 +123,55 @@ const deleteGST = async (req, res) => {
   }
 }
 
-module.exports = { listGST, getGST, createGST, updateGST, deleteGST }
+const importGSTs = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const description = (row['Description'] || '').trim()
+      const gst_rate    = parseFloat(row['GST Rate %'] || row['gst_rate'] || 0)
+
+      if (!description) {
+        errors.push({ row: rowNum, message: 'Description is required' })
+        continue
+      }
+      if (isNaN(gst_rate) || gst_rate < 0 || gst_rate > 100) {
+        errors.push({ row: rowNum, message: 'GST Rate must be between 0 and 100' })
+        continue
+      }
+
+      // Skip duplicate (same gst_rate already exists)
+      const dup = await query(
+        'SELECT id FROM gst_master WHERE gst_rate = $1',
+        [gst_rate]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      // Auto-calculate rates using the existing calcRates function
+      const { sgst_rate, cgst_rate, igst_rate } = calcRates(gst_rate)
+
+      const gst_code = await generateCode()
+      await query(`
+        INSERT INTO gst_master
+          (gst_code, description, gst_rate, sgst_rate, cgst_rate, igst_rate)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [gst_code, description, gst_rate, sgst_rate, cgst_rate, igst_rate])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
+module.exports = { listGST, getGST, createGST, updateGST, deleteGST, importGSTs }

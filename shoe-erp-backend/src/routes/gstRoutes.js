@@ -6,6 +6,7 @@ const ctrl   = require('../controllers/gstController')
 router.get('/',       auth,                         ctrl.listGST)
 router.get('/:id',    auth,                         ctrl.getGST)
 router.post('/',      auth, role('admin','manager'), ctrl.createGST)
+router.post('/import', auth, role('admin','manager'), ctrl.importGSTs)
 router.put('/:id',    auth, role('admin','manager'), ctrl.updateGST)
 router.delete('/:id', auth, role('admin'),           ctrl.deleteGST)
 
