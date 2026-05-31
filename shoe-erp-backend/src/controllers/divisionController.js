@@ -104,4 +104,46 @@ const deleteDivision = async (req, res) => {
   }
 }
 
-module.exports = { listDivisions, getDivision, createDivision, updateDivision, deleteDivision }
+const importDivisions = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const div_name = (row['Division Name'] || '').trim()
+
+      if (!div_name) {
+        errors.push({ row: rowNum, message: 'Division Name is required' })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM division_master WHERE LOWER(div_name) = LOWER($1)',
+        [div_name]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const div_code = await generateCode()
+      await query(`
+        INSERT INTO division_master (div_code, div_name)
+        VALUES ($1, $2)
+      `, [div_code, div_name])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
+module.exports = { listDivisions, getDivision, createDivision, updateDivision, deleteDivision, importDivisions }

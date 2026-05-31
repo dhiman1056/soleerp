@@ -5,6 +5,7 @@ const ctrl   = require('../controllers/divisionController')
 
 router.get('/',       auth,                         ctrl.listDivisions)
 router.get('/:id',    auth,                         ctrl.getDivision)
+router.post('/import', auth, role('admin','manager'), ctrl.importDivisions)
 router.post('/',      auth, role('admin','manager'), ctrl.createDivision)
 router.put('/:id',    auth, role('admin','manager'), ctrl.updateDivision)
 router.delete('/:id', auth, role('admin'),           ctrl.deleteDivision)
