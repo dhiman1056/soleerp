@@ -119,4 +119,51 @@ const deleteBrand = async (req, res) => {
   }
 }
 
-module.exports = { listBrands, getBrand, createBrand, updateBrand, deleteBrand }
+const importBrands = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const brand_name = (row['Brand Description'] || row['brand_name'] || '').trim()
+      const discount   = parseFloat(row['Discount %'] || row['discount'] || 0)
+
+      if (!brand_name) {
+        errors.push({ row: rowNum, message: 'Brand Description is required' })
+        continue
+      }
+      if (isNaN(discount) || discount < 0 || discount > 100) {
+        errors.push({ row: rowNum, message: 'Discount % must be between 0 and 100' })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM brand_master WHERE LOWER(brand_name) = LOWER($1)',
+        [brand_name]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const brand_code = await generateCode()
+      await query(`
+        INSERT INTO brand_master (brand_code, brand_name, discount)
+        VALUES ($1, $2, $3)
+      `, [brand_code, brand_name, discount])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
+module.exports = { listBrands, getBrand, createBrand, updateBrand, deleteBrand, importBrands }

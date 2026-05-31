@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import ImportModal from '../../components/shared/ImportModal'
 
 // ─── Empty form ────────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
@@ -162,11 +163,30 @@ export default function BrandMaster() {
   const [search, setSearch]             = useState('')
   const [showModal, setShowModal]       = useState(false)
   const [editItem, setEditItem]         = useState(null)
+  const [showImport, setShowImport]     = useState(false)
+
+  const templateColumns = [
+    {
+      key: 'brand_name',
+      label: 'Brand Description',
+      required: true,
+      example: 'Kazarmax',
+      example2: 'Metro Shoes'
+    },
+    {
+      key: 'discount',
+      label: 'Discount %',
+      required: false,
+      example: '5',
+      example2: '10',
+      note: '0 to 100'
+    }
+  ]
 
   const params = {}
   if (search.trim()) params.search = search.trim()
 
-  const { data, isLoading } = useBrands(params)
+  const { data, isLoading, refetch } = useBrands(params)
   const updateMut = useUpdateBrand()
 
   const brands = Array.isArray(data) ? data : []
@@ -197,16 +217,30 @@ export default function BrandMaster() {
           </p>
         </div>
         {canEdit && (
-          <button
-            id="btn-add-brand"
-            onClick={openCreate}
-            className="btn-primary flex items-center gap-2 whitespace-nowrap"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Brand
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'8px 14px',
+                border:'0.5px solid #d1d5db',
+                borderRadius:8, background:'white',
+                fontSize:13, cursor:'pointer', color:'#374151'
+              }}
+            >
+              ↑ Import CSV
+            </button>
+            <button
+              id="btn-add-brand"
+              onClick={openCreate}
+              className="btn-primary flex items-center gap-2 whitespace-nowrap"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Brand
+            </button>
+          </div>
         )}
       </div>
 
@@ -307,6 +341,14 @@ export default function BrandMaster() {
       )}
 
       {showModal && <BrandModal editItem={editItem} onClose={closeModal} />}
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="Brand Master"
+        templateColumns={templateColumns}
+        importUrl="/brands/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
+      />
     </div>
   )
 }
