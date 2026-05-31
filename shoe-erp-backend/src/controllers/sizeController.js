@@ -152,4 +152,69 @@ const deleteSize = async (req, res) => {
   }
 };
 
-module.exports = { getSizes, getSize, createSize, updateSize, deleteSize };
+const importSizes = async (req, res) => {
+  const { rows } = req.body;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' });
+  }
+
+  let imported = 0, skipped = 0;
+  const errors = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNum = i + 1;
+    try {
+      const size_label  = (row['Size Label']  || '').trim();
+      const size_chart  = (row['Size Chart']  || '').trim().toUpperCase();
+      const uk_size     = (row['UK Size']     || '').trim() || null;
+      const euro_size   = (row['Euro Size']   || '').trim() || null;
+      const description = (row['Description'] || '').trim() || null;
+      const sort_order  = parseInt(row['Sort Order'] || '0', 10);
+
+      if (!size_label) {
+        errors.push({ row: rowNum, message: 'Size Label is required' });
+        continue;
+      }
+      if (!size_chart || !VALID_CHARTS.includes(size_chart)) {
+        errors.push({ row: rowNum, message: `Size Chart must be one of: ${VALID_CHARTS.join(', ')}` });
+        continue;
+      }
+
+      // Skip duplicate (same label + chart)
+      const dup = await query(
+        'SELECT id FROM size_master WHERE LOWER(size_label) = LOWER($1) AND size_chart = $2',
+        [size_label, size_chart]
+      );
+      if (dup.rows.length > 0) { skipped++; continue; }
+
+      const size_master_code = await generateCode();
+      const size_code = uk_size
+        ? `${size_chart}-${uk_size}`
+        : size_master_code;
+
+      await query(`
+        INSERT INTO size_master
+          (size_master_code, size_code, size_label, description, size_chart, uk_size, euro_size, sort_order)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [
+        size_master_code,
+        size_code,
+        size_label,
+        description,
+        size_chart,
+        uk_size,
+        euro_size,
+        isNaN(sort_order) ? 0 : sort_order
+      ]);
+
+      imported++;
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message });
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors });
+};
+
+module.exports = { getSizes, getSize, createSize, updateSize, deleteSize, importSizes };

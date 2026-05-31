@@ -8,6 +8,7 @@ import { formatCurrency }      from '../../utils/formatCurrency.js'
 import { useAuth }             from '../../hooks/useAuth.js'
 import { useCategories }       from '../../hooks/useCategories.js'
 import { useDepartments }      from '../../hooks/useDepartments.js'
+import ImportModal from '../../components/shared/ImportModal'
 
 const TYPE_BADGE = {
   RAW_MATERIAL:  'bg-gray-100 text-gray-700',
@@ -177,6 +178,132 @@ export default function ProductList() {
   const [page,           setPage]          = useState(1)
   const [editTarget,     setEditTarget]    = useState(null)
   const [deleteTarget,   setDeleteTarget]  = useState(null)
+  const [showImport,     setShowImport]    = useState(false)
+
+  const templateColumns = [
+    {
+      key: 'product_type',
+      label: 'Product Type',
+      required: true,
+      example: 'Raw Material',
+      example2: 'Finished Good',
+      note: 'Raw Material | Semi Finished | Finished Good'
+    },
+    {
+      key: 'sku_code',
+      label: 'SKU Code',
+      required: false,
+      example: '',
+      example2: '',
+      note: 'Leave blank to auto-generate'
+    },
+    {
+      key: 'description',
+      label: 'Short Description',
+      required: true,
+      example: 'Premium Leather Upper',
+      example2: 'EVA Sole 1603'
+    },
+    {
+      key: 'long_description',
+      label: 'Long Description',
+      required: false,
+      example: '',
+      example2: ''
+    },
+    {
+      key: 'uom',
+      label: 'UOM',
+      required: true,
+      example: 'MTR',
+      example2: 'PAIR',
+      note: 'Must match UOM Short Code or Name'
+    },
+    {
+      key: 'pack_size',
+      label: 'Pack Size',
+      required: false,
+      example: '1',
+      example2: '12'
+    },
+    {
+      key: 'brand_name',
+      label: 'Brand Name',
+      required: false,
+      example: 'Kazarmax',
+      example2: ''
+    },
+    {
+      key: 'supplier_name',
+      label: 'Supplier Name',
+      required: false,
+      example: 'ABC Traders',
+      example2: ''
+    },
+    {
+      key: 'category',
+      label: 'Category',
+      required: false,
+      example: 'Ladies Footwear',
+      example2: ''
+    },
+    {
+      key: 'sub_category',
+      label: 'Sub Category',
+      required: false,
+      example: 'Sandals',
+      example2: ''
+    },
+    {
+      key: 'design_no',
+      label: 'Design No',
+      required: false,
+      example: 'D-001',
+      example2: ''
+    },
+    {
+      key: 'color_code',
+      label: 'Color Code',
+      required: false,
+      example: 'BLK',
+      example2: ''
+    },
+    {
+      key: 'hsn_code',
+      label: 'HSN Code',
+      required: false,
+      example: '6401',
+      example2: ''
+    },
+    {
+      key: 'gst_rate',
+      label: 'GST Rate %',
+      required: false,
+      example: '5',
+      example2: '12'
+    },
+    {
+      key: 'basic_cost_price',
+      label: 'Basic Cost Price',
+      required: false,
+      example: '150',
+      example2: '0'
+    },
+    {
+      key: 'mrp',
+      label: 'MRP',
+      required: false,
+      example: '299',
+      example2: '0'
+    },
+    {
+      key: 'selling_price',
+      label: 'Selling Price',
+      required: false,
+      example: '250',
+      example2: '0'
+    }
+  ]
 
   const { role } = useAuth()
   const canEdit   = ['admin', 'manager'].includes(role)
@@ -199,7 +326,7 @@ export default function ProductList() {
     ...(search.trim()        ? { search: search.trim() } : {}),
   }
 
-  const { data: rawData, isLoading } = useProducts(apiParams)
+  const { data: rawData, isLoading, refetch } = useProducts(apiParams)
   const deleteMut = useDeleteProduct()
 
   const records  = rawData?.records ?? []
@@ -242,7 +369,21 @@ export default function ProductList() {
         <div className="flex gap-2 shrink-0">
           <button onClick={() => exportCsv(filtered)} className="btn-secondary text-sm px-3">Export CSV</button>
           {canEdit && (
-            <button onClick={() => setEditTarget('new')} className="btn-primary">+ Add Product</button>
+            <>
+              <button
+                onClick={() => setShowImport(true)}
+                style={{
+                  display:'flex', alignItems:'center', gap:6,
+                  padding:'8px 14px',
+                  border:'0.5px solid #d1d5db',
+                  borderRadius:8, background:'white',
+                  fontSize:13, cursor:'pointer', color:'#374151'
+                }}
+              >
+                ↑ Import CSV
+              </button>
+              <button onClick={() => setEditTarget('new')} className="btn-primary">+ Add Product</button>
+            </>
           )}
         </div>
       </div>
@@ -398,6 +539,15 @@ export default function ProductList() {
         confirmLabel="Delete"
         loading={deleteMut.isPending}
         onConfirm={() => handleDelete(deleteTarget)}
+      />
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="Product Master"
+        templateColumns={templateColumns}
+        importUrl="/api/products/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>
   )

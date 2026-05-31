@@ -30,6 +30,6 @@ router.put('/:id/cancel', auth, role('admin'), ctrl.cancelPurchaseOrder);
 
 // GRN against a PO
 router.get('/:id/receipts', auth, ctrl.getPOReceipts);
-router.post('/:id/receive', auth, ctrl.receivePurchaseOrder);
+router.post('/:id/receive', auth, role('admin', 'manager'), ctrl.receivePurchaseOrder);
 
 module.exports = router;

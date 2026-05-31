@@ -210,10 +210,94 @@ const deleteCompany = async (req, res) => {
   }
 }
 
+const importCompanies = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const company_name    = (row['Company Name']      || '').trim()
+      const description     = (row['Description']       || '').trim() || null
+      const licence_no      = (row['Licence No']        || '').trim() || null
+      const address         = (row['Address']           || '').trim() || null
+      const state           = (row['State']             || '').trim() || null
+      const city            = (row['City']              || '').trim() || null
+      const pincode         = (row['Pincode']           || '').trim() || null
+      const contact_person  = (row['Contact Person']    || '').trim() || null
+      const contact_mobile  = (row['Contact Mobile']    || '').trim() || null
+      const email           = (row['Email']             || '').trim() || null
+      const customer_care_no = (row['Customer Care No'] || '').trim() || null
+      const msme_certificate = (row['MSME Certificate'] || '').trim() || null
+      const gstin           = (row['GSTIN']             || '').trim() || null
+
+      if (!company_name) {
+        errors.push({ row: rowNum, message: 'Company Name is required' })
+        continue
+      }
+
+      if (contact_mobile && !/^\d{10}$/.test(contact_mobile)) {
+        errors.push({ row: rowNum, message: 'Contact Mobile must be a valid 10-digit number' })
+        continue
+      }
+
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        errors.push({ row: rowNum, message: 'Please enter a valid Email address' })
+        continue
+      }
+
+      if (pincode && !/^\d{6}$/.test(pincode)) {
+        errors.push({ row: rowNum, message: 'Pincode must be a valid 6-digit number' })
+        continue
+      }
+
+      if (gstin && gstin.length !== 15) {
+        errors.push({ row: rowNum, message: 'GSTIN must be exactly 15 characters long' })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM company_master WHERE LOWER(company_name) = LOWER($1)',
+        [company_name]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const company_code = await generateCode()
+      await query(`
+        INSERT INTO company_master (
+          company_code, company_name, description, licence_no,
+          address, state, city, pincode, contact_person,
+          contact_mobile, email, customer_care_no,
+          msme_certificate, gstin
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      `, [
+        company_code, company_name, description, licence_no,
+        address, state, city, pincode, contact_person,
+        contact_mobile, email, customer_care_no,
+        msme_certificate, gstin
+      ])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
 module.exports = {
   listCompanies,
   getCompany,
   createCompany,
   updateCompany,
-  deleteCompany
+  deleteCompany,
+  importCompanies
 }

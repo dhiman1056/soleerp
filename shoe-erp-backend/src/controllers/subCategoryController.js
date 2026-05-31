@@ -46,7 +46,7 @@ const getSubCategory = async (req, res) => {
 // ─── POST /api/sub-categories ─────────────────────────────────────────────────
 const createSubCategory = async (req, res) => {
   try {
-    const { sub_category_name, discount } = req.body
+    const { sub_category_name, discount, category_id } = req.body
 
     if (!sub_category_name || !sub_category_name.trim()) {
       return res.status(400).json({ success: false, message: 'Sub-category name is required' })
@@ -55,10 +55,10 @@ const createSubCategory = async (req, res) => {
     const sub_catg_code = await generateCode()
 
     const { rows } = await query(`
-      INSERT INTO sub_category_master (sub_catg_code, sub_category_name, discount)
-      VALUES ($1, $2, $3)
+      INSERT INTO sub_category_master (sub_catg_code, sub_category_name, discount, category_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
-    `, [sub_catg_code, sub_category_name.trim(), discount ? Number(discount) : 0])
+    `, [sub_catg_code, sub_category_name.trim(), discount ? Number(discount) : 0, category_id || null])
 
     res.status(201).json({ success: true, data: rows[0] })
   } catch (err) {
@@ -130,6 +130,7 @@ const importSubCategories = async (req, res) => {
     try {
       const sub_category_name = (row['Sub Category Description'] || '').trim()
       const discount = parseFloat(row['Discount %'] || 0)
+      const catg_name = (row['Category Name'] || '').trim()
 
       if (!sub_category_name) {
         errors.push({ row: rowNum, message: 'Sub Category Description is required' })
@@ -138,6 +139,23 @@ const importSubCategories = async (req, res) => {
       if (isNaN(discount) || discount < 0 || discount > 100) {
         errors.push({ row: rowNum, message: 'Discount % must be between 0 and 100' })
         continue
+      }
+
+      // Resolve Category Name (optional)
+      let category_id = null
+      if (catg_name) {
+        const catRes = await query(
+          'SELECT id FROM category_master WHERE LOWER(catg_name) = LOWER($1)',
+          [catg_name]
+        )
+        if (catRes.rows.length === 0) {
+          errors.push({
+            row: rowNum,
+            message: `Category "${catg_name}" not found. Create it first in Category Master.`
+          })
+          continue
+        }
+        category_id = catRes.rows[0].id
       }
 
       // Skip duplicate
@@ -149,9 +167,9 @@ const importSubCategories = async (req, res) => {
 
       const sub_catg_code = await generateCode()
       await query(`
-        INSERT INTO sub_category_master (sub_catg_code, sub_category_name, discount)
-        VALUES ($1, $2, $3)
-      `, [sub_catg_code, sub_category_name, discount])
+        INSERT INTO sub_category_master (sub_catg_code, sub_category_name, discount, category_id)
+        VALUES ($1, $2, $3, $4)
+      `, [sub_catg_code, sub_category_name, discount, category_id])
 
       imported++
     } catch (err) {

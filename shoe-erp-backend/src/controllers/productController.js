@@ -408,6 +408,306 @@ const deleteProduct = async (req, res, next) => {
   }
 };
 
+const importProducts = async (req, res, next) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+  const client = await pool.connect()
+
+  try {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      const rowNum = i + 1
+      try {
+        // Basic Info
+        const product_type_raw  = (row['Product Type'] || '').trim()
+        const sku_code          = (row['SKU Code'] || '').trim().toUpperCase()
+        const description       = (row['Short Description'] || '').trim()
+        const long_desc         = (row['Long Description'] || '').trim()
+        const uom_name          = (row['UOM'] || '').trim()
+        const pack_size         = (row['Pack Size'] || '1').trim()
+        const brand_name        = (row['Brand Name'] || '').trim()
+        const supplier_name     = (row['Supplier Name'] || '').trim()
+
+        // Classification
+        const catg_name     = (row['Category'] || '').trim()
+        const sub_catg_name = (row['Sub Category'] || '').trim()
+        const design_no     = (row['Design No'] || '').trim()
+        const color_code    = (row['Color Code'] || '').trim()
+
+        // Pricing & Tax
+        const hsn_code_val  = (row['HSN Code'] || '').trim()
+        const gst_rate_val  = (row['GST Rate %'] || '').trim()
+        const basic_cost    = parseFloat(row['Basic Cost Price'] || 0)
+        const mrp           = parseFloat(row['MRP'] || 0)
+        const selling_price = parseFloat(row['Selling Price'] || 0)
+
+        // Validations
+        let ptype = ''
+        const ptype_lower = product_type_raw.toLowerCase()
+        if (ptype_lower === 'raw material' || ptype_lower === 'raw_material') {
+          ptype = 'RAW_MATERIAL'
+        } else if (ptype_lower === 'semi finished' || ptype_lower === 'semi_finished') {
+          ptype = 'SEMI_FINISHED'
+        } else if (ptype_lower === 'finished good' || ptype_lower === 'finished_good' || ptype_lower === 'finished goods' || ptype_lower === 'finished') {
+          ptype = 'FINISHED'
+        }
+
+        if (!ptype) {
+          errors.push({
+            row: rowNum,
+            message: `Product Type must be: Raw Material | Semi Finished | Finished Good`
+          })
+          continue
+        }
+        if (!description) {
+          errors.push({ row: rowNum, message: 'Short Description is required' })
+          continue
+        }
+        if (!uom_name) {
+          errors.push({ row: rowNum, message: 'UOM is required' })
+          continue
+        }
+
+        // Check SKU duplicate if provided
+        if (sku_code) {
+          const dup = await client.query(
+            'SELECT id FROM product_master WHERE sku_code = $1', [sku_code]
+          )
+          if (dup.rows.length > 0) { skipped++; continue }
+        }
+
+        // Resolve UOM (required)
+        const uomRes = await client.query(
+          'SELECT id, uom_code FROM uom_master WHERE LOWER(uom_name) = LOWER($1) OR UPPER(uom_code) = UPPER($1)',
+          [uom_name]
+        )
+        if (uomRes.rows.length === 0) {
+          errors.push({
+            row: rowNum,
+            message: `UOM "${uom_name}" not found. Create it first in UOM Master.`
+          })
+          continue
+        }
+        const uom_id = uomRes.rows[0].id
+        const uom_code = uomRes.rows[0].uom_code
+
+        // Resolve Brand (optional)
+        let brand_id = null
+        let resolved_brand_name = null
+        if (brand_name) {
+          const bRes = await client.query(
+            'SELECT id, brand_name FROM brand_master WHERE LOWER(brand_name) = LOWER($1)',
+            [brand_name]
+          )
+          if (bRes.rows.length === 0) {
+            errors.push({
+              row: rowNum,
+              message: `Brand "${brand_name}" not found. Create it first in Brand Master.`
+            })
+            continue
+          }
+          brand_id = bRes.rows[0].id
+          resolved_brand_name = bRes.rows[0].brand_name
+        }
+
+        // Resolve Supplier (optional)
+        let resolved_supplier_name = null
+        if (supplier_name) {
+          const sRes = await client.query(
+            'SELECT id, supplier_name FROM suppliers WHERE LOWER(supplier_name) = LOWER($1)',
+            [supplier_name]
+          )
+          if (sRes.rows.length === 0) {
+            errors.push({
+              row: rowNum,
+              message: `Supplier "${supplier_name}" not found. Create it first in Suppliers.`
+            })
+            continue
+          }
+          resolved_supplier_name = sRes.rows[0].supplier_name
+        }
+
+        // Resolve Category (optional)
+        let category_id = null
+        let resolved_category_name = null
+        if (catg_name) {
+          const cRes = await client.query(
+            'SELECT id, catg_name FROM category_master WHERE LOWER(catg_name) = LOWER($1)',
+            [catg_name]
+          )
+          if (cRes.rows.length === 0) {
+            errors.push({
+              row: rowNum,
+              message: `Category "${catg_name}" not found. Create it first in Category Master.`
+            })
+            continue
+          }
+          category_id = cRes.rows[0].id
+          resolved_category_name = cRes.rows[0].catg_name
+        }
+
+        // Resolve Sub Category (optional)
+        let sub_category_id = null
+        let resolved_sub_category_name = null
+        if (sub_catg_name) {
+          const scRes = await client.query(
+            'SELECT id, sub_category_name FROM sub_category_master WHERE LOWER(sub_category_name) = LOWER($1)',
+            [sub_catg_name]
+          )
+          if (scRes.rows.length === 0) {
+            errors.push({
+              row: rowNum,
+              message: `Sub Category "${sub_catg_name}" not found. Create it first in Sub Category Master.`
+            })
+            continue
+          }
+          sub_category_id = scRes.rows[0].id
+          resolved_sub_category_name = scRes.rows[0].sub_category_name
+        }
+
+        // Resolve Design (optional)
+        let design_id = null
+        let resolved_design_no = null
+        if (design_no) {
+          const dRes = await client.query(
+            'SELECT id, design_no FROM design_master WHERE LOWER(design_no) = LOWER($1)',
+            [design_no]
+          )
+          if (dRes.rows.length === 0) {
+            errors.push({
+              row: rowNum,
+              message: `Design No "${design_no}" not found. Create it first in Design Master.`
+            })
+            continue
+          }
+          design_id = dRes.rows[0].id
+          resolved_design_no = dRes.rows[0].design_no
+        }
+
+        // Resolve Color (optional)
+        let color_id = null
+        let resolved_color_name = null
+        if (color_code) {
+          const colRes = await client.query(
+            'SELECT id, color_name FROM color_master WHERE UPPER(color_code) = UPPER($1) OR LOWER(color_name) = LOWER($1)',
+            [color_code]
+          )
+          if (colRes.rows.length === 0) {
+            errors.push({
+              row: rowNum,
+              message: `Color "${color_code}" not found. Create it first in Color Master.`
+            })
+            continue
+          }
+          color_id = colRes.rows[0].id
+          resolved_color_name = colRes.rows[0].color_name
+        }
+
+        // Resolve HSN (optional)
+        let hsn_id = null
+        let resolved_hsn_code = null
+        if (hsn_code_val) {
+          const hRes = await client.query(
+            'SELECT id, hsn_code FROM hsn_master WHERE hsn_code = $1',
+            [hsn_code_val]
+          )
+          if (hRes.rows.length === 0) {
+            errors.push({
+              row: rowNum,
+              message: `HSN Code "${hsn_code_val}" not found. Create it first in HSN Master.`
+            })
+            continue
+          }
+          hsn_id = hRes.rows[0].id
+          resolved_hsn_code = hRes.rows[0].hsn_code
+        }
+
+        // Resolve GST (optional)
+        let gst_id = null
+        let gstRate = 0
+        if (gst_rate_val) {
+          const gRes = await client.query(
+            'SELECT id, gst_rate FROM gst_master WHERE gst_rate = $1',
+            [parseFloat(gst_rate_val)]
+          )
+          if (gRes.rows.length === 0) {
+            errors.push({
+              row: rowNum,
+              message: `GST Rate "${gst_rate_val}%" not found. Create it first in GST Master.`
+            })
+            continue
+          }
+          gst_id = gRes.rows[0].id
+          gstRate = parseFloat(gRes.rows[0].gst_rate) || 0
+        }
+
+        // Generate SKU if not provided
+        const finalSku = sku_code
+          ? sku_code
+          : await generateSku(client, ptype)
+
+        // Calculate CP basic formula
+        const finalCp = +(basic_cost * (1 + gstRate / 100)).toFixed(2)
+
+        await client.query('BEGIN')
+
+        await client.query(`
+          INSERT INTO product_master (
+            sku_code, description, short_description, long_description,
+            product_type, uom, uom_id, pack_size,
+            brand_name, brand_id, supplier_name,
+            category, category_id, sub_category, sub_category_id,
+            design_no, design_id, color, color_id,
+            hsn_code, hsn_id, gst_rate, gst_id,
+            basic_cost_price, cost_price, rate, mrp, sp,
+            images, is_active, created_at, updated_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+            $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+            $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, NOW(), NOW()
+          )
+        `, [
+          finalSku, description, description, long_desc || null,
+          ptype, uom_code, uom_id, pack_size,
+          resolved_brand_name, brand_id, resolved_supplier_name,
+          resolved_category_name, category_id, resolved_sub_category_name, sub_category_id,
+          resolved_design_no, design_id, resolved_color_name, color_id,
+          resolved_hsn_code, hsn_id, gstRate, gst_id,
+          basic_cost, finalCp, finalCp, mrp, selling_price,
+          JSON.stringify([]), true
+        ])
+
+        // Sync to raw_material_master when type is RAW_MATERIAL
+        if (ptype === 'RAW_MATERIAL') {
+          await client.query(`
+            INSERT INTO raw_material_master (sku_code, description, uom, rate)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (sku_code) DO UPDATE
+              SET description = EXCLUDED.description,
+                  uom         = EXCLUDED.uom,
+                  rate        = EXCLUDED.rate
+          `, [finalSku, description, uom_code, finalCp])
+        }
+
+        await client.query('COMMIT')
+        imported++
+      } catch (err) {
+        await client.query('ROLLBACK')
+        errors.push({ row: rowNum, message: err.message })
+      }
+    }
+  } finally {
+    client.release()
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
 module.exports = {
   listProducts,
   getProduct,
@@ -415,4 +715,5 @@ module.exports = {
   createProduct,
   updateProduct,
   deleteProduct,
+  importProducts,
 };

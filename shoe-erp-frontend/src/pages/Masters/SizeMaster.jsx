@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import ImportModal from '../../components/shared/ImportModal'
 
 // ─── Size chart data ───────────────────────────────────────────────────────────
 const SIZE_CHARTS = ['INFANT', 'KIDS', 'LADIES', 'MEN']
@@ -337,14 +338,24 @@ export default function SizeMaster() {
   const [filterChart, setFilterChart]   = useState('')
   const [filterActive, setFilterActive] = useState('')
   const [showModal, setShowModal]   = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [editItem, setEditItem]     = useState(null)
+
+  const templateColumns = [
+    { key: 'size_label', label: 'Size Label', required: true, example: '8', example2: '9' },
+    { key: 'size_chart', label: 'Size Chart', required: true, example: 'UK', example2: 'EURO', note: 'IND | UK | EURO | US | KIDS' },
+    { key: 'uk_size', label: 'UK Size', required: false, example: '8' },
+    { key: 'euro_size', label: 'Euro Size', required: false, example: '42' },
+    { key: 'sort_order', label: 'Sort Order', required: false, example: '1' },
+    { key: 'description', label: 'Description', required: false, example: '' }
+  ]
 
   const params = {}
   if (search.trim())       params.search     = search.trim()
   if (filterChart)         params.size_chart = filterChart
   if (filterActive !== '') params.is_active  = filterActive
 
-  const { data, isLoading } = useSizes(params)
+  const { data, isLoading, refetch } = useSizes(params)
   const updateMut = useUpdateSize()
 
   const sizes = Array.isArray(data) ? data : []
@@ -375,16 +386,30 @@ export default function SizeMaster() {
           </p>
         </div>
         {canEdit && (
-          <button
-            id="btn-add-size"
-            onClick={openCreate}
-            className="btn-primary flex items-center gap-2 whitespace-nowrap"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Size
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'8px 14px',
+                border:'0.5px solid #d1d5db',
+                borderRadius:8, background:'white',
+                fontSize:13, cursor:'pointer', color:'#374151'
+              }}
+            >
+              ↑ Import CSV
+            </button>
+            <button
+              id="btn-add-size"
+              onClick={openCreate}
+              className="btn-primary flex items-center gap-2 whitespace-nowrap"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Size
+            </button>
+          </div>
         )}
       </div>
 
@@ -561,6 +586,15 @@ export default function SizeMaster() {
 
       {/* Modal */}
       {showModal && <SizeModal editItem={editItem} onClose={closeModal} />}
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="Size Master"
+        templateColumns={templateColumns}
+        importUrl="/api/sizes/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
+      />
     </div>
   )
 }

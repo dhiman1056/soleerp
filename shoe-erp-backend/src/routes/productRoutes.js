@@ -20,6 +20,9 @@ const updateRules = [
 // ── GET /api/products/next-sku?product_type=RAW_MATERIAL ── must be before /:sku
 router.get('/next-sku', auth, ctrl.getNextSku);
 
+// ── POST   /api/products/import
+router.post('/import', auth, role('admin', 'manager'), ctrl.importProducts);
+
 // ── GET    /api/products
 router.get('/',      auth, ctrl.listProducts);
 

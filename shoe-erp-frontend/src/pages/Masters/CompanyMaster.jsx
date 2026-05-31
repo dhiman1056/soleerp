@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import ImportModal from '../../components/shared/ImportModal'
 
 // ─── Empty form state ────────────────────────────────────────────────────────
 const EMPTY_FORM = {
@@ -333,16 +334,31 @@ export default function CompanyMaster() {
   const { user }   = useAuth()
   const canEdit    = ['admin', 'manager'].includes(user?.role)
 
-  const [search, setSearch]     = useState('')
+  const [search, setSearch]         = useState('')
   const [filterActive, setFilterActive] = useState('') // '' | 'true' | 'false'
   const [showModal, setShowModal]   = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [editItem, setEditItem]     = useState(null)
+
+  const templateColumns = [
+    { key: 'company_name', label: 'Company Name', required: true, example: 'ABC Pvt Ltd' },
+    { key: 'gstin', label: 'GSTIN', required: false, example: '27AABCU9603R1ZX', note: '15 characters' },
+    { key: 'address', label: 'Address', required: false, example: '' },
+    { key: 'city', label: 'City', required: false, example: 'Mumbai' },
+    { key: 'state', label: 'State', required: false, example: 'Maharashtra' },
+    { key: 'pincode', label: 'Pincode', required: false, example: '400001' },
+    { key: 'contact_person', label: 'Contact Person', required: false, example: '' },
+    { key: 'contact_mobile', label: 'Contact Mobile', required: false, example: '9876543210', note: '10 digits' },
+    { key: 'email', label: 'Email', required: false, example: '' },
+    { key: 'licence_no', label: 'Licence No', required: false, example: '' },
+    { key: 'msme_certificate', label: 'MSME Certificate', required: false, example: '' }
+  ]
 
   const params = {}
   if (search.trim())    params.search    = search.trim()
   if (filterActive !== '') params.is_active = filterActive
 
-  const { data, isLoading } = useCompanies(params)
+  const { data, isLoading, refetch } = useCompanies(params)
   const updateMut  = useUpdateCompany()
   const deleteMut  = useDeleteCompany()
 
@@ -373,16 +389,30 @@ export default function CompanyMaster() {
           </p>
         </div>
         {canEdit && (
-          <button
-            id="btn-add-company"
-            onClick={openCreate}
-            className="btn-primary flex items-center gap-2 whitespace-nowrap"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Company
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowImport(true)}
+              style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'8px 14px',
+                border:'0.5px solid #d1d5db',
+                borderRadius:8, background:'white',
+                fontSize:13, cursor:'pointer', color:'#374151'
+              }}
+            >
+              ↑ Import CSV
+            </button>
+            <button
+              id="btn-add-company"
+              onClick={openCreate}
+              className="btn-primary flex items-center gap-2 whitespace-nowrap"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Company
+            </button>
+          </div>
         )}
       </div>
 
@@ -521,6 +551,15 @@ export default function CompanyMaster() {
       {showModal && (
         <CompanyModal editItem={editItem} onClose={closeModal} />
       )}
+
+      <ImportModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        masterName="Company Master"
+        templateColumns={templateColumns}
+        importUrl="/api/companies/import"
+        onSuccess={() => { refetch(); setShowImport(false) }}
+      />
     </div>
   )
 }

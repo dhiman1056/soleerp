@@ -15,10 +15,13 @@ router.get('/',     ctrl.getSizes);
 router.get('/:id',  ctrl.getSize);
 
 // POST /api/sizes          — create a new size (admin only)
-router.post('/',    roleMiddleware('admin', 'manager'), ctrl.createSize);
+router.post('/',       roleMiddleware('admin', 'manager'), ctrl.createSize);
+
+// POST /api/sizes/import   — CSV import (admin/manager)
+router.post('/import', roleMiddleware('admin', 'manager'), ctrl.importSizes);
 
 // PUT  /api/sizes/:id      — update label / sort_order / is_active (admin only)
-router.put('/:id',  roleMiddleware('admin', 'manager'), ctrl.updateSize);
+router.put('/:id',     roleMiddleware('admin', 'manager'), ctrl.updateSize);
 
 // DELETE /api/sizes/:id   — soft-delete / deactivate (admin only)
 router.delete('/:id', roleMiddleware('admin'), ctrl.deleteSize);
