@@ -31,7 +31,7 @@ const listWorkOrders = async (req, res) => {
         w.id, w.wo_number, w.wo_date, w.planned_qty,
         w.received_qty, w.status, w.wo_type,
         w.from_store, w.to_store,
-        (w.planned_qty - w.received_qty) AS wip_qty,
+        GREATEST(0, w.planned_qty - w.received_qty - COALESCE((SELECT SUM(rl2.rejection_qty) FROM wo_receipt_lines rl2 WHERE rl2.wo_id = w.id), 0)) AS wip_qty,
         fl.location_name AS from_location_name,
         tl.location_name AS to_location_name,
         bh.bom_code, bh.output_sku,
@@ -78,7 +78,7 @@ const getWorkOrder = async (req, res) => {
         w.id, w.wo_number, w.bom_id, w.wo_date,
         w.planned_qty, w.received_qty, w.status, w.wo_type,
         w.from_store, w.to_store, w.from_location_id, w.to_location_id,
-        (w.planned_qty - w.received_qty) as wip_qty,
+        GREATEST(0, w.planned_qty - w.received_qty - COALESCE((SELECT SUM(rl2.rejection_qty) FROM wo_receipt_lines rl2 WHERE rl2.wo_id = w.id), 0)) as wip_qty,
         b.bom_code, b.output_sku,
         p.description as product_name
       FROM work_order_header w
@@ -348,10 +348,17 @@ const receiveWorkOrder = async (req, res) => {
     }
 
     // ── 4. Update WO header ──────────────────────────────────────────────────
+    // Status = RECEIVED when received_qty + total_rejection >= planned_qty
     await client.query(`
       UPDATE work_order_header
       SET received_qty = $1,
-          status = CASE WHEN $1 >= planned_qty THEN 'RECEIVED' ELSE 'PARTIAL' END::wo_status_enum,
+          status = CASE
+            WHEN $1 + COALESCE(
+              (SELECT SUM(rl.rejection_qty) FROM wo_receipt_lines rl WHERE rl.wo_id = $2), 0
+            ) >= planned_qty THEN 'RECEIVED'
+            WHEN $1 > 0 THEN 'PARTIAL'
+            ELSE status
+          END::wo_status_enum,
           to_store   = COALESCE($3, to_store),
           from_store = COALESCE($4, from_store),
           to_location_id   = COALESCE($5, to_location_id),
@@ -464,12 +471,16 @@ const getWipSummary = async (req, res) => {
     const result = await query(`
       SELECT
         COUNT(*) as total_wip_orders,
-        COALESCE(SUM(planned_qty - received_qty), 0) as total_wip_qty,
-        COUNT(CASE WHEN wo_type = 'RM_TO_SF' THEN 1 END) as rm_to_sf,
-        COUNT(CASE WHEN wo_type = 'SF_TO_FG' THEN 1 END) as sf_to_fg,
-        COUNT(CASE WHEN wo_type = 'RM_TO_FG' THEN 1 END) as rm_to_fg
-      FROM work_order_header
-      WHERE planned_qty > received_qty
+        COALESCE(SUM(
+          GREATEST(0, w.planned_qty - w.received_qty -
+            COALESCE((SELECT SUM(rl.rejection_qty) FROM wo_receipt_lines rl WHERE rl.wo_id = w.id), 0))
+        ), 0) as total_wip_qty,
+        COUNT(CASE WHEN w.wo_type = 'RM_TO_SF' THEN 1 END) as rm_to_sf,
+        COUNT(CASE WHEN w.wo_type = 'SF_TO_FG' THEN 1 END) as sf_to_fg,
+        COUNT(CASE WHEN w.wo_type = 'RM_TO_FG' THEN 1 END) as rm_to_fg
+      FROM work_order_header w
+      WHERE (w.planned_qty - w.received_qty -
+        COALESCE((SELECT SUM(rl.rejection_qty) FROM wo_receipt_lines rl WHERE rl.wo_id = w.id), 0)) > 0
     `)
     res.json({ success: true, data: result.rows[0] })
   } catch (err) {
@@ -483,21 +494,21 @@ const getWip = async (req, res) => {
       SELECT 
         w.id, w.wo_number, w.wo_date, w.wo_type,
         w.planned_qty, w.received_qty,
-        (w.planned_qty - w.received_qty) as wip_qty,
+        COALESCE(SUM(rl.rejection_qty), 0) as total_rejection_qty,
+        GREATEST(0, w.planned_qty - w.received_qty - COALESCE(SUM(rl.rejection_qty), 0)) as wip_qty,
         w.status, w.from_store, w.to_store,
         b.bom_code, b.output_sku,
         p.description as product_name,
         p.size_chart as product_size_chart,
-        NOW()::date - w.wo_date as age_days,
-        COALESCE(SUM(rl.rejection_qty), 0) as total_rejection_qty
+        NOW()::date - w.wo_date as age_days
       FROM work_order_header w
       JOIN bom_header b ON w.bom_id = b.id
       JOIN product_master p ON b.output_sku = p.sku_code
       LEFT JOIN wo_receipt_lines rl ON rl.wo_id = w.id
-      WHERE w.planned_qty > w.received_qty
       GROUP BY w.id, w.wo_number, w.wo_date, w.wo_type,
                w.planned_qty, w.received_qty, w.status, w.from_store, w.to_store,
                b.bom_code, b.output_sku, p.description, p.size_chart
+      HAVING (w.planned_qty - w.received_qty - COALESCE(SUM(rl.rejection_qty), 0)) > 0
       ORDER BY w.wo_date ASC
     `)
     res.json({ success: true, data: result.rows })
