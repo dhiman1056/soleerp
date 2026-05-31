@@ -9,7 +9,9 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://localhost',
-    'https://bubbly-smile-production-9451.up.railway.app'
+    'https://bubbly-smile-production-9451.up.railway.app',
+    'https://soleerp.in',
+    'https://www.soleerp.in'
   ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
