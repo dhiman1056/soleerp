@@ -414,7 +414,12 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                 </div>
                 <div>
                   <label className="label">Pack Size</label>
-                  <input type="number" {...register('pack_size')} className="input-field" min="1" />
+                  <input
+                    type="text"
+                    {...register('pack_size')}
+                    className="input-field"
+                    placeholder="e.g. 12, 6x2, 24PCS"
+                  />
                 </div>
               </div>
 

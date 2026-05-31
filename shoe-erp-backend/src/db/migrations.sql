@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS product_master (
 ALTER TABLE product_master ADD COLUMN IF NOT EXISTS short_description VARCHAR(255);
 ALTER TABLE product_master ADD COLUMN IF NOT EXISTS long_description TEXT;
 ALTER TABLE product_master ADD COLUMN IF NOT EXISTS uom_id INTEGER REFERENCES uom_master(id);
-ALTER TABLE product_master ADD COLUMN IF NOT EXISTS pack_size INTEGER DEFAULT 1;
+ALTER TABLE product_master ADD COLUMN IF NOT EXISTS pack_size VARCHAR(50) DEFAULT '1';
 ALTER TABLE product_master ADD COLUMN IF NOT EXISTS pack_size_uom_id INTEGER REFERENCES uom_master(id);
 ALTER TABLE product_master ADD COLUMN IF NOT EXISTS brand_id INTEGER REFERENCES brand_master(id);
 ALTER TABLE product_master ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES category_master(id);
@@ -682,3 +682,6 @@ ADD COLUMN IF NOT EXISTS contact_mobile VARCHAR(10);
 -- Product Master - add sku_type
 ALTER TABLE product_master
 ADD COLUMN IF NOT EXISTS sku_type VARCHAR(10) DEFAULT 'parent';
+
+-- Product Master - change pack_size to VARCHAR to support alphanumeric values
+ALTER TABLE product_master ALTER COLUMN pack_size TYPE VARCHAR(50) USING pack_size::VARCHAR;

@@ -241,7 +241,7 @@ const createProduct = async (req, res, next) => {
       ptype,
       (uom || 'PCS').trim().toUpperCase(),
       uom_id         ? parseInt(uom_id)         : null,
-      parseInt(pack_size) || 1,
+      pack_size !== undefined && pack_size !== null ? String(pack_size).trim() : '1',
       pack_size_uom_id ? parseInt(pack_size_uom_id) : null,
       brand_name     || null,
       brand_id       ? parseInt(brand_id)       : null,
@@ -328,7 +328,7 @@ const updateProduct = async (req, res, next) => {
     }
     if (uom              !== undefined) sets.push(`uom = ${push(uom.trim().toUpperCase())}`)
     if (uom_id           !== undefined) sets.push(`uom_id = ${push(uom_id ? parseInt(uom_id) : null)}`)
-    if (pack_size        !== undefined) sets.push(`pack_size = ${push(parseInt(pack_size) || 1)}`)
+    if (pack_size        !== undefined) sets.push(`pack_size = ${push(pack_size !== null ? String(pack_size).trim() : '1')}`)
     if (pack_size_uom_id !== undefined) sets.push(`pack_size_uom_id = ${push(pack_size_uom_id ? parseInt(pack_size_uom_id) : null)}`)
     if (brand_name       !== undefined) sets.push(`brand_name = ${push(brand_name || null)}`)
     if (brand_id         !== undefined) sets.push(`brand_id = ${push(brand_id ? parseInt(brand_id) : null)}`)
