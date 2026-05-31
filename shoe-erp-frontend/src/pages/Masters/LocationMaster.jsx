@@ -444,17 +444,49 @@ export default function LocationMaster() {
             example: 'Raw Material Store A'
           },
           {
-            key: 'location_type',
-            label: 'Location Type',
-            required: true,
-            example: 'Raw Material Store',
-            note: 'Options: Raw Material Store | Semi-Finished Store | Finished Goods Warehouse | WIP Store | Rejection Store | Dispatch Area | Other'
+            key: 'address',
+            label: 'Address',
+            required: false,
+            example: '123 Factory Lane'
           },
           {
-            key: 'description',
-            label: 'Description',
+            key: 'city',
+            label: 'City',
             required: false,
-            example: 'Main RM storage area'
+            example: 'Agra'
+          },
+          {
+            key: 'state',
+            label: 'State',
+            required: false,
+            example: 'Uttar Pradesh'
+          },
+          {
+            key: 'pincode',
+            label: 'Pincode',
+            required: false,
+            example: '282001',
+            note: 'Must be 6 digits if provided'
+          },
+          {
+            key: 'contact_name',
+            label: 'Contact Name',
+            required: false,
+            example: 'John Doe'
+          },
+          {
+            key: 'contact_email',
+            label: 'Contact Email',
+            required: false,
+            example: 'john.doe@example.com',
+            note: 'Must contain @ if provided'
+          },
+          {
+            key: 'contact_mobile',
+            label: 'Contact Mobile',
+            required: false,
+            example: '9876543210',
+            note: 'Must be exactly 10 digits if provided'
           }
         ]}
         importUrl="/locations/import"

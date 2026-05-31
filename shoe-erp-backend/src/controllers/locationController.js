@@ -178,12 +178,6 @@ const importLocations = async (req, res) => {
     return res.status(400).json({ message: 'No rows provided' })
   }
 
-  const VALID_TYPES = [
-    'Raw Material Store', 'Semi-Finished Store',
-    'Finished Goods Warehouse', 'WIP Store',
-    'Rejection Store', 'Dispatch Area', 'Other'
-  ]
-
   let imported = 0, skipped = 0
   const errors = []
 
@@ -191,19 +185,27 @@ const importLocations = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const location_name = (row['Location Name'] || row['location_name'] || '').trim()
-      const location_type = (row['Location Type'] || row['location_type'] || 'Other').trim()
-      const description   = (row['Description']   || row['description']   || '').trim()
+      const location_name  = (row['Location Name']  || row['location_name']  || '').trim()
+      const address        = (row['Address']        || row['address']        || '').trim()
+      const city           = (row['City']           || row['city']           || '').trim()
+      const state          = (row['State']          || row['state']          || '').trim()
+      const pincode        = (row['Pincode']        || row['pincode']        || '').trim()
+      const contact_name   = (row['Contact Name']   || row['contact_name']   || '').trim()
+      const contact_email  = (row['Contact Email']  || row['contact_email']  || '').trim()
+      const contact_mobile = (row['Contact Mobile'] || row['contact_mobile'] || '').trim()
 
       if (!location_name) {
         errors.push({ row: rowNum, message: 'Location Name is required' })
         continue
       }
-      if (!VALID_TYPES.includes(location_type)) {
-        errors.push({
-          row: rowNum,
-          message: `Invalid Location Type "${location_type}". Must be one of: ${VALID_TYPES.join(' | ')}`
-        })
+
+      if (contact_mobile && !/^[0-9]{10}$/.test(contact_mobile)) {
+        errors.push({ row: rowNum, message: 'Contact Mobile must be exactly 10 digits' })
+        continue
+      }
+
+      if (contact_email && !contact_email.includes('@')) {
+        errors.push({ row: rowNum, message: 'Contact Email must be a valid email containing "@"' })
         continue
       }
 
@@ -212,15 +214,35 @@ const importLocations = async (req, res) => {
         'SELECT id FROM location_master WHERE LOWER(location_name) = LOWER($1)',
         [location_name]
       )
-      if (dup.rows.length > 0) { skipped++; continue }
+      if (dup.rows.length > 0) {
+        skipped++
+        continue
+      }
 
       const loc_master_code = await generateCode()
+      const location_code = loc_master_code
+      const location_type = 'Other' // Default as requested
+
       await query(`
-        INSERT INTO location_master
-          (loc_master_code, location_code, location_name, location_type, description)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [loc_master_code, loc_master_code, location_name,
-          location_type, description || null])
+        INSERT INTO location_master (
+          loc_master_code, location_code, location_name, location_type,
+          address, city, state, pincode,
+          contact_name, contact_email, contact_mobile
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      `, [
+        loc_master_code,
+        location_code,
+        location_name,
+        location_type,
+        address || null,
+        city || null,
+        state || null,
+        pincode || null,
+        contact_name || null,
+        contact_email ? contact_email.toLowerCase() : null,
+        contact_mobile || null
+      ])
 
       imported++
     } catch (err) {
