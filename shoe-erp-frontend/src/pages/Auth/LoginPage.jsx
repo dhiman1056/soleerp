@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../../api/axiosInstance'
 import { useAuth } from '../../hooks/useAuth'
+import SoleERPLogo from '../../components/common/SoleERPLogo'
 
 export default function LoginPage() {
   const { register, handleSubmit, formState: { errors } } = useForm()
@@ -38,18 +39,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
         <div className="p-8">
           <div className="flex justify-center mb-6">
-            <div className="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center">
-              <span className="text-white text-lg font-bold">SE</span>
-            </div>
-          </div>
-          
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-black text-gray-900">
-              Sole<span className="text-blue-600">ERP</span>
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Shoe Manufacturing Management System
-            </p>
+            <SoleERPLogo size="lg" />
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">

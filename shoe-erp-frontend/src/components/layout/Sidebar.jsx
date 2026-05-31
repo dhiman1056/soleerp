@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, useContext } 
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useWIPSummaryQuery } from '../../hooks/useWorkOrders'
 import { useAuth } from '../../hooks/useAuth'
+import SoleERPLogo from '../common/SoleERPLogo'
 
 const Icon = ({ path, path2 }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -192,18 +193,7 @@ export default function Sidebar() {
         className="h-16 flex items-center justify-center gap-3 px-4 border-b border-gray-100 cursor-pointer"
         onClick={() => navigate('/')}
       >
-        <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center flex-shrink-0 shadow shadow-blue-200">
-          <span className="text-white text-xs font-black">SE</span>
-        </div>
-        {!collapsed && (
-          <div className="flex-1">
-            <div>
-              <span className="font-black text-gray-900">Sole</span>
-              <span className="font-black text-blue-600">ERP</span>
-            </div>
-            <p className="text-xs text-blue-600 font-semibold uppercase mt-0.5">MANUFACTURING</p>
-          </div>
-        )}
+        <SoleERPLogo size="sm" showText={!collapsed} />
       </div>
 
       {/* Nav items */}

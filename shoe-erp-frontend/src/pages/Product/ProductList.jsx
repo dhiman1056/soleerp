@@ -7,6 +7,7 @@ import { PRODUCT_TYPE_LABELS } from '../../utils/constants.js'
 import { formatCurrency }      from '../../utils/formatCurrency.js'
 import { useAuth }             from '../../hooks/useAuth.js'
 import { useCategories }       from '../../hooks/useCategories.js'
+import { useDepartments }      from '../../hooks/useDepartments.js'
 
 const TYPE_BADGE = {
   RAW_MATERIAL:  'bg-gray-100 text-gray-700',
@@ -169,29 +170,33 @@ const exportCsv = (records) => {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 export default function ProductList() {
-  const [search,       setSearch]      = useState('')
-  const [typeFilter,   setTypeFilter]  = useState('All')
-  const [catFilter,    setCatFilter]   = useState('All')
-  const [page,         setPage]        = useState(1)
-  const [editTarget,   setEditTarget]  = useState(null)
-  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [search,         setSearch]        = useState('')
+  const [typeFilter,     setTypeFilter]    = useState('All')
+  const [filterDept,     setFilterDept]    = useState('')
+  const [filterCategory, setFilterCategory] = useState('')
+  const [page,           setPage]          = useState(1)
+  const [editTarget,     setEditTarget]    = useState(null)
+  const [deleteTarget,   setDeleteTarget]  = useState(null)
 
   const { role } = useAuth()
   const canEdit   = ['admin', 'manager'].includes(role)
   const canDelete = role === 'admin'
 
-  const { data: categoriesData = [] } = useCategories()
-  const categoriesList = useMemo(() => {
-    const names = categoriesData.map(c => c.catg_name).filter(Boolean)
-    return ['All', ...Array.from(new Set(names))]
-  }, [categoriesData])
+  const { data: departments = [] } = useDepartments()
+  const { data: categories = [] }  = useCategories()
+
+  const filteredCategories = useMemo(() => {
+    return filterDept
+      ? categories.filter(c => String(c.dept_id) === String(filterDept))
+      : categories
+  }, [categories, filterDept])
 
   const apiParams = {
     page,
     limit: 50,
     ...(typeFilter !== 'All' ? { product_type: typeFilter } : {}),
-    ...(catFilter  !== 'All' ? { category: catFilter }     : {}),
-    ...(search.trim()        ? { search: search.trim() }   : {}),
+    ...(filterCategory       ? { category_id: filterCategory } : {}),
+    ...(search.trim()        ? { search: search.trim() } : {}),
   }
 
   const { data: rawData, isLoading } = useProducts(apiParams)
@@ -251,6 +256,41 @@ export default function ProductList() {
           onChange={(e) => { setSearch(e.target.value); setPage(1) }}
           className="input-field max-w-xs"
         />
+
+        <select
+          value={filterDept}
+          onChange={e => {
+            setFilterDept(e.target.value)
+            setFilterCategory('') // reset category when dept changes
+            setPage(1)
+          }}
+          className="input-field w-auto min-w-[160px]"
+        >
+          <option value="">All Departments</option>
+          {departments.map(d => (
+            <option key={d.id} value={d.id}>
+              {d.dept_name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={filterCategory}
+          onChange={e => {
+            setFilterCategory(e.target.value)
+            setPage(1)
+          }}
+          className="input-field w-auto min-w-[160px]"
+          disabled={!filterDept}
+        >
+          <option value="">All Categories</option>
+          {filteredCategories.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.catg_name || c.category_name}
+            </option>
+          ))}
+        </select>
+
         <select
           value={typeFilter}
           onChange={(e) => { setTypeFilter(e.target.value); setPage(1) }}
@@ -260,18 +300,10 @@ export default function ProductList() {
             <option key={t} value={t}>{t === 'All' ? 'All Types' : (TYPE_LABEL[t] || t)}</option>
           ))}
         </select>
-        <select
-          value={catFilter}
-          onChange={(e) => { setCatFilter(e.target.value); setPage(1) }}
-          className="input-field w-auto"
-        >
-          {categoriesList.map((c) => (
-            <option key={c} value={c}>{c === 'All' ? 'All Categories' : c}</option>
-          ))}
-        </select>
-        {(search || typeFilter !== 'All' || catFilter !== 'All') && (
+
+        {(search || typeFilter !== 'All' || filterDept || filterCategory) && (
           <button
-            onClick={() => { setSearch(''); setTypeFilter('All'); setCatFilter('All'); setPage(1) }}
+            onClick={() => { setSearch(''); setTypeFilter('All'); setFilterDept(''); setFilterCategory(''); setPage(1) }}
             className="text-xs text-red-500 hover:underline font-medium"
           >
             Clear filters
