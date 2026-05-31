@@ -5,6 +5,7 @@ const ctrl   = require('../controllers/componentsController')
 
 router.get('/',       auth,                         ctrl.listComponents)
 router.get('/:id',    auth,                         ctrl.getComponent)
+router.post('/import', auth, role('admin','manager'), ctrl.importComponents)
 router.post('/',      auth, role('admin','manager'), ctrl.createComponent)
 router.put('/:id',    auth, role('admin','manager'), ctrl.updateComponent)
 router.delete('/:id', auth, role('admin'),           ctrl.deleteComponent)

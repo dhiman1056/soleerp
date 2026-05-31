@@ -103,4 +103,46 @@ const deleteComponent = async (req, res) => {
   }
 }
 
-module.exports = { listComponents, getComponent, createComponent, updateComponent, deleteComponent }
+const importComponents = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const comp_name = (row['Component Name'] || '').trim()
+
+      if (!comp_name) {
+        errors.push({ row: rowNum, message: 'Component Name is required' })
+        continue
+      }
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM components_master WHERE LOWER(comp_name) = LOWER($1)',
+        [comp_name]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const comp_code = await generateCode()
+      await query(`
+        INSERT INTO components_master (comp_code, comp_name)
+        VALUES ($1, $2)
+      `, [comp_code, comp_name])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
+module.exports = { listComponents, getComponent, createComponent, updateComponent, deleteComponent, importComponents }
