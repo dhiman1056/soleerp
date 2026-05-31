@@ -35,7 +35,13 @@ export default function BOMForm() {
   const { data: productsRaw,  isLoading: prodsLoading } = useProductsQuery({ limit: 500, is_active: 'true' })
   const { data: rmRaw,        isLoading: rmLoading }    = useRawMaterialsQuery({ limit: 500, is_active: 'true' })
 
-  const allProducts = Array.isArray(productsRaw) ? productsRaw : Array.isArray(productsRaw?.data) ? productsRaw.data : []
+  const allProducts = Array.isArray(productsRaw)
+    ? productsRaw
+    : Array.isArray(productsRaw?.records)
+      ? productsRaw.records
+      : Array.isArray(productsRaw?.data)
+        ? productsRaw.data
+        : []
   const allRMs = Array.isArray(rmRaw) ? rmRaw : Array.isArray(rmRaw?.data) ? rmRaw.data : []
 
   const [useSizeVariants, setUseSizeVariants] = useState(false)

@@ -8,7 +8,10 @@ export const useProducts = (params = {}) =>
     queryKey: ['products', params],
     queryFn: async () => {
       const res = await api.get('/products', { params })
-      return res.data?.data?.items ?? res.data?.data ?? []
+      return {
+        records: res.data?.data ?? [],
+        meta: res.data?.meta ?? {}
+      }
     },
   })
 
