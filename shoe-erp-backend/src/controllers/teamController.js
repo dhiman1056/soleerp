@@ -128,4 +128,64 @@ const deleteTeam = async (req, res) => {
   }
 }
 
-module.exports = { listTeams, getTeam, createTeam, updateTeam, deleteTeam }
+const importTeams = async (req, res) => {
+  const { rows } = req.body
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ message: 'No rows provided' })
+  }
+
+  let imported = 0, skipped = 0
+  const errors = []
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    const rowNum = i + 1
+    try {
+      const team_name  = (row['Team Name']      || '').trim()
+      const div_name   = (row['Division Name']  || '').trim()
+      const description = (row['Description']   || '').trim()
+
+      if (!team_name) {
+        errors.push({ row: rowNum, message: 'Team Name is required' })
+        continue
+      }
+      if (!div_name) {
+        errors.push({ row: rowNum, message: 'Division Name is required' })
+        continue
+      }
+
+      // Resolve division name → division_id (required)
+      const divRes = await query(
+        'SELECT id FROM division_master WHERE LOWER(div_name) = LOWER($1) AND is_active = true',
+        [div_name]
+      )
+      if (divRes.rows.length === 0) {
+        errors.push({ row: rowNum,
+          message: `Division "${div_name}" not found. Create it first in Division Master.` })
+        continue
+      }
+      const division_id = divRes.rows[0].id
+
+      // Skip duplicate
+      const dup = await query(
+        'SELECT id FROM team_master WHERE LOWER(team_name) = LOWER($1) AND division_id = $2',
+        [team_name, division_id]
+      )
+      if (dup.rows.length > 0) { skipped++; continue }
+
+      const team_code = await generateCode()
+      await query(`
+        INSERT INTO team_master (team_code, team_name, division_id, description)
+        VALUES ($1, $2, $3, $4)
+      `, [team_code, team_name, division_id, description || null])
+
+      imported++
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message })
+    }
+  }
+
+  res.json({ success: true, imported, skipped, errors })
+}
+
+module.exports = { listTeams, getTeam, createTeam, updateTeam, deleteTeam, importTeams }
