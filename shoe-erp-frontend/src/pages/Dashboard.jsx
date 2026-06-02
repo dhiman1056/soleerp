@@ -136,7 +136,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         <div className="card xl:col-span-7 p-5 flex flex-col">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-sm font-semibold text-gray-900">Production Trend</h2>
+            <h2 className="text-[14px] font-semibold text-slate-900">Production Trend</h2>
             <select className="input-field py-1" value={trendPeriod} onChange={e => setTrendPeriod(e.target.value)}>
               <option value="7d">7 Days</option>
               <option value="30d">30 Days</option>
@@ -163,7 +163,7 @@ export default function Dashboard() {
 
         <div className="card xl:col-span-5 p-5 flex flex-col">
           <div className="mb-4">
-            <h2 className="text-sm font-semibold text-gray-900">WIP by Age</h2>
+            <h2 className="text-[14px] font-semibold text-slate-900">WIP by Age</h2>
           </div>
           {wipLoading ? <SkeletonChart /> : (
             <div className="flex-1 min-h-[300px] flex items-center justify-center relative">
@@ -201,7 +201,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <div className="card p-5 min-h-[350px]">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-sm font-semibold text-gray-900">Product Mix</h2>
+            <h2 className="text-[14px] font-semibold text-slate-900">Product Mix</h2>
             <select className="input-field py-1" value={mixPeriod} onChange={e => setMixPeriod(e.target.value)}>
               <option value="30d">30 Days</option>
               <option value="90d">90 Days</option>
@@ -222,7 +222,7 @@ export default function Dashboard() {
         </div>
 
         <div className="card p-5 min-h-[350px]">
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">Material Consumption (Top 5)</h2>
+          <h2 className="text-[14px] font-semibold text-slate-900 mb-4">Material Consumption (Top 5)</h2>
           {matLoading ? <SkeletonChart /> : (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={getStackedData(matTrend)}>
@@ -244,8 +244,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-10 gap-6">
         {/* Supplier Performance */}
         <div className="card col-span-1 xl:col-span-4 p-0 overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-900">Supplier Performance</h2>
+          <div className="px-5 py-4 border-b border-slate-100">
+            <h2 className="text-[14px] font-semibold text-slate-900">Supplier Performance</h2>
           </div>
           {supLoading ? (
             <div className="p-5"><table className="w-full"><tbody><SkeletonRow count={3} /></tbody></table></div>
@@ -288,8 +288,8 @@ export default function Dashboard() {
 
         {/* Notifications */}
         <div className="card col-span-1 xl:col-span-3 p-0 flex flex-col">
-          <div className="px-5 py-4 border-b border-gray-100 flex justify-between">
-            <h2 className="text-sm font-semibold text-gray-900">Notifications</h2>
+          <div className="px-5 py-4 border-b border-slate-100 flex justify-between">
+            <h2 className="text-[14px] font-semibold text-slate-900">Notifications</h2>
             <button className="text-xs text-blue-600">View All</button>
           </div>
           <div className="divide-y divide-gray-50 p-2">
@@ -313,7 +313,7 @@ export default function Dashboard() {
         {/* Low Stock */}
         <div className="card col-span-1 xl:col-span-3 p-0 flex flex-col">
           <div className="px-5 py-4 border-b border-red-100 bg-red-50/50 flex justify-between">
-            <h2 className="text-sm font-semibold text-red-800">Low Stock</h2>
+            <h2 className="text-[14px] font-semibold text-red-800">Low Stock</h2>
             <button onClick={() => navigate('/inventory/stock')} className="text-xs text-red-600">Inventory →</button>
           </div>
           <div className="divide-y divide-red-50 p-2">

@@ -180,18 +180,18 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
   }
 
   return createPortal(
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-300">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden border border-gray-100 transform scale-100 flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 bg-[#0f172a]/50 backdrop-blur-[4px] z-50 flex items-center justify-center p-4 transition-all duration-300">
+      <div className="bg-white rounded-[16px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] w-full max-w-[720px] overflow-hidden border border-slate-100 transform scale-100 flex flex-col max-h-[85vh]">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-700 text-white flex-shrink-0">
+        <div className="flex items-center justify-between px-6 py-5 bg-white border-b border-[#f1f5f9] flex-shrink-0">
           <div>
-            <h3 className="text-lg font-bold">Import Data - {masterName}</h3>
-            <p className="text-xs text-blue-100 mt-0.5">Upload CSV or Excel templates directly to database</p>
+            <h3 className="text-[16px] font-semibold text-[#0f172a]">Import Data - {masterName}</h3>
+            <p className="text-[12px] text-[#64748b] mt-0.5">Upload CSV or Excel templates directly to database</p>
           </div>
           <button
             onClick={() => { resetModal(); onClose() }}
-            className="p-1.5 rounded-lg text-blue-100 hover:text-white hover:bg-white/10 transition-colors"
+            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] transition-colors"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
@@ -280,7 +280,7 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
             )}
 
             {/* Modal Actions Footer */}
-            <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 flex-shrink-0">
+            <div className="flex justify-end gap-2.5 px-6 py-4 border-t border-[#f1f5f9] bg-white flex-shrink-0">
               <button
                 type="button"
                 onClick={() => { resetModal(); onClose() }}
@@ -292,7 +292,7 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
               <button
                 type="button"
                 onClick={handleImportSubmit}
-                className="btn-primary bg-indigo-600 hover:bg-indigo-700 flex items-center gap-2 whitespace-nowrap"
+                className="btn-primary bg-[#4f46e5] hover:bg-[#4338ca] flex items-center gap-2 whitespace-nowrap"
                 disabled={isImporting || parsedRows.length === 0}
               >
                 {isImporting ? 'Importing…' : `Start Import (${parsedRows.length} rows)`}
@@ -350,14 +350,14 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
             )}
 
             {/* Footer */}
-            <div className="flex justify-end pt-4 border-t border-gray-100 flex-shrink-0">
+            <div className="flex justify-end px-6 py-4 border-t border-[#f1f5f9] bg-white flex-shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   resetModal()
                   onSuccess()
                 }}
-                className="btn-primary bg-gradient-to-r from-blue-600 to-indigo-600"
+                className="btn-primary bg-[#4f46e5] hover:bg-[#4338ca]"
               >
                 Close & Refresh
               </button>

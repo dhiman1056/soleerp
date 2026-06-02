@@ -18,8 +18,11 @@ const EMPTY = {
 }
 
 const Field = ({ label, required, error, children }) => (
-  <div>
-    <label className="label">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
+  <div className="flex flex-col gap-1">
+    <label className="text-[12.5px] text-[#64748b] font-medium mb-1 flex items-center gap-0.5 normal-case">
+      {label}
+      {required && <span className="text-red-500">*</span>}
+    </label>
     {children}
     {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
   </div>
@@ -110,33 +113,33 @@ function LocationModal({ editItem, onClose }) {
   }
 
   return createPortal(
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+    <div className="fixed inset-0 bg-[#0f172a]/50 backdrop-blur-[4px] z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-[16px] shadow-[0_20px_60px_rgba(0,0,0,0.15)] w-full max-w-[580px] overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-5 border-b border-[#f1f5f9]">
           <div>
-            <h3 className="text-lg font-bold text-gray-900">{isEdit ? 'Edit Location' : 'Add New Location'}</h3>
+            <h3 className="text-[16px] font-semibold text-[#0f172a]">{isEdit ? 'Edit Location' : 'Add New Location'}</h3>
             {isEdit && editItem.loc_master_code && (
-              <p className="text-xs font-mono font-semibold text-gray-500 mt-0.5">{editItem.loc_master_code}</p>
+              <p className="text-xs font-mono font-semibold text-[#64748b] mt-0.5">{editItem.loc_master_code}</p>
             )}
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <button onClick={onClose} className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-[#f1f5f9] text-[#64748b] hover:text-[#0f172a] transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
-          <div>
-            <label className="label">Location Code</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-[12.5px] text-[#64748b] font-medium mb-1 normal-case">Location code</label>
             <input
               value={isEdit ? editItem.loc_master_code : "Auto Generated (LOC-0001)"}
               disabled
-              className="input-field bg-gray-50 text-gray-500 font-mono"
+              className="input-field bg-slate-50 text-slate-400 font-mono border-slate-200"
             />
           </div>
 
-          <Field label="Location Name" required error={errors.location_name}>
+          <Field label="Location name" required error={errors.location_name}>
             <input
               type="text"
               placeholder="e.g. Raw Material Store A"
@@ -196,10 +199,10 @@ function LocationModal({ editItem, onClose }) {
             </Field>
           </div>
 
-          <div className="border-t border-gray-100 pt-3 mt-3">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Contact Person Details</p>
+          <div className="border-t border-slate-100 pt-4 mt-4">
+            <p className="text-[11px] font-semibold text-[#94a3b8] uppercase tracking-[0.08em] mb-3">Contact person details</p>
             <div className="space-y-4">
-              <Field label="Contact Name">
+              <Field label="Contact name">
                 <input
                   type="text"
                   placeholder="e.g. John Doe"
@@ -210,7 +213,7 @@ function LocationModal({ editItem, onClose }) {
               </Field>
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Contact Email" error={errors.contact_email}>
+                <Field label="Contact email" error={errors.contact_email}>
                   <input
                     type="email"
                     placeholder="e.g. contact@domain.com"
@@ -223,7 +226,7 @@ function LocationModal({ editItem, onClose }) {
                   />
                 </Field>
 
-                <Field label="Contact Mobile" error={errors.contact_mobile}>
+                <Field label="Contact mobile" error={errors.contact_mobile}>
                   <input
                     type="tel"
                     maxLength={10}
@@ -242,17 +245,17 @@ function LocationModal({ editItem, onClose }) {
           </div>
 
           {!isEdit && (
-            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 rounded-lg border border-blue-100">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex items-center gap-2 px-3 py-2 bg-[#eef2ff] rounded-lg border border-[#e2e8f0]">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-[#4f46e5] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-xs text-blue-700">Code auto-generated on save (LOC-0001, LOC-0002…)</p>
+              <p className="text-xs text-[#4f46e5]">Code auto-generated on save (LOC-0001, LOC-0002…)</p>
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+          <div className="flex justify-end gap-2.5 pt-4 border-t border-[#f1f5f9]">
             <button type="button" onClick={onClose} className="btn-secondary" disabled={pending}>Cancel</button>
-            <button type="submit" className="btn-primary" disabled={pending}>
+            <button type="submit" className="btn-primary bg-[#4f46e5] hover:bg-[#4338ca]" disabled={pending}>
               {pending ? 'Saving…' : isEdit ? 'Update Location' : 'Create Location'}
             </button>
           </div>
@@ -297,23 +300,27 @@ export default function LocationMaster() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex justify-between items-center mb-5 gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Location Master</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Manage storage locations — codes auto-generated (LOC-0001…)</p>
+          <h1 className="text-[22px] font-bold text-[#0f172a] leading-tight">Location Master</h1>
+          <p className="text-[13px] text-[#64748b] mt-0.5">Manage storage locations — codes auto-generated (LOC-0001…)</p>
         </div>
         {canEdit && (
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setShowImport(true)}
-              className="btn-secondary flex items-center gap-2 whitespace-nowrap bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 shadow-sm"
+              className="border border-[#e2e8f0] bg-white text-[#374151] rounded-lg px-[14px] py-2 flex items-center gap-2 whitespace-nowrap text-sm font-medium hover:bg-slate-50 transition-colors shadow-sm"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
               </svg>
               Import CSV
             </button>
-            <button id="btn-add-location" onClick={openCreate} className="btn-primary flex items-center gap-2 whitespace-nowrap">
+            <button
+              id="btn-add-location"
+              onClick={openCreate}
+              className="bg-[#4f46e5] text-white rounded-lg px-4 py-2 flex items-center gap-2 whitespace-nowrap text-sm font-medium hover:bg-[#4338ca] transition-colors shadow-sm"
+            >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
@@ -324,17 +331,17 @@ export default function LocationMaster() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="bg-white rounded-[10px] border border-[#e2e8f0] p-3 px-4 flex flex-col sm:flex-row gap-3 items-center">
+        <div className="relative flex-1 w-full">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
           </svg>
           <input id="loc-search" className="input-field pl-9" placeholder="Search by name, code, contact or city…"
             value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <select id="loc-status-filter" className="input-field w-auto min-w-[140px]"
+        <select id="loc-status-filter" className="input-field w-full sm:w-auto min-w-[140px]"
           value={filterActive} onChange={e => setFilterActive(e.target.value)}>
-          <option value="">All Status</option>
+          <option value="">All status</option>
           <option value="true">Active</option>
           <option value="false">Inactive</option>
         </select>
@@ -347,7 +354,7 @@ export default function LocationMaster() {
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 border-b border-gray-100 text-gray-500 uppercase text-xs font-semibold">
+              <thead className="bg-slate-50 border-b border-slate-200 text-gray-500 uppercase text-xs font-semibold">
                 <tr>
                   <th className="px-5 py-3 whitespace-nowrap">Code</th>
                   <th className="px-5 py-3">Location Name</th>

@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import SoleERPLogo from '../common/SoleERPLogo'
 
 const Icon = ({ path, path2 }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-[10px] flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
     <path strokeLinecap="round" strokeLinejoin="round" d={path} />
     {path2 && <path strokeLinecap="round" strokeLinejoin="round" d={path2} />}
   </svg>
@@ -147,7 +147,7 @@ const adminNav = [
 
 const NavSection = ({ title, items, collapsed, wipCount }) => (
   <div className="py-2 w-full">
-    {!collapsed && <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-5">{title}</p>}
+    {!collapsed && <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[#94a3b8] pt-4 px-4 pb-1">{title}</p>}
     <div className="space-y-1">
       {items.map((item) => (
         <NavLink
@@ -155,10 +155,10 @@ const NavSection = ({ title, items, collapsed, wipCount }) => (
           to={item.to}
           end={item.end}
           className={({ isActive }) =>
-            `flex items-center gap-3 px-5 py-2.5 text-sm font-medium transition-colors relative
+            `flex items-center px-4 py-2 mx-2 text-[13.5px] font-medium rounded-lg transition-colors relative
              ${isActive
-               ? 'bg-gray-900 border-l-4 border-gray-900 text-white'
-               : 'text-gray-600 hover:bg-gray-50 border-l-4 border-transparent hover:text-gray-900'
+               ? 'bg-[#eef2ff] text-[#4f46e5] font-semibold'
+               : 'text-[#475569] hover:bg-[#f8fafc] hover:text-slate-900'
              }`
           }
         >
@@ -184,13 +184,13 @@ export default function Sidebar() {
   return (
     <aside
       className={`
-        h-screen bg-white border-r border-gray-100 flex flex-col transition-all duration-300 flex-shrink-0
+        h-screen bg-white border-r border-[#e2e8f0] flex flex-col transition-all duration-300 flex-shrink-0
         ${collapsed ? 'w-20' : 'w-64'}
       `}
     >
       <div
-        className={`h-16 flex items-center border-b border-gray-100 cursor-pointer transition-all duration-300 ${
-          collapsed ? 'justify-center px-4' : 'justify-start px-5'
+        className={`p-5 flex items-center border-b border-[#e2e8f0] cursor-pointer transition-all duration-300 ${
+          collapsed ? 'justify-center' : 'justify-start'
         }`}
         onClick={() => navigate('/')}
       >

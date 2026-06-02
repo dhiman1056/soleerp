@@ -58,7 +58,7 @@ export default function GlobalSearch() {
           ref={inputRef}
           type="text" 
           placeholder="Search BOMs, Orders, Suppliers (Cmd+K)" 
-          className="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block pl-10 p-2"
+          className="w-full bg-[#f1f5f9] border-none text-[#0f172a] text-sm rounded-lg block pl-10 pr-3.5 py-2 placeholder-[#94a3b8] focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/20 focus:bg-[#f1f5f9] transition"
           value={query}
           onChange={(e) => { setQuery(e.target.value); setIsOpen(true) }}
           onFocus={() => setIsOpen(true)}

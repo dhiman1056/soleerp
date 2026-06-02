@@ -94,7 +94,7 @@ export default function Topbar({ onToggleSidebar, onToggleNotifications }) {
   }, [])
 
   return (
-    <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-4 lg:px-6 flex-shrink-0 relative z-20">
+    <header className="h-[56px] bg-white border-b border-[#e2e8f0] flex items-center justify-between px-4 lg:px-6 flex-shrink-0 relative z-20">
 
       {/* LEFT SIDE: Hamburger & Title */}
       <div className="flex items-center gap-4 lg:gap-6 flex-1">
@@ -112,11 +112,11 @@ export default function Topbar({ onToggleSidebar, onToggleNotifications }) {
         )}
 
         <div>
-          <nav className="hidden sm:flex items-center gap-1.5 text-[10px] sm:text-xs text-gray-400 mb-0.5 uppercase tracking-wide font-medium">
+          <nav className="hidden sm:flex items-center gap-1.5 text-[13px] text-[#64748b] mb-0.5 tracking-wide font-medium">
             {labels.map((label, i) => (
               <span key={i} className="flex items-center gap-1.5">
                 {i > 0 && <span>/</span>}
-                <span className={i === labels.length - 1 ? 'text-blue-600 font-bold' : ''}>
+                <span className={i === labels.length - 1 ? 'text-[#4f46e5] font-semibold' : ''}>
                   {label}
                 </span>
               </span>
@@ -154,11 +154,11 @@ export default function Topbar({ onToggleSidebar, onToggleNotifications }) {
                 {role || 'Operator'}
               </span>
             </div>
-            <div className="w-8 h-8 rounded-full bg-gray-900 flex items-center justify-center border-2 border-white shadow-sm overflow-hidden select-none">
+            <div className="w-[34px] h-[34px] rounded-full bg-[#4f46e5] flex items-center justify-center border-2 border-white shadow-sm overflow-hidden select-none">
               {user?.avatar_url ? (
                 <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-white text-[10px] font-bold uppercase tracking-widest">{user?.name?.substring(0, 2) || 'OP'}</span>
+                <span className="text-white text-[13px] font-semibold uppercase">{user?.name?.substring(0, 2) || 'OP'}</span>
               )}
             </div>
           </div>

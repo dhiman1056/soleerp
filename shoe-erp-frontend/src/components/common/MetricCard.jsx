@@ -1,28 +1,34 @@
 import React from 'react';
+
 /**
- * Summary metric card.
- * Props: title, value, sub, icon (ReactNode), color ('gray'|'blue'|'amber'|'green')
+ * Modern 2026 Summary metric card.
+ * Props: title, value, subtitle (or sub), color
  */
-export default function MetricCard({ title, value, sub, icon, color = 'gray' }) {
-  const colorMap = {
-    gray:  { bg: 'bg-gray-100',  text: 'text-gray-600',  val: 'text-gray-900'  },
-    blue:  { bg: 'bg-blue-100',  text: 'text-blue-600',  val: 'text-blue-900'  },
-    amber: { bg: 'bg-amber-100', text: 'text-amber-600', val: 'text-amber-900' },
-    green: { bg: 'bg-green-100', text: 'text-green-600', val: 'text-green-900' },
+export default function MetricCard({ title, value, subtitle, sub, color = 'gray' }) {
+  const displaySub = subtitle || sub;
+
+  // Map color to accent bar color if custom is needed, or stick to indigo #4f46e5
+  const accentColors = {
+    blue: 'bg-[#4f46e5]',
+    green: 'bg-[#10b981]',
+    amber: 'bg-[#f59e0b]',
+    orange: 'bg-[#f97316]',
+    teal: 'bg-[#14b8a6]',
+    purple: 'bg-[#8b5cf6]',
+    red: 'bg-[#ef4444]',
+    gray: 'bg-slate-400'
   }
-  const c = colorMap[color] || colorMap.gray
+  const accentClass = accentColors[color] || 'bg-[#4f46e5]'
 
   return (
-    <div className="card p-5 flex items-start gap-4">
-      {icon && (
-        <div className={`w-10 h-10 rounded-xl ${c.bg} flex items-center justify-center flex-shrink-0`}>
-          <span className={c.text}>{icon}</span>
-        </div>
-      )}
+    <div className="relative bg-white border border-[#e2e8f0] rounded-[16px] shadow-[0_1px_3px_rgba(0,0,0,0.06)] px-6 py-5 flex flex-col justify-between overflow-hidden">
+      {/* Accent bar at top */}
+      <div className={`absolute top-0 left-0 right-0 h-[3px] ${accentClass}`} />
+      
       <div className="min-w-0">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide truncate">{title}</p>
-        <p className={`text-2xl font-bold mt-0.5 ${c.val}`}>{value ?? '—'}</p>
-        {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+        <p className="text-[12px] text-[#64748b] font-medium mb-2 truncate">{title}</p>
+        <p className="text-[28px] font-bold text-[#0f172a] leading-none">{value ?? '—'}</p>
+        {displaySub && <p className="text-xs text-[#94a3b8] mt-1.5">{displaySub}</p>}
       </div>
     </div>
   )
