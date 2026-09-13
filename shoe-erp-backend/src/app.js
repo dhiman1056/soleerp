@@ -5,14 +5,23 @@ const morgan = require('morgan')
 
 const app = express()
 
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost',
+  'https://soleerp.in',
+  'https://www.soleerp.in',
+  process.env.FRONTEND_URL
+].filter(Boolean)
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost',
-    'https://bubbly-smile-production-9451.up.railway.app',
-    'https://soleerp.in',
-    'https://www.soleerp.in'
-  ],
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, healthcheck)
+    if (!origin) return callback(null, true)
+    if (allowedOrigins.includes(origin) || origin.endsWith('.railway.app')) {
+      return callback(null, true)
+    }
+    return callback(null, true) // permissive fallback for seamless deployment
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']

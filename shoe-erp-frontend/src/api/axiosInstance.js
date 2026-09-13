@@ -1,7 +1,9 @@
 import axios from 'axios'
 
+const baseURL = import.meta.env.VITE_API_URL || 'https://api.soleerp.in/api'
+
 const axiosInstance = axios.create({
-  baseURL: 'https://soleerp-production.up.railway.app/api',
+  baseURL,
 })
 
 axiosInstance.interceptors.request.use((config) => {
