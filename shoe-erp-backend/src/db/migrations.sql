@@ -685,3 +685,14 @@ ADD COLUMN IF NOT EXISTS sku_type VARCHAR(10) DEFAULT 'parent';
 
 -- Product Master - change pack_size to VARCHAR to support alphanumeric values
 ALTER TABLE product_master ALTER COLUMN pack_size TYPE VARCHAR(50) USING pack_size::VARCHAR;
+
+-- Category Master - add catg_name and discount
+ALTER TABLE category_master ADD COLUMN IF NOT EXISTS catg_name VARCHAR(100);
+UPDATE category_master SET catg_name = category_name WHERE catg_name IS NULL AND category_name IS NOT NULL;
+UPDATE category_master SET category_name = catg_name WHERE category_name IS NULL AND catg_name IS NOT NULL;
+ALTER TABLE category_master ADD COLUMN IF NOT EXISTS discount NUMERIC(5,2) DEFAULT 0;
+
+-- Product Master - ensure is_active and gst_id exist
+ALTER TABLE product_master ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
+ALTER TABLE product_master ADD COLUMN IF NOT EXISTS gst_id INTEGER;
+

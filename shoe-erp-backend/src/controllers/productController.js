@@ -411,7 +411,7 @@ const deleteProduct = async (req, res, next) => {
 const importProducts = async (req, res, next) => {
   const { rows } = req.body
   if (!Array.isArray(rows) || rows.length === 0) {
-    return res.status(400).json({ message: 'No rows provided' })
+    return res.status(400).json({ success: false, message: 'No rows provided' })
   }
 
   let imported = 0, skipped = 0
@@ -419,94 +419,144 @@ const importProducts = async (req, res, next) => {
   const client = await pool.connect()
 
   try {
-    // Preload lookup reference data in parallel to avoid tens of thousands of DB roundtrips
-    const [
-      uomRes,
-      brandRes,
-      supplierRes,
-      catgRes,
-      subCatgRes,
-      designRes,
-      colorRes,
-      hsnRes,
-      gstRes,
-      existingSkuRes
-    ] = await Promise.all([
-      client.query('SELECT id, uom_name, uom_code FROM uom_master'),
-      client.query('SELECT id, brand_name FROM brand_master'),
-      client.query('SELECT id, supplier_name FROM suppliers'),
-      client.query('SELECT id, catg_name FROM category_master'),
-      client.query('SELECT id, sub_category_name FROM sub_category_master'),
-      client.query('SELECT id, design_no FROM design_master'),
-      client.query('SELECT id, color_code, color_name FROM color_master'),
-      client.query('SELECT id, hsn_code FROM hsn_master'),
-      client.query('SELECT id, gst_rate FROM gst_master'),
-      client.query('SELECT UPPER(sku_code) AS sku_code FROM product_master')
-    ])
-
+    // 1. Sequential, resilient reference preloading (NEVER Promise.all on a single pg client)
     const uomMap = new Map()
-    uomRes.rows.forEach(r => {
-      if (r.uom_name) uomMap.set(r.uom_name.trim().toLowerCase(), r)
-      if (r.uom_code) uomMap.set(r.uom_code.trim().toUpperCase(), r)
-    })
+    try {
+      const uomRes = await client.query('SELECT id, uom_name, uom_code FROM uom_master')
+      uomRes.rows.forEach(r => {
+        if (r.uom_name) uomMap.set(r.uom_name.trim().toLowerCase(), r)
+        if (r.uom_code) uomMap.set(r.uom_code.trim().toUpperCase(), r)
+      })
+    } catch (e) {
+      console.error('[importProducts] uom_master load warning:', e.message)
+    }
 
     const brandMap = new Map()
-    brandRes.rows.forEach(r => {
-      if (r.brand_name) brandMap.set(r.brand_name.trim().toLowerCase(), r)
-    })
+    try {
+      const brandRes = await client.query('SELECT id, brand_name FROM brand_master')
+      brandRes.rows.forEach(r => {
+        if (r.brand_name) brandMap.set(r.brand_name.trim().toLowerCase(), r)
+      })
+    } catch (e) {
+      console.error('[importProducts] brand_master load warning:', e.message)
+    }
 
     const supplierMap = new Map()
-    supplierRes.rows.forEach(r => {
-      if (r.supplier_name) supplierMap.set(r.supplier_name.trim().toLowerCase(), r)
-    })
+    try {
+      const supplierRes = await client.query('SELECT id, supplier_name FROM suppliers')
+      supplierRes.rows.forEach(r => {
+        if (r.supplier_name) supplierMap.set(r.supplier_name.trim().toLowerCase(), r)
+      })
+    } catch (e) {
+      console.error('[importProducts] suppliers load warning:', e.message)
+    }
 
     const catgMap = new Map()
-    catgRes.rows.forEach(r => {
-      if (r.catg_name) catgMap.set(r.catg_name.trim().toLowerCase(), r)
-    })
+    try {
+      // Support either category_name or catg_name or both
+      const catgRes = await client.query(`
+        SELECT id, 
+               CASE 
+                 WHEN column_name = 'catg_name' THEN catg_name
+                 ELSE category_name
+               END as catg_name
+        FROM (
+          SELECT id,
+                 category_name,
+                 COALESCE(to_jsonb(category_master.*)->>'catg_name', category_name) AS catg_name,
+                 'catg_name' as column_name
+          FROM category_master
+        ) sub
+      `).catch(async () => {
+        return await client.query('SELECT id, category_name AS catg_name FROM category_master')
+      })
+
+      catgRes.rows.forEach(r => {
+        if (r.catg_name) catgMap.set(r.catg_name.trim().toLowerCase(), r)
+      })
+    } catch (e) {
+      console.error('[importProducts] category_master load warning:', e.message)
+    }
 
     const subCatgMap = new Map()
-    subCatgRes.rows.forEach(r => {
-      if (r.sub_category_name) subCatgMap.set(r.sub_category_name.trim().toLowerCase(), r)
-    })
+    try {
+      const subCatgRes = await client.query('SELECT id, sub_category_name FROM sub_category_master')
+      subCatgRes.rows.forEach(r => {
+        if (r.sub_category_name) subCatgMap.set(r.sub_category_name.trim().toLowerCase(), r)
+      })
+    } catch (e) {
+      console.error('[importProducts] sub_category_master load warning:', e.message)
+    }
 
     const designMap = new Map()
-    designRes.rows.forEach(r => {
-      if (r.design_no) designMap.set(r.design_no.trim().toLowerCase(), r)
-    })
+    try {
+      const designRes = await client.query('SELECT id, design_no FROM design_master')
+      designRes.rows.forEach(r => {
+        if (r.design_no) designMap.set(r.design_no.trim().toLowerCase(), r)
+      })
+    } catch (e) {
+      console.error('[importProducts] design_master load warning:', e.message)
+    }
 
     const colorMap = new Map()
-    colorRes.rows.forEach(r => {
-      if (r.color_code) colorMap.set(r.color_code.trim().toUpperCase(), r)
-      if (r.color_name) colorMap.set(r.color_name.trim().toLowerCase(), r)
-    })
+    try {
+      const colorRes = await client.query('SELECT id, color_code, color_name FROM color_master')
+      colorRes.rows.forEach(r => {
+        if (r.color_code) colorMap.set(r.color_code.trim().toUpperCase(), r)
+        if (r.color_name) colorMap.set(r.color_name.trim().toLowerCase(), r)
+      })
+    } catch (e) {
+      console.error('[importProducts] color_master load warning:', e.message)
+    }
 
     const hsnMap = new Map()
-    hsnRes.rows.forEach(r => {
-      if (r.hsn_code) hsnMap.set(String(r.hsn_code).trim(), r)
-    })
+    try {
+      const hsnRes = await client.query('SELECT id, hsn_code FROM hsn_master')
+      hsnRes.rows.forEach(r => {
+        if (r.hsn_code) hsnMap.set(String(r.hsn_code).trim(), r)
+      })
+    } catch (e) {
+      console.error('[importProducts] hsn_master load warning:', e.message)
+    }
 
     const gstMap = new Map()
-    gstRes.rows.forEach(r => {
-      gstMap.set(parseFloat(r.gst_rate), r)
-    })
+    try {
+      const gstRes = await client.query('SELECT id, gst_rate FROM gst_master')
+      gstRes.rows.forEach(r => {
+        gstMap.set(parseFloat(r.gst_rate), r)
+      })
+    } catch (e) {
+      console.error('[importProducts] gst_master load warning:', e.message)
+    }
 
-    const existingSkus = new Set(existingSkuRes.rows.map(r => r.sku_code))
+    const existingSkus = new Set()
+    try {
+      const existingSkuRes = await client.query('SELECT UPPER(sku_code) AS sku_code FROM product_master')
+      existingSkuRes.rows.forEach(r => {
+        if (r.sku_code) existingSkus.add(r.sku_code)
+      })
+    } catch (e) {
+      console.error('[importProducts] existing skus load warning:', e.message)
+    }
 
     // Pre-calculate SKU counters for auto-generation so we don't query SELECT MAX per row
     const skuCounters = {}
     for (const type of ['RAW_MATERIAL', 'SEMI_FINISHED', 'FINISHED']) {
       const prefix = getSkuPrefix(type)
-      const maxRes = await client.query(`
-        SELECT COALESCE(MAX(
-          CAST(SUBSTRING(sku_code FROM LENGTH($1)+1) AS INTEGER)
-        ), 0) AS max_num
-        FROM product_master
-        WHERE sku_code LIKE $2 AND sku_code ~ $3
-      `, [prefix, `${prefix}%`, `^${prefix}[0-9]+$`])
-      skuCounters[type] = {
-        prefix,
-        nextNum: (parseInt(maxRes.rows[0].max_num, 10) || 0) + 1
+      try {
+        const maxRes = await client.query(`
+          SELECT COALESCE(MAX(
+            CAST(SUBSTRING(sku_code FROM LENGTH($1)+1) AS INTEGER)
+          ), 0) AS max_num
+          FROM product_master
+          WHERE sku_code LIKE $2 AND sku_code ~ $3
+        `, [prefix, `${prefix}%`, `^${prefix}[0-9]+$`])
+        skuCounters[type] = {
+          prefix,
+          nextNum: (parseInt(maxRes.rows[0].max_num, 10) || 0) + 1
+        }
+      } catch {
+        skuCounters[type] = { prefix, nextNum: 1 }
       }
     }
 
@@ -769,11 +819,14 @@ const importProducts = async (req, res, next) => {
         errors.push({ row: rowNum, message: err.message })
       }
     }
+  } catch (err) {
+    console.error('[importProducts] Fatal error:', err)
+    return next(err)
   } finally {
     client.release()
   }
 
-  res.json({ success: true, imported, skipped, errors })
+  return res.json({ success: true, imported, skipped, errors })
 }
 
 module.exports = {
