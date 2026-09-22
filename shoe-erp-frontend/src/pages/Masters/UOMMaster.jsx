@@ -332,7 +332,7 @@ export default function UOMMaster() {
         onClose={() => setShowImport(false)}
         masterName="UOM Master"
         templateColumns={templateColumns}
-        importUrl="/api/uom/import"
+        importUrl="/uom/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

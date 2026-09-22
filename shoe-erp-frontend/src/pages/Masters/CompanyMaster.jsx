@@ -557,7 +557,7 @@ export default function CompanyMaster() {
         onClose={() => setShowImport(false)}
         masterName="Company Master"
         templateColumns={templateColumns}
-        importUrl="/api/companies/import"
+        importUrl="/companies/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

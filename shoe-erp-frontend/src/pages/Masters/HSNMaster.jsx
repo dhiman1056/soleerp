@@ -404,7 +404,7 @@ export default function HSNMaster() {
         onClose={() => setShowImport(false)}
         masterName="HSN Master"
         templateColumns={templateColumns}
-        importUrl="/api/hsn/import"
+        importUrl="/hsn/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

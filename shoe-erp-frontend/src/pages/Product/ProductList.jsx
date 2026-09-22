@@ -546,7 +546,7 @@ export default function ProductList() {
         onClose={() => setShowImport(false)}
         masterName="Product Master"
         templateColumns={templateColumns}
-        importUrl="/api/products/import"
+        importUrl="/products/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

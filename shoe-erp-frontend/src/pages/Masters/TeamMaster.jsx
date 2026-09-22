@@ -409,7 +409,7 @@ export default function TeamMaster() {
         onClose={() => setShowImport(false)}
         masterName="Team Master"
         templateColumns={templateColumns}
-        importUrl="/api/teams/import"
+        importUrl="/teams/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

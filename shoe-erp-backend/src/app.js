@@ -27,7 +27,16 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }))
 
-app.use(express.json())
+// Handle potential duplicate /api prefix (e.g. /api/api/products/import -> /api/products/import)
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api/api/')) {
+    req.url = req.url.replace(/^\/api\/api\//, '/api/')
+  }
+  next()
+})
+
+app.use(express.json({ limit: '50mb' }))
+app.use(express.urlencoded({ limit: '50mb', extended: true }))
 app.use(morgan('dev'))
 
 app.get('/api/health', (req, res) => {
@@ -73,7 +82,8 @@ app.use('/api/colors',         require('./routes/colorRoutes'))
 
 app.use((err, req, res, next) => {
   console.error(err.stack)
-  res.status(500).json({ message: err.message || 'Internal Server Error' })
+  const status = err.status || err.statusCode || (err.type === 'entity.too.large' ? 413 : 500)
+  res.status(status).json({ message: err.message || 'Internal Server Error' })
 })
 
 const PORT = process.env.PORT || 5000

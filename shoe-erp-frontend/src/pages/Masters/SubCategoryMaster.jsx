@@ -339,7 +339,7 @@ export default function SubCategoryMaster() {
         onClose={() => setShowImport(false)}
         masterName="Sub-Category Master"
         templateColumns={templateColumns}
-        importUrl="/api/sub-categories/import"
+        importUrl="/sub-categories/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

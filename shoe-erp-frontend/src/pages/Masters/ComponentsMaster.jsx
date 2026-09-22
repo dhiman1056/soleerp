@@ -285,7 +285,7 @@ export default function ComponentsMaster() {
         onClose={() => setShowImport(false)}
         masterName="Components Master"
         templateColumns={templateColumns}
-        importUrl="/api/components/import"
+        importUrl="/components/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

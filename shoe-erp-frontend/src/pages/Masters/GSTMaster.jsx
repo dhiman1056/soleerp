@@ -407,7 +407,7 @@ export default function GSTMaster() {
         onClose={() => setShowImport(false)}
         masterName="GST Master"
         templateColumns={templateColumns}
-        importUrl="/api/gst/import"
+        importUrl="/gst/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

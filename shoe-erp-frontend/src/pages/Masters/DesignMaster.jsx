@@ -332,7 +332,7 @@ export default function DesignMaster() {
         onClose={() => setShowImport(false)}
         masterName="Design Master"
         templateColumns={templateColumns}
-        importUrl="/api/designs/import"
+        importUrl="/designs/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

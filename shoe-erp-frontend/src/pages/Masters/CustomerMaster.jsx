@@ -651,7 +651,7 @@ export default function CustomerMaster() {
         onClose={() => setShowImport(false)}
         masterName="Customer Master"
         templateColumns={templateColumns}
-        importUrl="/api/customers/import"
+        importUrl="/customers/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

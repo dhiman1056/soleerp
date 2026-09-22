@@ -361,7 +361,7 @@ export default function ColorMaster() {
         onClose={() => setShowImport(false)}
         masterName="Color Master"
         templateColumns={templateColumns}
-        importUrl="/api/colors/import"
+        importUrl="/colors/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

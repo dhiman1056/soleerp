@@ -555,7 +555,7 @@ export default function ManufacturerMaster() {
         onClose={() => setShowImport(false)}
         masterName="Manufacturer Master"
         templateColumns={templateColumns}
-        importUrl="/api/manufacturers/import"
+        importUrl="/manufacturers/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

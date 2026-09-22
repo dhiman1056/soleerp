@@ -419,6 +419,97 @@ const importProducts = async (req, res, next) => {
   const client = await pool.connect()
 
   try {
+    // Preload lookup reference data in parallel to avoid tens of thousands of DB roundtrips
+    const [
+      uomRes,
+      brandRes,
+      supplierRes,
+      catgRes,
+      subCatgRes,
+      designRes,
+      colorRes,
+      hsnRes,
+      gstRes,
+      existingSkuRes
+    ] = await Promise.all([
+      client.query('SELECT id, uom_name, uom_code FROM uom_master'),
+      client.query('SELECT id, brand_name FROM brand_master'),
+      client.query('SELECT id, supplier_name FROM suppliers'),
+      client.query('SELECT id, catg_name FROM category_master'),
+      client.query('SELECT id, sub_category_name FROM sub_category_master'),
+      client.query('SELECT id, design_no FROM design_master'),
+      client.query('SELECT id, color_code, color_name FROM color_master'),
+      client.query('SELECT id, hsn_code FROM hsn_master'),
+      client.query('SELECT id, gst_rate FROM gst_master'),
+      client.query('SELECT UPPER(sku_code) AS sku_code FROM product_master')
+    ])
+
+    const uomMap = new Map()
+    uomRes.rows.forEach(r => {
+      if (r.uom_name) uomMap.set(r.uom_name.trim().toLowerCase(), r)
+      if (r.uom_code) uomMap.set(r.uom_code.trim().toUpperCase(), r)
+    })
+
+    const brandMap = new Map()
+    brandRes.rows.forEach(r => {
+      if (r.brand_name) brandMap.set(r.brand_name.trim().toLowerCase(), r)
+    })
+
+    const supplierMap = new Map()
+    supplierRes.rows.forEach(r => {
+      if (r.supplier_name) supplierMap.set(r.supplier_name.trim().toLowerCase(), r)
+    })
+
+    const catgMap = new Map()
+    catgRes.rows.forEach(r => {
+      if (r.catg_name) catgMap.set(r.catg_name.trim().toLowerCase(), r)
+    })
+
+    const subCatgMap = new Map()
+    subCatgRes.rows.forEach(r => {
+      if (r.sub_category_name) subCatgMap.set(r.sub_category_name.trim().toLowerCase(), r)
+    })
+
+    const designMap = new Map()
+    designRes.rows.forEach(r => {
+      if (r.design_no) designMap.set(r.design_no.trim().toLowerCase(), r)
+    })
+
+    const colorMap = new Map()
+    colorRes.rows.forEach(r => {
+      if (r.color_code) colorMap.set(r.color_code.trim().toUpperCase(), r)
+      if (r.color_name) colorMap.set(r.color_name.trim().toLowerCase(), r)
+    })
+
+    const hsnMap = new Map()
+    hsnRes.rows.forEach(r => {
+      if (r.hsn_code) hsnMap.set(String(r.hsn_code).trim(), r)
+    })
+
+    const gstMap = new Map()
+    gstRes.rows.forEach(r => {
+      gstMap.set(parseFloat(r.gst_rate), r)
+    })
+
+    const existingSkus = new Set(existingSkuRes.rows.map(r => r.sku_code))
+
+    // Pre-calculate SKU counters for auto-generation so we don't query SELECT MAX per row
+    const skuCounters = {}
+    for (const type of ['RAW_MATERIAL', 'SEMI_FINISHED', 'FINISHED']) {
+      const prefix = getSkuPrefix(type)
+      const maxRes = await client.query(`
+        SELECT COALESCE(MAX(
+          CAST(SUBSTRING(sku_code FROM LENGTH($1)+1) AS INTEGER)
+        ), 0) AS max_num
+        FROM product_master
+        WHERE sku_code LIKE $2 AND sku_code ~ $3
+      `, [prefix, `${prefix}%`, `^${prefix}[0-9]+$`])
+      skuCounters[type] = {
+        prefix,
+        nextNum: (parseInt(maxRes.rows[0].max_num, 10) || 0) + 1
+      }
+    }
+
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]
       const rowNum = i + 1
@@ -475,181 +566,157 @@ const importProducts = async (req, res, next) => {
 
         // Check SKU duplicate if provided
         if (sku_code) {
-          const dup = await client.query(
-            'SELECT id FROM product_master WHERE sku_code = $1', [sku_code]
-          )
-          if (dup.rows.length > 0) { skipped++; continue }
+          if (existingSkus.has(sku_code)) {
+            skipped++
+            continue
+          }
         }
 
         // Resolve UOM (required)
-        const uomRes = await client.query(
-          'SELECT id, uom_code FROM uom_master WHERE LOWER(uom_name) = LOWER($1) OR UPPER(uom_code) = UPPER($1)',
-          [uom_name]
-        )
-        if (uomRes.rows.length === 0) {
+        const uomItem = uomMap.get(uom_name.toLowerCase()) || uomMap.get(uom_name.toUpperCase())
+        if (!uomItem) {
           errors.push({
             row: rowNum,
             message: `UOM "${uom_name}" not found. Create it first in UOM Master.`
           })
           continue
         }
-        const uom_id = uomRes.rows[0].id
-        const uom_code = uomRes.rows[0].uom_code
+        const uom_id = uomItem.id
+        const uom_code = uomItem.uom_code
 
         // Resolve Brand (optional)
         let brand_id = null
         let resolved_brand_name = null
         if (brand_name) {
-          const bRes = await client.query(
-            'SELECT id, brand_name FROM brand_master WHERE LOWER(brand_name) = LOWER($1)',
-            [brand_name]
-          )
-          if (bRes.rows.length === 0) {
+          const bItem = brandMap.get(brand_name.toLowerCase())
+          if (!bItem) {
             errors.push({
               row: rowNum,
               message: `Brand "${brand_name}" not found. Create it first in Brand Master.`
             })
             continue
           }
-          brand_id = bRes.rows[0].id
-          resolved_brand_name = bRes.rows[0].brand_name
+          brand_id = bItem.id
+          resolved_brand_name = bItem.brand_name
         }
 
         // Resolve Supplier (optional)
         let resolved_supplier_name = null
         if (supplier_name) {
-          const sRes = await client.query(
-            'SELECT id, supplier_name FROM suppliers WHERE LOWER(supplier_name) = LOWER($1)',
-            [supplier_name]
-          )
-          if (sRes.rows.length === 0) {
+          const sItem = supplierMap.get(supplier_name.toLowerCase())
+          if (!sItem) {
             errors.push({
               row: rowNum,
               message: `Supplier "${supplier_name}" not found. Create it first in Suppliers.`
             })
             continue
           }
-          resolved_supplier_name = sRes.rows[0].supplier_name
+          resolved_supplier_name = sItem.supplier_name
         }
 
         // Resolve Category (optional)
         let category_id = null
         let resolved_category_name = null
         if (catg_name) {
-          const cRes = await client.query(
-            'SELECT id, catg_name FROM category_master WHERE LOWER(catg_name) = LOWER($1)',
-            [catg_name]
-          )
-          if (cRes.rows.length === 0) {
+          const cItem = catgMap.get(catg_name.toLowerCase())
+          if (!cItem) {
             errors.push({
               row: rowNum,
               message: `Category "${catg_name}" not found. Create it first in Category Master.`
             })
             continue
           }
-          category_id = cRes.rows[0].id
-          resolved_category_name = cRes.rows[0].catg_name
+          category_id = cItem.id
+          resolved_category_name = cItem.catg_name
         }
 
         // Resolve Sub Category (optional)
         let sub_category_id = null
         let resolved_sub_category_name = null
         if (sub_catg_name) {
-          const scRes = await client.query(
-            'SELECT id, sub_category_name FROM sub_category_master WHERE LOWER(sub_category_name) = LOWER($1)',
-            [sub_catg_name]
-          )
-          if (scRes.rows.length === 0) {
+          const scItem = subCatgMap.get(sub_catg_name.toLowerCase())
+          if (!scItem) {
             errors.push({
               row: rowNum,
               message: `Sub Category "${sub_catg_name}" not found. Create it first in Sub Category Master.`
             })
             continue
           }
-          sub_category_id = scRes.rows[0].id
-          resolved_sub_category_name = scRes.rows[0].sub_category_name
+          sub_category_id = scItem.id
+          resolved_sub_category_name = scItem.sub_category_name
         }
 
         // Resolve Design (optional)
         let design_id = null
         let resolved_design_no = null
         if (design_no) {
-          const dRes = await client.query(
-            'SELECT id, design_no FROM design_master WHERE LOWER(design_no) = LOWER($1)',
-            [design_no]
-          )
-          if (dRes.rows.length === 0) {
+          const dItem = designMap.get(design_no.toLowerCase())
+          if (!dItem) {
             errors.push({
               row: rowNum,
               message: `Design No "${design_no}" not found. Create it first in Design Master.`
             })
             continue
           }
-          design_id = dRes.rows[0].id
-          resolved_design_no = dRes.rows[0].design_no
+          design_id = dItem.id
+          resolved_design_no = dItem.design_no
         }
 
         // Resolve Color (optional)
         let color_id = null
         let resolved_color_name = null
         if (color_code) {
-          const colRes = await client.query(
-            'SELECT id, color_name FROM color_master WHERE UPPER(color_code) = UPPER($1) OR LOWER(color_name) = LOWER($1)',
-            [color_code]
-          )
-          if (colRes.rows.length === 0) {
+          const colItem = colorMap.get(color_code.toUpperCase()) || colorMap.get(color_code.toLowerCase())
+          if (!colItem) {
             errors.push({
               row: rowNum,
               message: `Color "${color_code}" not found. Create it first in Color Master.`
             })
             continue
           }
-          color_id = colRes.rows[0].id
-          resolved_color_name = colRes.rows[0].color_name
+          color_id = colItem.id
+          resolved_color_name = colItem.color_name
         }
 
         // Resolve HSN (optional)
         let hsn_id = null
         let resolved_hsn_code = null
         if (hsn_code_val) {
-          const hRes = await client.query(
-            'SELECT id, hsn_code FROM hsn_master WHERE hsn_code = $1',
-            [hsn_code_val]
-          )
-          if (hRes.rows.length === 0) {
+          const hItem = hsnMap.get(hsn_code_val)
+          if (!hItem) {
             errors.push({
               row: rowNum,
               message: `HSN Code "${hsn_code_val}" not found. Create it first in HSN Master.`
             })
             continue
           }
-          hsn_id = hRes.rows[0].id
-          resolved_hsn_code = hRes.rows[0].hsn_code
+          hsn_id = hItem.id
+          resolved_hsn_code = hItem.hsn_code
         }
 
         // Resolve GST (optional)
         let gst_id = null
         let gstRate = 0
         if (gst_rate_val) {
-          const gRes = await client.query(
-            'SELECT id, gst_rate FROM gst_master WHERE gst_rate = $1',
-            [parseFloat(gst_rate_val)]
-          )
-          if (gRes.rows.length === 0) {
+          const parsedGst = parseFloat(gst_rate_val)
+          const gItem = gstMap.get(parsedGst)
+          if (!gItem) {
             errors.push({
               row: rowNum,
               message: `GST Rate "${gst_rate_val}%" not found. Create it first in GST Master.`
             })
             continue
           }
-          gst_id = gRes.rows[0].id
-          gstRate = parseFloat(gRes.rows[0].gst_rate) || 0
+          gst_id = gItem.id
+          gstRate = parseFloat(gItem.gst_rate) || 0
         }
 
         // Generate SKU if not provided
-        const finalSku = sku_code
-          ? sku_code
-          : await generateSku(client, ptype)
+        let finalSku = sku_code
+        if (!finalSku) {
+          const sc = skuCounters[ptype]
+          finalSku = `${sc.prefix}${String(sc.nextNum++).padStart(6, '0')}`
+        }
 
         // Calculate CP basic formula
         const finalCp = +(basic_cost * (1 + gstRate / 100)).toFixed(2)
@@ -695,6 +762,7 @@ const importProducts = async (req, res, next) => {
         }
 
         await client.query('COMMIT')
+        existingSkus.add(finalSku.toUpperCase())
         imported++
       } catch (err) {
         await client.query('ROLLBACK')

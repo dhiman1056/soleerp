@@ -11,6 +11,7 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
   const [parsedRows, setParsedRows] = useState([])
   const [previewRows, setPreviewRows] = useState([])
   const [isImporting, setIsImporting] = useState(false)
+  const [progress, setProgress] = useState({ current: 0, total: 0, batch: 0, totalBatches: 0, percent: 0 })
   const [results, setResults] = useState(null) // { imported, skipped, errors }
 
   const fileInputRef = useRef(null)
@@ -28,7 +29,10 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
     if (isOpen) {
       setFileName('')
       setParsedRows([])
+      setPreviewRows([])
       setResults(null)
+      setProgress({ current: 0, total: 0, batch: 0, totalBatches: 0, percent: 0 })
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }, [isOpen])
 
@@ -142,7 +146,7 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
     }
   }
 
-  // ─── Step 4: Import execution ──────────────────────────────────────────────
+  // ─── Step 4: Import execution with Chunking / Batching ───────────────────────
   const handleImportSubmit = async () => {
     if (parsedRows.length === 0) {
       toast.error('No valid rows to import')
@@ -150,21 +154,77 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
     }
 
     setIsImporting(true)
+    const BATCH_SIZE = 500
+    const totalRows = parsedRows.length
+    const totalBatches = Math.ceil(totalRows / BATCH_SIZE)
+
+    // Sanitize importUrl: strip leading "/api" so axiosInstance does not request "/api/api/..."
+    const cleanUrl = importUrl.startsWith('/api/') ? importUrl.slice(4) : importUrl
+
+    let totalImported = 0
+    let totalSkipped = 0
+    const aggregatedErrors = []
+
     try {
-      const res = await api.post(importUrl, { rows: parsedRows })
-      if (res.data.success) {
+      for (let b = 0; b < totalBatches; b++) {
+        const start = b * BATCH_SIZE
+        const end = Math.min(start + BATCH_SIZE, totalRows)
+        const batchRows = parsedRows.slice(start, end)
+
+        setProgress({
+          current: start,
+          total: totalRows,
+          batch: b + 1,
+          totalBatches,
+          percent: Math.round((start / totalRows) * 100)
+        })
+
+        const res = await api.post(cleanUrl, { rows: batchRows })
+
+        if (res.data) {
+          totalImported += res.data.imported || 0
+          totalSkipped += res.data.skipped || 0
+          if (Array.isArray(res.data.errors)) {
+            // Adjust row index to point to row in original spreadsheet
+            const batchErrors = res.data.errors.map(err => ({
+              ...err,
+              row: typeof err.row === 'number' ? start + err.row : err.row
+            }))
+            aggregatedErrors.push(...batchErrors)
+          }
+        }
+      }
+
+      setProgress({
+        current: totalRows,
+        total: totalRows,
+        batch: totalBatches,
+        totalBatches,
+        percent: 100
+      })
+
+      setResults({
+        imported: totalImported,
+        skipped: totalSkipped,
+        errors: aggregatedErrors
+      })
+      setStep(2)
+      toast.success(`Import completed: ${totalImported} imported, ${totalSkipped} skipped`)
+      if (onSuccess) onSuccess()
+    } catch (err) {
+      const msg = err.response?.data?.message || err.message || 'Server error occurred during import'
+      toast.error(msg)
+      if (totalImported > 0 || totalSkipped > 0 || aggregatedErrors.length > 0) {
         setResults({
-          imported: res.data.imported || 0,
-          skipped: res.data.skipped || 0,
-          errors: res.data.errors || []
+          imported: totalImported,
+          skipped: totalSkipped,
+          errors: [
+            ...aggregatedErrors,
+            { row: 'Batch Stopped', message: `Import stopped: ${msg}` }
+          ]
         })
         setStep(2)
-        toast.success('Import completed successfully')
-      } else {
-        toast.error(res.data.message || 'Import failed')
       }
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Server error occurred during import')
     } finally {
       setIsImporting(false)
     }
@@ -177,6 +237,8 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
     setPreviewRows([])
     setResults(null)
     setIsImporting(false)
+    setProgress({ current: 0, total: 0, batch: 0, totalBatches: 0, percent: 0 })
+    if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
   return createPortal(
@@ -279,6 +341,25 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
               </div>
             )}
 
+            {/* Progress indicator during import */}
+            {isImporting && (
+              <div className="space-y-2 bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                <div className="flex justify-between items-center text-xs font-semibold text-indigo-900">
+                  <span>Importing Batch {progress.batch} of {progress.totalBatches} ({progress.total} total rows)</span>
+                  <span className="font-mono">{progress.percent}%</span>
+                </div>
+                <div className="w-full bg-indigo-200/60 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${progress.percent}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-indigo-700 text-center font-medium">
+                  Processed {Math.min(progress.current + 500, progress.total)} of {progress.total} rows... Please wait.
+                </p>
+              </div>
+            )}
+
             {/* Modal Actions Footer */}
             <div className="flex justify-end gap-2.5 px-6 py-4 border-t border-[#f1f5f9] bg-white flex-shrink-0">
               <button
@@ -295,7 +376,7 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
                 className="btn-primary bg-[#4f46e5] hover:bg-[#4338ca] flex items-center gap-2 whitespace-nowrap"
                 disabled={isImporting || parsedRows.length === 0}
               >
-                {isImporting ? 'Importing…' : `Start Import (${parsedRows.length} rows)`}
+                {isImporting ? `Importing… (${progress.percent}%)` : `Start Import (${parsedRows.length} rows)`}
               </button>
             </div>
 

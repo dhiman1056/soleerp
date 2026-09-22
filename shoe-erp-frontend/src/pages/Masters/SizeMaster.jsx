@@ -592,7 +592,7 @@ export default function SizeMaster() {
         onClose={() => setShowImport(false)}
         masterName="Size Master"
         templateColumns={templateColumns}
-        importUrl="/api/sizes/import"
+        importUrl="/sizes/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

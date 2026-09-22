@@ -295,7 +295,7 @@ export default function DivisionMaster() {
         onClose={() => setShowImport(false)}
         masterName="Division Master"
         templateColumns={templateColumns}
-        importUrl="/api/divisions/import"
+        importUrl="/divisions/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>

@@ -452,7 +452,7 @@ export default function EmployeeMaster() {
         onClose={() => setShowImport(false)}
         masterName="Employee Master"
         templateColumns={templateColumns}
-        importUrl="/api/employees/import"
+        importUrl="/employees/import"
         onSuccess={() => { refetch(); setShowImport(false) }}
       />
     </div>
