@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom'
+import PageLoader from '../../components/common/PageLoader.jsx'
 
 const reportLinks = [
   { to: '/reports/production', label: 'Production Summary' },
@@ -30,7 +31,9 @@ export default function ReportsLayout() {
       </div>
 
       {/* Active Report View */}
-      <Outlet />
+      <React.Suspense fallback={<PageLoader />}>
+        <Outlet />
+      </React.Suspense>
     </div>
   )
 }

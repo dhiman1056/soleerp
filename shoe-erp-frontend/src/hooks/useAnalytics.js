@@ -10,6 +10,7 @@ export const useAnalyticsOverview = () => {
       const res = await api.get('/analytics/overview')
       return res.data?.data ?? {}
     },
+    staleTime: 60000,
     refetchInterval: 300000, // 5 minutes
   })
 }
@@ -23,6 +24,7 @@ export const useProductionTrend = (period = '30d', groupBy = 'day') => {
       })
       return res.data?.data ?? { labels: [], planned: [], received: [], wip: [] }
     },
+    staleTime: 60000,
   })
 }
 
@@ -33,6 +35,7 @@ export const useMaterialConsumptionTrend = (period = '30d') => {
       const res = await api.get('/analytics/material-consumption-trend', { params: { period } })
       return res.data?.data ?? { materials: [], series: [] }
     },
+    staleTime: 60000,
   })
 }
 
@@ -43,6 +46,7 @@ export const useProductMix = (period = '30d') => {
       const res = await api.get('/analytics/product-mix', { params: { period } })
       return res.data?.data ?? { labels: [], qty: [], value: [] }
     },
+    staleTime: 60000,
   })
 }
 
@@ -53,6 +57,7 @@ export const useWIPByAge = () => {
       const res = await api.get('/analytics/wip-by-age')
       return res.data?.data ?? { buckets: [], counts: [], values: [] }
     },
+    staleTime: 60000,
   })
 }
 

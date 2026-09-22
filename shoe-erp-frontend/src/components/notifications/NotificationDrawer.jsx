@@ -5,7 +5,7 @@ import Loader from '../common/Loader'
 
 export default function NotificationDrawer({ isOpen, onClose }) {
   const [filter, setFilter] = useState('ALL') // ALL, UNREAD, CRITICAL
-  const { data, isLoading } = useNotificationsQuery({ limit: 50 })
+  const { data, isLoading } = useNotificationsQuery({ limit: 50 }, { enabled: !!isOpen })
   const markAllRead = useMarkAllRead()
   
   const drawerRef = useRef(null)

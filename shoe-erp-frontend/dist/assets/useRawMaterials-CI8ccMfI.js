@@ -1,0 +1,1 @@
+import{b as e}from"./vendor-query-CeXwUhWf.js";import{a as s}from"./index-CMV7pFng.js";const t=(a={})=>e({queryKey:["raw-materials",a],queryFn:async()=>{var r;return((r=(await s.get("/raw-materials",{params:a})).data)==null?void 0:r.data)??[]}}),i=t;export{t as a,i as u};

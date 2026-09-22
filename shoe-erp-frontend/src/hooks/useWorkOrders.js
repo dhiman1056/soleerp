@@ -25,14 +25,15 @@ export const useWorkOrderById = (id) => {
   })
 }
 
-export const useWIPSummary = () => {
+export const useWIPSummary = (options = {}) => {
   return useQuery({
     queryKey: ['wip', 'summary'],
     queryFn: async () => {
       const res = await api.get('/work-orders/wip/summary')
       return res.data?.data ?? {}
     },
-    refetchInterval: 30_000,
+    staleTime: 5 * 60 * 1000,
+    ...options,
   })
 }
 

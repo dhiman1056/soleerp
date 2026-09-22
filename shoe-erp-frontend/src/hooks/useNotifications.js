@@ -3,25 +3,28 @@ import api from '../api/axiosInstance'
 
 // ── Primary exports (new naming convention) ──────────────────────────────────
 
-export const useNotifications = (params = {}) => {
+export const useNotifications = (params = {}, options = {}) => {
   return useQuery({
     queryKey: ['notifications', params],
     queryFn: async () => {
       const res = await api.get('/notifications', { params })
       return res.data?.data ?? []
     },
-    refetchInterval: 60000,
+    staleTime: 60000,
+    ...options,
   })
 }
 
-export const useNotificationCount = () => {
+export const useNotificationCount = (options = {}) => {
   return useQuery({
     queryKey: ['notification-count'],
     queryFn: async () => {
       const res = await api.get('/notifications/count')
       return res.data?.data ?? { total: 0, unread: 0, critical: 0 }
     },
-    refetchInterval: 60000,
+    staleTime: 60000,
+    refetchInterval: 120000,
+    ...options,
   })
 }
 

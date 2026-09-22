@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import PageLoader from '../../components/common/PageLoader.jsx';
 
 const NAV = [
   { to: 'company',            label: 'Company'            },
@@ -63,7 +64,9 @@ export default function SettingsLayout() {
 
         {/* Sub-page content */}
         <div className="p-6">
-          <Outlet />
+          <React.Suspense fallback={<PageLoader />}>
+            <Outlet />
+          </React.Suspense>
         </div>
       </div>
     </div>
