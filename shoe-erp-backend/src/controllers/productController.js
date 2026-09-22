@@ -622,143 +622,218 @@ const importProducts = async (req, res, next) => {
           }
         }
 
-        // Resolve UOM (required)
-        const uomItem = uomMap.get(uom_name.toLowerCase()) || uomMap.get(uom_name.toUpperCase())
+        // Resolve or Auto-create UOM (required)
+        let uom_id = null
+        let uom_code = uom_name.toUpperCase()
+        let uomItem = uomMap.get(uom_name.toLowerCase()) || uomMap.get(uom_name.toUpperCase())
         if (!uomItem) {
-          errors.push({
-            row: rowNum,
-            message: `UOM "${uom_name}" not found. Create it first in UOM Master.`
-          })
-          continue
+          try {
+            const code = uom_name.toUpperCase().slice(0, 20)
+            const ins = await client.query(
+              'INSERT INTO uom_master (uom_code, uom_name) VALUES ($1, $2) ON CONFLICT (uom_code) DO UPDATE SET uom_name = EXCLUDED.uom_name RETURNING id, uom_code, uom_name',
+              [code, uom_name]
+            )
+            uomItem = ins.rows[0]
+            uomMap.set(uom_name.toLowerCase(), uomItem)
+            uomMap.set(code, uomItem)
+          } catch (e) {
+            console.warn('[importProducts] Auto-create UOM fallback:', e.message)
+          }
         }
-        const uom_id = uomItem.id
-        const uom_code = uomItem.uom_code
+        if (uomItem) {
+          uom_id = uomItem.id
+          uom_code = uomItem.uom_code
+        }
 
-        // Resolve Brand (optional)
+        // Resolve or Auto-create Brand (optional)
         let brand_id = null
-        let resolved_brand_name = null
+        let resolved_brand_name = brand_name || null
         if (brand_name) {
-          const bItem = brandMap.get(brand_name.toLowerCase())
+          let bItem = brandMap.get(brand_name.toLowerCase())
           if (!bItem) {
-            errors.push({
-              row: rowNum,
-              message: `Brand "${brand_name}" not found. Create it first in Brand Master.`
-            })
-            continue
+            try {
+              const ins = await client.query(
+                'INSERT INTO brand_master (brand_name) VALUES ($1) ON CONFLICT (brand_name) DO UPDATE SET brand_name = EXCLUDED.brand_name RETURNING id, brand_name',
+                [brand_name]
+              )
+              bItem = ins.rows[0]
+              brandMap.set(brand_name.toLowerCase(), bItem)
+            } catch (e) {
+              console.warn('[importProducts] Auto-create Brand fallback:', e.message)
+            }
           }
-          brand_id = bItem.id
-          resolved_brand_name = bItem.brand_name
+          if (bItem) {
+            brand_id = bItem.id
+            resolved_brand_name = bItem.brand_name
+          }
         }
 
-        // Resolve Supplier (optional)
-        let resolved_supplier_name = null
+        // Resolve or Auto-create Supplier (optional)
+        let resolved_supplier_name = supplier_name || null
         if (supplier_name) {
-          const sItem = supplierMap.get(supplier_name.toLowerCase())
+          let sItem = supplierMap.get(supplier_name.toLowerCase())
           if (!sItem) {
-            errors.push({
-              row: rowNum,
-              message: `Supplier "${supplier_name}" not found. Create it first in Suppliers.`
-            })
-            continue
+            try {
+              const supCode = 'SUP-' + String(supplierMap.size + 1).padStart(4, '0')
+              const ins = await client.query(
+                'INSERT INTO suppliers (supplier_code, supplier_name) VALUES ($1, $2) RETURNING id, supplier_name',
+                [supCode, supplier_name]
+              )
+              sItem = ins.rows[0]
+              supplierMap.set(supplier_name.toLowerCase(), sItem)
+            } catch (e) {
+              console.warn('[importProducts] Auto-create Supplier fallback:', e.message)
+            }
           }
-          resolved_supplier_name = sItem.supplier_name
+          if (sItem) {
+            resolved_supplier_name = sItem.supplier_name
+          }
         }
 
-        // Resolve Category (optional)
+        // Resolve or Auto-create Category (optional)
         let category_id = null
-        let resolved_category_name = null
+        let resolved_category_name = catg_name || null
         if (catg_name) {
-          const cItem = catgMap.get(catg_name.toLowerCase())
+          let cItem = catgMap.get(catg_name.toLowerCase())
           if (!cItem) {
-            errors.push({
-              row: rowNum,
-              message: `Category "${catg_name}" not found. Create it first in Category Master.`
-            })
-            continue
+            try {
+              const code = 'CATG-' + String(catgMap.size + 1).padStart(4, '0')
+              const ins = await client.query(
+                'INSERT INTO category_master (catg_code, category_name, catg_name) VALUES ($1, $2, $2) ON CONFLICT (category_name) DO UPDATE SET catg_name = EXCLUDED.catg_name RETURNING id, category_name, catg_name',
+                [code, catg_name]
+              )
+              cItem = ins.rows[0]
+              catgMap.set(catg_name.toLowerCase(), cItem)
+            } catch (e) {
+              console.warn('[importProducts] Auto-create Category fallback:', e.message)
+            }
           }
-          category_id = cItem.id
-          resolved_category_name = cItem.catg_name
+          if (cItem) {
+            category_id = cItem.id
+            resolved_category_name = cItem.category_name || cItem.catg_name || catg_name
+          }
         }
 
-        // Resolve Sub Category (optional)
+        // Resolve or Auto-create Sub Category (optional)
         let sub_category_id = null
-        let resolved_sub_category_name = null
+        let resolved_sub_category_name = sub_catg_name || null
         if (sub_catg_name) {
-          const scItem = subCatgMap.get(sub_catg_name.toLowerCase())
+          let scItem = subCatgMap.get(sub_catg_name.toLowerCase())
           if (!scItem) {
-            errors.push({
-              row: rowNum,
-              message: `Sub Category "${sub_catg_name}" not found. Create it first in Sub Category Master.`
-            })
-            continue
+            try {
+              const ins = await client.query(
+                'INSERT INTO sub_category_master (category_id, sub_category_name) VALUES ($1, $2) RETURNING id, sub_category_name',
+                [category_id, sub_catg_name]
+              )
+              scItem = ins.rows[0]
+              subCatgMap.set(sub_catg_name.toLowerCase(), scItem)
+            } catch (e) {
+              console.warn('[importProducts] Auto-create Sub Category fallback:', e.message)
+            }
           }
-          sub_category_id = scItem.id
-          resolved_sub_category_name = scItem.sub_category_name
+          if (scItem) {
+            sub_category_id = scItem.id
+            resolved_sub_category_name = scItem.sub_category_name
+          }
         }
 
-        // Resolve Design (optional)
+        // Resolve or Auto-create Design (optional)
         let design_id = null
-        let resolved_design_no = null
+        let resolved_design_no = design_no || null
         if (design_no) {
-          const dItem = designMap.get(design_no.toLowerCase())
+          let dItem = designMap.get(design_no.toLowerCase())
           if (!dItem) {
-            errors.push({
-              row: rowNum,
-              message: `Design No "${design_no}" not found. Create it first in Design Master.`
-            })
-            continue
+            try {
+              const ins = await client.query(
+                'INSERT INTO design_master (design_no) VALUES ($1) ON CONFLICT (design_no) DO UPDATE SET design_no = EXCLUDED.design_no RETURNING id, design_no',
+                [design_no]
+              )
+              dItem = ins.rows[0]
+              designMap.set(design_no.toLowerCase(), dItem)
+            } catch (e) {
+              console.warn('[importProducts] Auto-create Design fallback:', e.message)
+            }
           }
-          design_id = dItem.id
-          resolved_design_no = dItem.design_no
+          if (dItem) {
+            design_id = dItem.id
+            resolved_design_no = dItem.design_no
+          }
         }
 
-        // Resolve Color (optional)
+        // Resolve or Auto-create Color (optional)
         let color_id = null
-        let resolved_color_name = null
+        let resolved_color_name = color_code || null
         if (color_code) {
-          const colItem = colorMap.get(color_code.toUpperCase()) || colorMap.get(color_code.toLowerCase())
+          let colItem = colorMap.get(color_code.toUpperCase()) || colorMap.get(color_code.toLowerCase())
           if (!colItem) {
-            errors.push({
-              row: rowNum,
-              message: `Color "${color_code}" not found. Create it first in Color Master.`
-            })
-            continue
+            try {
+              const colCode = color_code.toUpperCase().slice(0, 20)
+              const ins = await client.query(
+                'INSERT INTO color_master (color_code, color_name) VALUES ($1, $2) ON CONFLICT (color_code) DO UPDATE SET color_name = EXCLUDED.color_name RETURNING id, color_code, color_name',
+                [colCode, color_code]
+              )
+              colItem = ins.rows[0]
+              colorMap.set(colCode, colItem)
+              colorMap.set(color_code.toLowerCase(), colItem)
+            } catch (e) {
+              console.warn('[importProducts] Auto-create Color fallback:', e.message)
+            }
           }
-          color_id = colItem.id
-          resolved_color_name = colItem.color_name
+          if (colItem) {
+            color_id = colItem.id
+            resolved_color_name = colItem.color_name || colItem.color_code || color_code
+          }
         }
 
-        // Resolve HSN (optional)
+        // Resolve or Auto-create HSN (optional)
         let hsn_id = null
-        let resolved_hsn_code = null
+        let resolved_hsn_code = hsn_code_val || null
         if (hsn_code_val) {
-          const hItem = hsnMap.get(hsn_code_val)
+          let hItem = hsnMap.get(hsn_code_val)
           if (!hItem) {
-            errors.push({
-              row: rowNum,
-              message: `HSN Code "${hsn_code_val}" not found. Create it first in HSN Master.`
-            })
-            continue
+            try {
+              const ins = await client.query(
+                'INSERT INTO hsn_master (hsn_code) VALUES ($1) ON CONFLICT (hsn_code) DO UPDATE SET hsn_code = EXCLUDED.hsn_code RETURNING id, hsn_code',
+                [hsn_code_val]
+              )
+              hItem = ins.rows[0]
+              hsnMap.set(hsn_code_val, hItem)
+            } catch (e) {
+              console.warn('[importProducts] Auto-create HSN fallback:', e.message)
+            }
           }
-          hsn_id = hItem.id
-          resolved_hsn_code = hItem.hsn_code
+          if (hItem) {
+            hsn_id = hItem.id
+            resolved_hsn_code = hItem.hsn_code
+          }
         }
 
-        // Resolve GST (optional)
+        // Resolve or Auto-create GST (optional)
         let gst_id = null
         let gstRate = 0
         if (gst_rate_val) {
           const parsedGst = parseFloat(gst_rate_val)
-          const gItem = gstMap.get(parsedGst)
-          if (!gItem) {
-            errors.push({
-              row: rowNum,
-              message: `GST Rate "${gst_rate_val}%" not found. Create it first in GST Master.`
-            })
-            continue
+          if (!isNaN(parsedGst)) {
+            gstRate = parsedGst
+            let gItem = gstMap.get(parsedGst)
+            if (!gItem) {
+              try {
+                const gstCode = `GST-${parsedGst}%`
+                const ins = await client.query(
+                  'INSERT INTO gst_master (gst_code, description, gst_rate) VALUES ($1, $2, $3) ON CONFLICT (gst_code) DO UPDATE SET gst_rate = EXCLUDED.gst_rate RETURNING id, gst_rate',
+                  [gstCode, `${parsedGst}% GST`, parsedGst]
+                )
+                gItem = ins.rows[0]
+                gstMap.set(parsedGst, gItem)
+              } catch (e) {
+                console.warn('[importProducts] Auto-create GST fallback:', e.message)
+              }
+            }
+            if (gItem) {
+              gst_id = gItem.id
+              gstRate = parseFloat(gItem.gst_rate) || parsedGst
+            }
           }
-          gst_id = gItem.id
-          gstRate = parseFloat(gItem.gst_rate) || 0
         }
 
         // Generate SKU if not provided
