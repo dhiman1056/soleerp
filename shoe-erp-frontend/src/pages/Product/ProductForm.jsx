@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import Modal from '../../components/common/Modal.jsx'
@@ -89,8 +90,15 @@ function SectionLabel({ children }) {
 }
 
 export default function ProductForm({ isOpen, onClose, editSku }) {
-  const isEdit = !!editSku
-  const sku = editSku
+  const routeParams = useParams()
+  const navigate = useNavigate()
+
+  const effectiveOpen  = isOpen !== undefined ? isOpen : true
+  const effectiveSku   = editSku !== undefined ? editSku : routeParams?.sku
+  const effectiveClose = onClose || (() => navigate('/products'))
+
+  const isEdit = !!effectiveSku
+  const sku = effectiveSku
   
   const [tab, setTab] = useState(0)
   const [skuMode, setSkuMode] = useState('AUTO') // 'AUTO' or 'MANUAL'
@@ -277,24 +285,24 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
 
     if (isEdit) {
       updateMut.mutate({ sku, ...payload }, { 
-        onSuccess: () => onClose() 
+        onSuccess: () => effectiveClose() 
       })
     } else {
       createMut.mutate(payload, { 
-        onSuccess: () => onClose() 
+        onSuccess: () => effectiveClose() 
       })
     }
   }
 
   return (
     <Modal
-      isOpen={isOpen}
-      onClose={onClose}
+      isOpen={effectiveOpen}
+      onClose={effectiveClose}
       title={isEdit ? `Edit Product: ${sku}` : 'Create New Product'}
       size="3xl"
       footer={
         <>
-          <button type="button" onClick={onClose} className="btn-secondary disabled:opacity-50" disabled={isBusy}>
+          <button type="button" onClick={effectiveClose} className="btn-secondary disabled:opacity-50" disabled={isBusy}>
             Cancel
           </button>
           <button type="submit" form="product-form" className="btn-primary disabled:opacity-50" disabled={isBusy}>

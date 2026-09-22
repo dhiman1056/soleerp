@@ -80,9 +80,10 @@ const listProducts = async (req, res, next) => {
     const page      = Math.max(1, parseInt(req.query.page)  || 1);
     const limit     = Math.min(200, parseInt(req.query.limit) || 50);
     const offset    = (page - 1) * limit;
-    const search    = req.query.search       || '';
+    const search     = req.query.search       || '';
     const typeFilter = req.query.product_type || '';
-    const category  = req.query.category     || '';
+    const category   = req.query.category     || '';
+    const categoryId = req.query.category_id  || '';
 
     if (typeFilter && !VALID_TYPES.includes(typeFilter.toUpperCase())) {
       throw createError(400, `Invalid product_type. Must be one of: ${VALID_TYPES.join(', ')}`);
@@ -99,7 +100,10 @@ const listProducts = async (req, res, next) => {
       params.push(typeFilter.toUpperCase());
       conditions.push(`p.product_type = $${params.length}`);
     }
-    if (category) {
+    if (categoryId) {
+      params.push(parseInt(categoryId, 10));
+      conditions.push(`p.category_id = $${params.length}`);
+    } else if (category) {
       params.push(category);
       conditions.push(`(p.category = $${params.length} OR cm.category_name = $${params.length})`);
     }

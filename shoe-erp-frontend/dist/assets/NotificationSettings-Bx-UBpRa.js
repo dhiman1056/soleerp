@@ -1,0 +1,1 @@
+import{j as t}from"./vendor-query-CeXwUhWf.js";import"./vendor-react-CZc_Uusi.js";import{S as i}from"./SettingsPanel-BY7V8ixr.js";import"./useSettings-vD6bu6zq.js";import"./index-DH-u0lvX.js";function m(){return t.jsx(i,{groupKey:"NOTIFICATION",title:"Notification Settings"})}export{m as default};

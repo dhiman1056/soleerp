@@ -1,6 +1,22 @@
+import api from '../api/axiosInstance'
+
 export const downloadFile = async (url, filename) => {
   const token = localStorage.getItem('token');
-  const response = await fetch(url, {
+  
+  let fullUrl = url;
+  if (url.startsWith('/api')) {
+    const base = api.defaults.baseURL || '/api';
+    if (base.endsWith('/api')) {
+      fullUrl = `${base}${url.slice(4)}`;
+    } else {
+      fullUrl = `${base}${url}`;
+    }
+  } else if (!url.startsWith('http')) {
+    const base = api.defaults.baseURL || '/api';
+    fullUrl = `${base}/${url.replace(/^\//, '')}`;
+  }
+
+  const response = await fetch(fullUrl, {
     headers: { Authorization: `Bearer ${token}` }
   });
   

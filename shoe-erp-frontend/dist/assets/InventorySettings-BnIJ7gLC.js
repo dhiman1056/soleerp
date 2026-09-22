@@ -1,0 +1,1 @@
+import{j as t}from"./vendor-query-CeXwUhWf.js";import"./vendor-react-CZc_Uusi.js";import{S as r}from"./SettingsPanel-BY7V8ixr.js";import"./useSettings-vD6bu6zq.js";import"./index-DH-u0lvX.js";function m(){return t.jsx(r,{groupKey:"INVENTORY",title:"Inventory Settings"})}export{m as default};

@@ -1,1 +1,0 @@
-const d=async(t,n)=>{const a=localStorage.getItem("token"),o=await fetch(t,{headers:{Authorization:`Bearer ${a}`}});if(!o.ok)throw new Error("Failed to download file");const c=await o.blob(),e=document.createElement("a");e.href=URL.createObjectURL(c),e.download=n,document.body.appendChild(e),e.click(),document.body.removeChild(e),URL.revokeObjectURL(e.href)};export{d};

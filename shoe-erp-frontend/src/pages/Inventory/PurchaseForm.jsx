@@ -1,11 +1,16 @@
 import React from 'react';
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { useCreatePurchase } from '../../hooks/useInventory'
 import { useRawMaterialsQuery } from '../../hooks/useRawMaterials'
 
 export default function PurchaseForm({ isOpen, onClose }) {
+  const navigate = useNavigate()
+  const effectiveOpen  = isOpen !== undefined ? isOpen : true
+  const effectiveClose = onClose || (() => navigate('/inventory/purchases'))
+
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm({
     defaultValues: { purchase_date: new Date().toISOString().slice(0, 10), qty: '', rate: '' }
   })
@@ -38,14 +43,14 @@ export default function PurchaseForm({ isOpen, onClose }) {
     setTotalValue(q * r)
   }, [watchQty, watchRate])
 
-  if (!isOpen) return null
+  if (!effectiveOpen) return null
 
   const onSubmit = (data) => {
     createMut.mutate(data, {
       onSuccess: () => {
         toast.success('Purchase recorded successfully')
         reset()
-        onClose()
+        effectiveClose()
       },
       onError: (err) => {
         toast.error(err.response?.data?.message || err.message || 'Error recording purchase')
@@ -119,7 +124,7 @@ export default function PurchaseForm({ isOpen, onClose }) {
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3 bg-gray-50/50">
-          <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
+          <button type="button" onClick={effectiveClose} className="btn-secondary">Cancel</button>
           <button type="submit" form="purchase-form" disabled={createMut.isPending} className="btn-primary">
             {createMut.isPending ? 'Saving...' : 'Record Purchase'}
           </button>

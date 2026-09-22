@@ -656,8 +656,6 @@ ALTER TABLE color_master
 ADD COLUMN IF NOT EXISTS color_master_code VARCHAR(20),
 ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
 
-DELETE FROM color_master;
-
 -- Suppliers Master - add brand and certificate fields
 ALTER TABLE suppliers
 ADD COLUMN IF NOT EXISTS brand_id INTEGER REFERENCES brand_master(id),
@@ -695,4 +693,32 @@ ALTER TABLE category_master ADD COLUMN IF NOT EXISTS discount NUMERIC(5,2) DEFAU
 -- Product Master - ensure is_active and gst_id exist
 ALTER TABLE product_master ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true;
 ALTER TABLE product_master ADD COLUMN IF NOT EXISTS gst_id INTEGER;
+
+-- Purchases table for inventory direct purchase entries
+CREATE TABLE IF NOT EXISTS purchases (
+    id SERIAL PRIMARY KEY,
+    purchase_no VARCHAR(50) NOT NULL UNIQUE,
+    purchase_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    supplier_name VARCHAR(100),
+    sku_code VARCHAR(50) NOT NULL,
+    sku_description VARCHAR(255),
+    uom VARCHAR(20) NOT NULL,
+    qty NUMERIC(12, 4) NOT NULL DEFAULT 0,
+    rate NUMERIC(12, 4) NOT NULL DEFAULT 0,
+    total_value NUMERIC(12, 4) NOT NULL DEFAULT 0,
+    remarks TEXT,
+    created_by INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_product_sku ON product_master(sku_code);
+CREATE INDEX IF NOT EXISTS idx_product_type ON product_master(product_type);
+CREATE INDEX IF NOT EXISTS idx_product_cat ON product_master(category_id);
+CREATE INDEX IF NOT EXISTS idx_product_brand ON product_master(brand_id);
+CREATE INDEX IF NOT EXISTS idx_stock_sku ON stock_ledger(sku_code);
+CREATE INDEX IF NOT EXISTS idx_bom_output ON bom_header(output_sku);
+CREATE INDEX IF NOT EXISTS idx_purchases_sku ON purchases(sku_code);
+CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(purchase_date);
+
 

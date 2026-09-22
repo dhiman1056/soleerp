@@ -45,6 +45,8 @@ export default function GlobalSearch() {
     setQuery('')
     if (r.type === 'inventory/stock') {
       navigate(`/inventory/stock?search=${r.queryKey}`)
+    } else if (r.type === 'bom') {
+      navigate(`/bom/${r.target_id}/edit`)
     } else {
       navigate(`/${r.type.replace('_', '-')}/${r.target_id}`)
     }

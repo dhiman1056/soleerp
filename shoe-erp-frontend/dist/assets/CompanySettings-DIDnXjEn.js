@@ -1,0 +1,1 @@
+import{j as t}from"./vendor-query-CeXwUhWf.js";import"./vendor-react-CZc_Uusi.js";import{S as o}from"./SettingsPanel-BY7V8ixr.js";import"./useSettings-vD6bu6zq.js";import"./index-DH-u0lvX.js";function p(){return t.jsx(o,{groupKey:"COMPANY",title:"Company Settings"})}export{p as default};

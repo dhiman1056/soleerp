@@ -24,11 +24,12 @@ exports.globalSearch = async (req, res, next) => {
 
     // Search BOMs
     const { rows: boms } = await query(`
-      SELECT 'boms' as type, id as target_id, title, subtitle
+      SELECT 'bom' as type, id as target_id, title, subtitle
       FROM (
-        SELECT id, bom_code as title, output_description as subtitle
-        FROM bom_header
-        WHERE bom_code ILIKE $1 OR output_description ILIKE $1
+        SELECT b.id, b.bom_code as title, COALESCE(p.description, b.output_sku) as subtitle
+        FROM bom_header b
+        LEFT JOIN product_master p ON b.output_sku = p.sku_code
+        WHERE b.bom_code ILIKE $1 OR b.output_sku ILIKE $1 OR p.description ILIKE $1
         LIMIT 3
       ) as bom
     `, [searchStr]);

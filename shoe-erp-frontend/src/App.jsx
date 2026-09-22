@@ -72,6 +72,7 @@ export default function App() {
               <Route path="/products/:sku/edit" element={<ProductForm />} />
               <Route path="/bom" element={<BOMList />} />
               <Route path="/bom/new" element={<BOMForm />} />
+              <Route path="/bom/:id" element={<BOMForm />} />
               <Route path="/bom/:id/edit" element={<BOMForm />} />
               <Route path="/work-orders" element={<WorkOrderList />} />
               <Route path="/work-orders/:id" element={<WorkOrderDetail />} />
