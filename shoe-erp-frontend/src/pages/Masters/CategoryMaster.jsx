@@ -135,18 +135,18 @@ function CategoryModal({ editItem, onClose }) {
             {errors.catg_name && <p className="mt-1 text-xs text-red-500">{errors.catg_name}</p>}
           </div>
 
-          {/* Department */}
+          {/* Stock Group */}
           <div>
-            <label className="label">Department</label>
+            <label className="label">Stock Group</label>
             <select
               value={form.dept_id}
               onChange={set('dept_id')}
               className="input-field"
             >
-              <option value="">— Select Department —</option>
+              <option value="">— Select Stock Group —</option>
               {departments.map(d => (
                 <option key={d.id} value={d.id}>
-                  {d.dept_code} — {d.dept_name}
+                  {d.sg_code ? `${d.sg_code} — ` : ''}{d.stock_group || d.dept_name}
                 </option>
               ))}
             </select>
@@ -200,11 +200,11 @@ export default function CategoryMaster() {
     },
     {
       key: 'dept_name',
-      label: 'Department Name',
+      label: 'Stock Group Name',
       required: false,
-      example: 'Production',
-      example2: 'Sales',
-      note: 'Must exactly match an existing Department Name'
+      example: 'RAW MATERIAL',
+      example2: 'FINISHED GOODS',
+      note: 'Must match an existing Stock Group Name'
     },
     {
       key: 'discount',
@@ -305,7 +305,7 @@ export default function CategoryMaster() {
                 <tr>
                   <th className="px-5 py-3 whitespace-nowrap">Code</th>
                   <th className="px-5 py-3">Description</th>
-                  <th className="px-5 py-3">Department</th>
+                  <th className="px-5 py-3">Stock Group</th>
                   <th className="px-5 py-3">Discount %</th>
                   <th className="px-5 py-3 text-center">Status</th>
                   {canEdit && <th className="px-5 py-3 text-right">Actions</th>}
@@ -335,7 +335,7 @@ export default function CategoryMaster() {
                       {c.catg_name}
                     </td>
                     <td className="px-5 py-3">
-                      {c.dept_code ? `${c.dept_code} — ${c.dept_name}` : '—'}
+                      {c.stock_group || c.dept_name || '—'}
                     </td>
                     <td className="px-5 py-3">
                       {c.discount ? `${c.discount}%` : '—'}

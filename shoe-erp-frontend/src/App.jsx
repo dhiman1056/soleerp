@@ -107,6 +107,7 @@ export default function App() {
                 <Route path="locations"      element={<LocationMaster />} />
                 <Route path="company-master"     element={<CompanyMaster />} />
                 <Route path="department-master"  element={<DepartmentMaster />} />
+                <Route path="stock-group-master" element={<DepartmentMaster />} />
                 <Route path="category-master"    element={<CategoryMaster />} />
                 <Route path="sub-category-master" element={<SubCategoryMaster />} />
                 <Route path="brand-master"         element={<BrandMaster />} />
@@ -125,8 +126,9 @@ export default function App() {
               </Route>
 
               <Route path="/users" element={<UserManagement />} />
-              <Route path="/masters/companies"   element={<CompanyMaster />} />
-              <Route path="/masters/departments" element={<DepartmentMaster />} />
+              <Route path="/masters/companies"    element={<CompanyMaster />} />
+              <Route path="/masters/departments"  element={<DepartmentMaster />} />
+              <Route path="/masters/stock-groups" element={<DepartmentMaster />} />
               <Route path="/masters/categories"    element={<CategoryMaster />} />
               <Route path="/masters/sub-categories" element={<SubCategoryMaster />} />
               <Route path="/masters/brands"          element={<BrandMaster />} />

@@ -449,10 +449,10 @@ export default function ProductList() {
           }}
           className="input-field w-auto min-w-[160px]"
         >
-          <option value="">All Departments</option>
+          <option value="">All Stock Groups</option>
           {departments.map(d => (
             <option key={d.id} value={d.id}>
-              {d.dept_name}
+              {d.stock_group || d.dept_name}
             </option>
           ))}
         </select>
