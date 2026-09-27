@@ -5,7 +5,19 @@ import * as XLSX from 'xlsx'
 import api from '../../api/axiosInstance'
 import toast from 'react-hot-toast'
 
-export default function ImportModal({ isOpen, onClose, masterName, templateColumns, importUrl, onSuccess }) {
+export default function ImportModal({ 
+  isOpen, 
+  onClose, 
+  masterName, 
+  title, 
+  templateColumns = [], 
+  importUrl, 
+  apiEndpoint, 
+  onSuccess 
+}) {
+  const resolvedMasterName = (masterName || title || 'Template').replace(/^Import\s+/i, '').trim()
+  const resolvedImportUrl  = (importUrl || apiEndpoint || '').trim()
+
   const [step, setStep] = useState(1) // 1: Upload & Preview, 2: Results
   const [fileName, setFileName] = useState('')
   const [parsedRows, setParsedRows] = useState([])
@@ -39,55 +51,77 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
   if (!isOpen) return null
 
   // ─── Step 1: Dynamic Sample Template CSV Download ──────────────────────────
-  const downloadSampleTemplate = () => {
-    // Build CSV header row
-    const headers = templateColumns.map(col => `"${col.label.replace(/"/g, '""')}"`).join(',')
-    
-    // Build 2 example rows
-    const exampleRows = []
-    const row1 = templateColumns.map(col => {
-      const val = col.example || ''
-      return `"${val.replace(/"/g, '""')}"`
-    }).join(',')
-    
-    const row2 = templateColumns.map(col => {
-      // Create a slightly altered variation for second example row
-      const val = col.example ? `${col.example} 2` : ''
-      return `"${val.replace(/"/g, '""')}"`
-    }).join(',')
-    
-    exampleRows.push(row1, row2)
-    
-    const csvContent = [headers, ...exampleRows].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `sample_${masterName.toLowerCase().replace(/\s+/g, '_')}_template.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    toast.success('Sample template downloaded')
+  const downloadSampleCsv = () => {
+    try {
+      const headers = templateColumns.map(col => `"${String(col.label || col.key).replace(/"/g, '""')}"`).join(',')
+      const row1 = templateColumns.map(col => `"${String(col.example ?? '').replace(/"/g, '""')}"`).join(',')
+      const row2 = templateColumns.map(col => `"${String(col.example2 ?? (col.example ? `${col.example} 2` : '')).replace(/"/g, '""')}"`).join(',')
+
+      const csvContent = [headers, row1, row2].join('\n')
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Sample_${resolvedMasterName.replace(/\s+/g, '_')}_Template.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      toast.success('Sample CSV template downloaded')
+    } catch (err) {
+      console.error('Error downloading CSV template:', err)
+      toast.error('Failed to download CSV template')
+    }
+  }
+
+  // ─── Step 1B: Dynamic Sample Template Excel (.xlsx) Download ────────────────
+  const downloadSampleExcel = () => {
+    try {
+      const row1 = {}
+      const row2 = {}
+      templateColumns.forEach(col => {
+        const lbl = col.label || col.key
+        row1[lbl] = col.example ?? ''
+        row2[lbl] = col.example2 ?? (col.example ? `${col.example} 2` : '')
+      })
+      const ws = XLSX.utils.json_to_sheet([row1, row2])
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'Template')
+      XLSX.writeFile(wb, `Sample_${resolvedMasterName.replace(/\s+/g, '_')}_Template.xlsx`)
+      toast.success('Sample Excel template downloaded')
+    } catch (err) {
+      console.error('Error downloading Excel template:', err)
+      toast.error('Failed to download Excel template')
+    }
   }
 
   // ─── Step 2: Mapping columns from CSV/Excel to keys ────────────────────────
+  const KNOWN_ALIASES = {
+    supplier_code: ['supp code', 'supp_code', 'supplier code', 'code', 'vendor code', 'vendor_code'],
+    supplier_name: ['supplier', 'supplier name', 'vendor', 'vendor name', 'name'],
+    stock_group: ['stock group', 'stock_group', 'stock groups', 'stock_groups', 'department', 'dept', 'dept_name', 'group'],
+    supplier_type: ['type', 'supplier type', 'vendor type'],
+    sg_code: ['sg code', 'sg_code', 'code', 'stock group code', 'dept_code'],
+    stock_type: ['stock types', 'stock type', 'type'],
+    bom_applicable: ['types or bom aplicable', 'types of bom applicable', 'bom applicable', 'bom'],
+    discount: ['discount %', 'discount', 'disc', 'discount_percent']
+  }
+
   const mapParsedRows = (rawRows) => {
     return rawRows.map(row => {
-      // Retain original raw fields while guaranteeing normalized key & label access
       const mapped = { ...row }
       templateColumns.forEach(col => {
-        const possibleKeys = [col.label, col.key]
+        const aliases = KNOWN_ALIASES[col.key] || []
+        const possibleKeys = [col.label, col.key, ...aliases]
         let value = undefined
-        
+
         for (const k of possibleKeys) {
-          // Try exact match first
+          if (!k) continue
           if (row[k] !== undefined) {
             value = row[k]
             break
           }
-          // Try case-insensitive and trimmed key matching
           const foundKey = Object.keys(row).find(
             rk => rk.toLowerCase().trim() === k.toLowerCase().trim()
           )
@@ -98,7 +132,7 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
         }
         const cleanVal = value !== undefined && value !== null ? String(value).trim() : ''
         mapped[col.key] = cleanVal
-        mapped[col.label] = cleanVal
+        if (col.label) mapped[col.label] = cleanVal
       })
       return mapped
     })
@@ -162,7 +196,7 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
     const totalBatches = Math.ceil(totalRows / BATCH_SIZE)
 
     // Sanitize importUrl: strip leading "/api" so axiosInstance does not request "/api/api/..."
-    const cleanUrl = importUrl.startsWith('/api/') ? importUrl.slice(4) : importUrl
+    const cleanUrl = resolvedImportUrl.startsWith('/api/') ? resolvedImportUrl.slice(4) : resolvedImportUrl
 
     let totalImported = 0
     let totalSkipped = 0
@@ -251,7 +285,7 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-5 bg-white border-b border-[#f1f5f9] flex-shrink-0">
           <div>
-            <h3 className="text-[16px] font-semibold text-[#0f172a]">Import Data - {masterName}</h3>
+            <h3 className="text-[16px] font-semibold text-[#0f172a]">Import Data - {resolvedMasterName}</h3>
             <p className="text-[12px] text-[#64748b] mt-0.5">Upload CSV or Excel templates directly to database</p>
           </div>
           <button
@@ -270,19 +304,33 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
             {/* Step 1: Download Sample template */}
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between gap-4">
               <div className="min-w-0">
-                <h4 className="text-sm font-bold text-blue-900">Step 1: Download Sample CSV Template</h4>
-                <p className="text-xs text-blue-700 mt-0.5">Get a pre-formatted structure with instructions and examples.</p>
+                <h4 className="text-sm font-bold text-blue-900">Step 1: Download Sample Template</h4>
+                <p className="text-xs text-blue-700 mt-0.5">Get a pre-formatted structure with headers and examples.</p>
               </div>
-              <button
-                type="button"
-                onClick={downloadSampleTemplate}
-                className="btn-primary py-2 px-4 text-xs flex items-center gap-2 whitespace-nowrap bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-200"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download Sample
-              </button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={downloadSampleExcel}
+                  className="py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 whitespace-nowrap bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-colors"
+                  title="Download Microsoft Excel spreadsheet template"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Excel (.xlsx)
+                </button>
+                <button
+                  type="button"
+                  onClick={downloadSampleCsv}
+                  className="py-2 px-3 text-xs font-semibold rounded-lg flex items-center gap-1.5 whitespace-nowrap bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-colors"
+                  title="Download CSV comma-separated template"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  CSV (.csv)
+                </button>
+              </div>
             </div>
 
             {/* Step 2: Upload zone */}

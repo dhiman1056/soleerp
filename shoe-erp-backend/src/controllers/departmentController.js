@@ -162,14 +162,14 @@ const importDepartments = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const name = (row['STOCK GROUP'] || row['Stock Group'] || row['Department Name'] || row['dept_name'] || '').trim()
+      const name = (row['STOCK GROUP'] || row['Stock Group'] || row['stock_group'] || row['Department Name'] || row['dept_name'] || '').trim()
       const sg_code_in = (row['SG CODE'] || row['sg_code'] || row['Sg Code'] || '').toString().trim()
       const rawStockType = (row['STOCK TYPES'] || row['Stock Types'] || row['Stock Type'] || row['stock_type'] || '').toString().trim().toUpperCase()
       const stock_type = (rawStockType === 'NON-INVENTORY' || rawStockType.includes('NON') ? 'NON-INVENTORY' : 'INVENTORY')
       
       const rawBom = (row['TYPES OR BOM APLICABLE'] || row['TYPES OF BOM APPLICABLE'] || row['Types or BOM Applicable'] || row['bom_applicable'] || row['BOM Applicable'] || '').toString().trim().toUpperCase()
       const bom_applicable = Boolean(rawBom && (rawBom.includes('BOM') || rawBom === 'TRUE' || rawBom === 'YES' || rawBom === '1'))
-      const discount = parseFloat(row['Discount %'] || row['discount'] || 0)
+      const discount = parseFloat(row['Discount %'] || row['discount'] || 0) || 0
 
       if (!name) {
         errors.push({ row: rowNum, message: 'Stock Group name is required' })
@@ -191,10 +191,11 @@ const importDepartments = async (req, res) => {
             sg_code = COALESCE(NULLIF($1, ''), sg_code),
             stock_type = $2,
             bom_applicable = $3,
+            discount = $4,
             is_active = true,
             updated_at = NOW()
-          WHERE id = $4
-        `, [sg_code_in, stock_type, bom_applicable, dup.rows[0].id])
+          WHERE id = $5
+        `, [sg_code_in, stock_type, bom_applicable, discount, dup.rows[0].id])
         imported++
         continue
       }

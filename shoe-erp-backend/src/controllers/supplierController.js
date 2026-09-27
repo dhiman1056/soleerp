@@ -462,7 +462,7 @@ exports.importSuppliers = async (req, res, next) => {
     try {
       const supplier_code_in = (row['SUPP CODE']      || row['supp_code']        || row['Supplier Code']    || row['supplier_code'] || '').toString().trim();
       const supplier_name    = (row['SUPPLIER']       || row['Supplier']         || row['Supplier Name']    || row['supplier_name'] || '').trim();
-      const stock_group_in   = (row['STOCK GROUP']    || row['Stock Group']      || row['stock_group']      || '').trim();
+      const stock_group_in   = (row['STOCK GROUP']    || row['Stock Group']      || row['stock_group']      || row['STOCK GROUPS'] || row['Stock Groups'] || row['stock_groups'] || '').trim();
       const type_in          = (row['TYPE']           || row['Type']             || row['Supplier Type']    || row['supplier_type'] || 'PURCHASE').trim().toUpperCase();
       const gstin           = (row['GSTIN']            || row['gstin']            || '').trim().toUpperCase();
       const contact_person  = (row['Contact Person']   || row['contact_person']   || '').trim();
@@ -494,11 +494,20 @@ exports.importSuppliers = async (req, res, next) => {
 
       const parsedSG = await parseStockGroups(stock_group_in, null);
 
-      // Check duplicates
-      const dup = await query(
-        'SELECT id FROM suppliers WHERE LOWER(supplier_name) = LOWER($1)',
-        [supplier_name]
-      );
+      // Check duplicates by name or supplier_code
+      let dup;
+      if (supplier_code_in) {
+        dup = await query(
+          'SELECT id FROM suppliers WHERE LOWER(supplier_name) = LOWER($1) OR supplier_code = $2',
+          [supplier_name, supplier_code_in]
+        );
+      } else {
+        dup = await query(
+          'SELECT id FROM suppliers WHERE LOWER(supplier_name) = LOWER($1)',
+          [supplier_name]
+        );
+      }
+
       if (dup.rows.length > 0) {
         await query(`
           UPDATE suppliers SET
@@ -508,15 +517,35 @@ exports.importSuppliers = async (req, res, next) => {
             stock_group_ids = COALESCE($4, stock_group_ids),
             supplier_type = COALESCE(NULLIF($5, ''), supplier_type),
             type = COALESCE(NULLIF($5, ''), type),
+            gstin = COALESCE(NULLIF($6, ''), gstin),
+            contact_person = COALESCE(NULLIF($7, ''), contact_person),
+            phone = COALESCE(NULLIF($8, ''), phone),
+            email = COALESCE(NULLIF($9, ''), email),
+            address = COALESCE(NULLIF($10, ''), address),
+            city = COALESCE(NULLIF($11, ''), city),
+            state = COALESCE(NULLIF($12, ''), state),
+            pincode = COALESCE(NULLIF($13, ''), pincode),
+            payment_terms = COALESCE(NULLIF($14, ''), payment_terms),
+            credit_limit = CASE WHEN $15 > 0 THEN $15 ELSE credit_limit END,
             is_active = true,
             updated_at = NOW()
-          WHERE id = $6
+          WHERE id = $16
         `, [
           supplier_code_in,
           parsedSG.stock_group,
           parsedSG.stock_groups,
           parsedSG.stock_group_ids,
           type_in,
+          gstin,
+          contact_person,
+          phone,
+          email,
+          address,
+          city,
+          state,
+          pincode,
+          payment_terms,
+          credit_limit,
           dup.rows[0].id
         ]);
         imported++;
@@ -539,7 +568,7 @@ exports.importSuppliers = async (req, res, next) => {
           gstin, brand_id, payment_terms, address, city, state, pincode,
           contact_person, phone, email, customer_care_no, msme_certificate,
           licence_no, credit_limit, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
       `, [
         supplier_code,
         supplier_name,
@@ -547,6 +576,7 @@ exports.importSuppliers = async (req, res, next) => {
         parsedSG.stock_group_id,
         parsedSG.stock_groups,
         parsedSG.stock_group_ids,
+        type_in || 'PURCHASE',
         type_in || 'PURCHASE',
         gstin || null,
         brand_id,

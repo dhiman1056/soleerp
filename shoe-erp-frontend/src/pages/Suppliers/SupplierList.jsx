@@ -111,10 +111,10 @@ export default function SupplierList() {
   }
 
   const templateColumns = [
-    { key: 'supplier_code', label: 'Supplier Code / SUPP CODE', required: false, example: '1', example2: '2', note: 'Leave blank to auto-generate' },
-    { key: 'supplier_name', label: 'Supplier Name / SUPPLIER', required: true, example: 'A S APPARELS (JOB WORK)', example2: 'ABP INDUSTRIES' },
-    { key: 'stock_group', label: 'Stock Group / STOCK GROUP', required: false, example: 'ACCESSORIES', example2: 'RAW MATERIAL' },
-    { key: 'supplier_type', label: 'Type / TYPE', required: false, example: 'PURCHASE', example2: 'JOB WORK', note: 'PURCHASE, JOB WORK, or JOB WORK & PURCHASE' },
+    { key: 'supplier_code', label: 'SUPP CODE', required: false, example: '1', example2: '2', note: 'Supplier code or number. Leave blank to auto-generate' },
+    { key: 'supplier_name', label: 'SUPPLIER', required: true, example: 'A S APPARELS (JOB WORK)', example2: 'ABP INDUSTRIES', note: 'Company or vendor name' },
+    { key: 'stock_group', label: 'STOCK GROUP', required: false, example: 'ACCESSORIES', example2: 'RAW MATERIAL, SOLE', note: 'Stock Group name(s). Comma-separate for multiple' },
+    { key: 'supplier_type', label: 'TYPE', required: false, example: 'PURCHASE', example2: 'JOB WORK', note: 'PURCHASE, JOB WORK, or JOB WORK & PURCHASE' },
     { key: 'contact_person', label: 'Contact Person', required: false, example: 'Rajesh Kumar', example2: 'Amit Verma' },
     { key: 'phone', label: 'Phone', required: false, example: '9876543210', example2: '9812345678' },
     { key: 'email', label: 'Email', required: false, example: 'sales@apexleather.com', example2: 'info@kanpursoles.com' },
@@ -500,8 +500,8 @@ export default function SupplierList() {
         <ImportModal
           isOpen={showImport}
           onClose={() => setShowImport(false)}
-          title="Import Suppliers"
-          apiEndpoint="/suppliers/import"
+          masterName="Suppliers"
+          importUrl="/suppliers/import"
           templateColumns={templateColumns}
           onSuccess={() => {
             qc.invalidateQueries({ queryKey: ['suppliers'] })
