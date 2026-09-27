@@ -1,15 +1,21 @@
 import React, { useState } from 'react'
 import { useCreateSupplier, useUpdateSupplier } from '../../hooks/useSuppliers'
 import { useBrands } from '../../hooks/useBrands.js'
+import { useStockGroups } from '../../hooks/useDepartments'
 import toast from 'react-hot-toast'
 
 export default function SupplierForm({ supplier, onClose }) {
   const { data: brands = [] } = useBrands()
+  const { data: stockGroups = [] } = useStockGroups()
 
   const [form, setForm] = useState(() => {
     if (supplier) {
       return {
+        supplier_code: supplier.supplier_code || '',
         supplier_name: supplier.supplier_name || '',
+        stock_group: supplier.stock_group || '',
+        stock_group_id: supplier.stock_group_id || '',
+        supplier_type: supplier.supplier_type || supplier.type || 'PURCHASE',
         contact_person: supplier.contact_person || '',
         phone: supplier.phone || '',
         email: supplier.email || '',
@@ -28,7 +34,11 @@ export default function SupplierForm({ supplier, onClose }) {
       }
     }
     return {
+      supplier_code: '',
       supplier_name: '',
+      stock_group: '',
+      stock_group_id: '',
+      supplier_type: 'PURCHASE',
       contact_person: '',
       phone: '',
       email: '',
@@ -123,7 +133,7 @@ export default function SupplierForm({ supplier, onClose }) {
           <div>
             <h3 className="text-sm font-semibold text-blue-600 mb-3 uppercase tracking-wider">Section 1 — Basic Info</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="col-span-2 md:col-span-1">
+              <div>
                 <label className="text-xs font-semibold text-gray-600">Supplier Name *</label>
                 <input
                   required
@@ -137,6 +147,56 @@ export default function SupplierForm({ supplier, onClose }) {
                   }}
                 />
                 {errors.supplier_name && <p className="mt-1 text-xs text-red-500">{errors.supplier_name}</p>}
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600">Supplier Code</label>
+                <input
+                  type="text"
+                  placeholder="Auto-generated if empty (or enter code e.g. 1)"
+                  className="input-field font-mono mt-1"
+                  value={form.supplier_code}
+                  onChange={e => setForm({ ...form, supplier_code: e.target.value })}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600">Stock Group</label>
+                <select
+                  className="input-field mt-1"
+                  value={form.stock_group}
+                  onChange={e => {
+                    const sel = stockGroups.find(sg => sg.department_name === e.target.value)
+                    setForm({
+                      ...form,
+                      stock_group: e.target.value,
+                      stock_group_id: sel ? sel.id : ''
+                    })
+                  }}
+                >
+                  <option value="">— Select Stock Group —</option>
+                  {stockGroups.map(sg => (
+                    <option key={sg.id} value={sg.department_name}>
+                      {sg.department_name}
+                    </option>
+                  ))}
+                  {form.stock_group && !stockGroups.some(sg => sg.department_name === form.stock_group) && (
+                    <option value={form.stock_group}>{form.stock_group}</option>
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600">Type</label>
+                <select
+                  className="input-field mt-1"
+                  value={form.supplier_type}
+                  onChange={e => setForm({ ...form, supplier_type: e.target.value })}
+                >
+                  <option value="PURCHASE">PURCHASE</option>
+                  <option value="JOB WORK">JOB WORK</option>
+                  <option value="JOB WORK & PURCHASE">JOB WORK & PURCHASE</option>
+                </select>
               </div>
 
               <div>

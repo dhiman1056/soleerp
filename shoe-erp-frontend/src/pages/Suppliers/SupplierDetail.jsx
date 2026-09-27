@@ -37,13 +37,31 @@ export default function SupplierDetail() {
        {/* Header Card */}
        <div className="card p-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-white shrink-0">
           <div>
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-4 flex-wrap">
               <h1 className="text-2xl font-bold text-gray-900">{supplier.supplier_name}</h1>
               <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-gray-100 text-gray-600">{supplier.supplier_code}</span>
+              {supplier.stock_group && (
+                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                  {supplier.stock_group}
+                </span>
+              )}
+              {(supplier.supplier_type || supplier.type) && (
+                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                  (supplier.supplier_type || supplier.type) === 'JOB WORK'
+                    ? 'bg-purple-100 text-purple-700'
+                    : (supplier.supplier_type || supplier.type) === 'JOB WORK & PURCHASE'
+                    ? 'bg-indigo-100 text-indigo-700'
+                    : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {supplier.supplier_type || supplier.type}
+                </span>
+              )}
               {!supplier.is_active && <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700">INACTIVE</span>}
             </div>
             
             <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
+               <div><p className="text-gray-500 text-xs">Stock Group</p><p className="font-medium">{supplier.stock_group || '-'}</p></div>
+               <div><p className="text-gray-500 text-xs">Type</p><p className="font-medium">{supplier.supplier_type || supplier.type || 'PURCHASE'}</p></div>
                <div><p className="text-gray-500 text-xs">Contact Person</p><p className="font-medium">{supplier.contact_person || '-'}</p></div>
                <div><p className="text-gray-500 text-xs">Phone & Email</p><p className="font-medium">{supplier.phone || '-'} <br/> {supplier.email || '-'}</p></div>
                <div><p className="text-gray-500 text-xs">Address</p><p className="font-medium line-clamp-2">{supplier.address || '-'} {supplier.city}</p></div>

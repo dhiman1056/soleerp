@@ -16,29 +16,43 @@ async function generateSupplierCode() {
  */
 exports.getAllSuppliers = async (req, res, next) => {
   try {
-    const { search, city, is_active } = req.query;
+    const { search, city, is_active, stock_group, type, supplier_type } = req.query;
 
     let q = `
       SELECT s.*, 
+        COALESCE(s.supplier_type, s.type, 'PURCHASE') AS type,
+        COALESCE(s.supplier_type, s.type, 'PURCHASE') AS supplier_type,
         b.brand_name,
         b.brand_code,
+        sg.dept_name AS stock_group_name,
+        sg.sg_code,
         (SELECT COALESCE(running_balance, 0) 
          FROM supplier_ledger sl 
          WHERE sl.supplier_id = s.id 
          ORDER BY id DESC LIMIT 1) as outstanding_balance
       FROM suppliers s
       LEFT JOIN brand_master b ON s.brand_id = b.id
+      LEFT JOIN department_master sg ON (s.stock_group_id = sg.id OR (s.stock_group_id IS NULL AND LOWER(s.stock_group) = LOWER(sg.dept_name)))
       WHERE 1=1
     `;
     const params = [];
 
     if (search) {
       params.push(`%${search}%`);
-      q += ` AND (s.supplier_name ILIKE $${params.length} OR s.supplier_code ILIKE $${params.length})`;
+      q += ` AND (s.supplier_name ILIKE $${params.length} OR s.supplier_code ILIKE $${params.length} OR s.stock_group ILIKE $${params.length} OR s.supplier_type ILIKE $${params.length} OR s.type ILIKE $${params.length})`;
     }
     if (city) {
       params.push(city);
       q += ` AND s.city = $${params.length}`;
+    }
+    if (stock_group) {
+      params.push(`%${stock_group}%`);
+      q += ` AND (s.stock_group ILIKE $${params.length} OR sg.dept_name ILIKE $${params.length})`;
+    }
+    const filterType = type || supplier_type;
+    if (filterType) {
+      params.push(filterType.toUpperCase());
+      q += ` AND (UPPER(COALESCE(s.supplier_type, s.type, '')) = $${params.length})`;
     }
     if (is_active !== undefined) {
       params.push(is_active === 'true');
@@ -47,7 +61,9 @@ exports.getAllSuppliers = async (req, res, next) => {
       q += ` AND s.is_active = true`;
     }
 
-    q += ` ORDER BY s.supplier_code`;
+    q += ` ORDER BY 
+      CASE WHEN s.supplier_code ~ '^[0-9]+$' THEN CAST(s.supplier_code AS INTEGER) ELSE 999999 END ASC,
+      s.supplier_code ASC`;
 
     const { rows } = await query(q, params);
     return res.json({ success: true, count: rows.length, data: rows });
@@ -64,9 +80,14 @@ exports.getSupplierById = async (req, res, next) => {
     const { id } = req.params;
     
     const { rows: supRows } = await query(`
-      SELECT s.*, b.brand_name, b.brand_code 
+      SELECT s.*, 
+        COALESCE(s.supplier_type, s.type, 'PURCHASE') AS type,
+        COALESCE(s.supplier_type, s.type, 'PURCHASE') AS supplier_type,
+        b.brand_name, b.brand_code,
+        sg.dept_name AS stock_group_name, sg.sg_code
       FROM suppliers s
       LEFT JOIN brand_master b ON s.brand_id = b.id
+      LEFT JOIN department_master sg ON (s.stock_group_id = sg.id OR (s.stock_group_id IS NULL AND LOWER(s.stock_group) = LOWER(sg.dept_name)))
       WHERE s.id = $1
     `, [id]);
 
@@ -103,11 +124,14 @@ exports.getSupplierById = async (req, res, next) => {
 exports.createSupplier = async (req, res, next) => {
   try {
     const { 
+      supplier_code: customCode,
       supplier_name, gstin, brand_id, payment_terms,
       address, city, state, pincode,
       contact_person, phone, email,
       customer_care_no, msme_certificate, licence_no,
-      credit_limit
+      credit_limit,
+      stock_group, stock_group_id,
+      supplier_type, type
     } = req.body;
 
     if (!supplier_name?.trim()) {
@@ -116,14 +140,24 @@ exports.createSupplier = async (req, res, next) => {
       });
     }
 
-    const supplier_code = await generateSupplierCode();
+    const finalType = (supplier_type || type || 'PURCHASE').trim().toUpperCase();
+    const finalStockGroup = (stock_group || '').trim() || null;
+    let finalStockGroupId = stock_group_id ? Number(stock_group_id) : null;
+    if (!finalStockGroupId && finalStockGroup) {
+      const sgRes = await query('SELECT id FROM department_master WHERE UPPER(dept_name) = UPPER($1) LIMIT 1', [finalStockGroup]);
+      if (sgRes.rows.length > 0) finalStockGroupId = sgRes.rows[0].id;
+    }
+
+    const supplier_code = (customCode && String(customCode).trim()) ? String(customCode).trim() : await generateSupplierCode();
 
     const { rows } = await query(`
       INSERT INTO suppliers (
         supplier_code, supplier_name, gstin, brand_id, payment_terms,
         address, city, state, pincode, contact_person, phone, email,
-        customer_care_no, msme_certificate, licence_no, credit_limit, created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        customer_care_no, msme_certificate, licence_no, credit_limit,
+        stock_group, stock_group_id, supplier_type, type,
+        created_by
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19, $20)
       RETURNING *
     `, [
       supplier_code,
@@ -142,7 +176,10 @@ exports.createSupplier = async (req, res, next) => {
       msme_certificate ? msme_certificate.trim() : null,
       licence_no ? licence_no.trim() : null,
       credit_limit || 0,
-      req.user.id
+      finalStockGroup,
+      finalStockGroupId,
+      finalType,
+      req.user?.id || null
     ]);
 
     return res.status(201).json({ success: true, data: rows[0] });
@@ -159,11 +196,14 @@ exports.updateSupplier = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { 
+      supplier_code,
       supplier_name, gstin, brand_id, payment_terms,
       address, city, state, pincode,
       contact_person, phone, email,
       customer_care_no, msme_certificate, licence_no,
-      credit_limit, is_active 
+      credit_limit, is_active,
+      stock_group, stock_group_id,
+      supplier_type, type
     } = req.body;
 
     if (supplier_name !== undefined && !supplier_name?.trim()) {
@@ -172,29 +212,42 @@ exports.updateSupplier = async (req, res, next) => {
       });
     }
 
+    const finalType = (supplier_type || type) ? (supplier_type || type).trim().toUpperCase() : null;
+    let finalStockGroupId = stock_group_id !== undefined ? (stock_group_id ? Number(stock_group_id) : null) : null;
+    if (stock_group && !finalStockGroupId) {
+      const sgRes = await query('SELECT id FROM department_master WHERE UPPER(dept_name) = UPPER($1) LIMIT 1', [stock_group.trim()]);
+      if (sgRes.rows.length > 0) finalStockGroupId = sgRes.rows[0].id;
+    }
+
     const { rows } = await query(`
       UPDATE suppliers SET
-        supplier_name = COALESCE($1, supplier_name),
-        gstin = COALESCE($2, gstin),
-        brand_id = COALESCE($3, brand_id),
-        payment_terms = COALESCE($4, payment_terms),
-        address = COALESCE($5, address),
-        city = COALESCE($6, city),
-        state = COALESCE($7, state),
-        pincode = COALESCE($8, pincode),
-        contact_person = COALESCE($9, contact_person),
-        phone = COALESCE($10, phone),
-        email = COALESCE($11, email),
-        customer_care_no = COALESCE($12, customer_care_no),
-        msme_certificate = COALESCE($13, msme_certificate),
-        licence_no = COALESCE($14, licence_no),
-        credit_limit = COALESCE($15, credit_limit),
-        is_active = COALESCE($16, is_active),
+        supplier_code = COALESCE($1, supplier_code),
+        supplier_name = COALESCE($2, supplier_name),
+        gstin = COALESCE($3, gstin),
+        brand_id = COALESCE($4, brand_id),
+        payment_terms = COALESCE($5, payment_terms),
+        address = COALESCE($6, address),
+        city = COALESCE($7, city),
+        state = COALESCE($8, state),
+        pincode = COALESCE($9, pincode),
+        contact_person = COALESCE($10, contact_person),
+        phone = COALESCE($11, phone),
+        email = COALESCE($12, email),
+        customer_care_no = COALESCE($13, customer_care_no),
+        msme_certificate = COALESCE($14, msme_certificate),
+        licence_no = COALESCE($15, licence_no),
+        credit_limit = COALESCE($16, credit_limit),
+        is_active = COALESCE($17, is_active),
+        stock_group = COALESCE($18, stock_group),
+        stock_group_id = COALESCE($19, stock_group_id),
+        supplier_type = COALESCE($20, supplier_type),
+        type = COALESCE($20, type),
         updated_at = NOW(),
-        updated_by = $17
-      WHERE id = $18
+        updated_by = $21
+      WHERE id = $22
       RETURNING *
     `, [
+      supplier_code !== undefined ? (supplier_code ? String(supplier_code).trim() : null) : null,
       supplier_name !== undefined ? supplier_name.trim() : null,
       gstin !== undefined ? (gstin ? gstin.trim().toUpperCase() : null) : null,
       brand_id !== undefined ? (brand_id ? Number(brand_id) : null) : null,
@@ -211,7 +264,10 @@ exports.updateSupplier = async (req, res, next) => {
       licence_no !== undefined ? (licence_no ? licence_no.trim() : null) : null,
       credit_limit !== undefined ? credit_limit : null,
       is_active !== undefined ? is_active : null,
-      req.user.id,
+      stock_group !== undefined ? (stock_group ? stock_group.trim() : null) : null,
+      finalStockGroupId,
+      finalType,
+      req.user?.id || null,
       id
     ]);
 
@@ -340,7 +396,10 @@ exports.importSuppliers = async (req, res, next) => {
     const rowNum = i + 1;
 
     try {
-      const supplier_name   = (row['Supplier Name']    || row['supplier_name']    || '').trim();
+      const supplier_code_in = (row['SUPP CODE']      || row['supp_code']        || row['Supplier Code']    || row['supplier_code'] || '').toString().trim();
+      const supplier_name    = (row['SUPPLIER']       || row['Supplier']         || row['Supplier Name']    || row['supplier_name'] || '').trim();
+      const stock_group_in   = (row['STOCK GROUP']    || row['Stock Group']      || row['stock_group']      || '').trim();
+      const type_in          = (row['TYPE']           || row['Type']             || row['Supplier Type']    || row['supplier_type'] || 'PURCHASE').trim().toUpperCase();
       const gstin           = (row['GSTIN']            || row['gstin']            || '').trim().toUpperCase();
       const contact_person  = (row['Contact Person']   || row['contact_person']   || '').trim();
       const phone           = (row['Phone']            || row['phone']            || row['contact_mobile'] || '').trim();
@@ -375,7 +434,17 @@ exports.importSuppliers = async (req, res, next) => {
         [supplier_name]
       );
       if (dup.rows.length > 0) {
-        skipped++;
+        await query(`
+          UPDATE suppliers SET
+            supplier_code = COALESCE(NULLIF($1, ''), supplier_code),
+            stock_group = COALESCE(NULLIF($2, ''), stock_group),
+            supplier_type = COALESCE(NULLIF($3, ''), supplier_type),
+            type = COALESCE(NULLIF($3, ''), type),
+            is_active = true,
+            updated_at = NOW()
+          WHERE id = $4
+        `, [supplier_code_in, stock_group_in, type_in, dup.rows[0].id]);
+        imported++;
         continue;
       }
 
@@ -387,17 +456,27 @@ exports.importSuppliers = async (req, res, next) => {
         }
       }
 
-      const supplier_code = await generateSupplierCode();
+      let stock_group_id = null;
+      if (stock_group_in) {
+        const sgRes = await query('SELECT id FROM department_master WHERE UPPER(dept_name) = UPPER($1) LIMIT 1', [stock_group_in]);
+        if (sgRes.rows.length > 0) stock_group_id = sgRes.rows[0].id;
+      }
+
+      const supplier_code = supplier_code_in || await generateSupplierCode();
 
       await query(`
         INSERT INTO suppliers (
-          supplier_code, supplier_name, gstin, brand_id, payment_terms,
-          address, city, state, pincode, contact_person, phone, email,
-          customer_care_no, msme_certificate, licence_no, credit_limit, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          supplier_code, supplier_name, stock_group, stock_group_id, supplier_type, type,
+          gstin, brand_id, payment_terms, address, city, state, pincode,
+          contact_person, phone, email, customer_care_no, msme_certificate,
+          licence_no, credit_limit, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       `, [
         supplier_code,
         supplier_name,
+        stock_group_in || null,
+        stock_group_id,
+        type_in || 'PURCHASE',
         gstin || null,
         brand_id,
         payment_terms || null,
