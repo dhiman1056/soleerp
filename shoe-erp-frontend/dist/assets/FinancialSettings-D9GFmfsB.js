@@ -1,1 +1,0 @@
-import{j as t}from"./vendor-query-CnP63l0v.js";import"./vendor-react-CZc_Uusi.js";import{S as i}from"./SettingsPanel-0YjoLOUu.js";import"./useSettings-Ds1To4r_.js";import"./index-YV8Xz0H5.js";function s(){return t.jsx(i,{groupKey:"FINANCIAL",title:"Financial Settings"})}export{s as default};

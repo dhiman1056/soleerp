@@ -6,6 +6,7 @@ import { formatCurrency } from '../../utils/formatCurrency'
 import { formatDate } from '../../utils/formatDate'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
+import SupplierForm from './SupplierForm'
 
 export default function SupplierDetail() {
   const { id } = useParams()
@@ -28,30 +29,45 @@ export default function SupplierDetail() {
 
   const outstanding = parseFloat(supplier.summary.outstanding_balance || 0)
 
+  const [showEditModal, setShowEditModal] = useState(false)
+
+  const sgList = Array.isArray(supplier?.stock_groups) && supplier.stock_groups.length > 0
+    ? supplier.stock_groups
+    : (supplier?.stock_group ? supplier.stock_group.split(',').map(s => s.trim().replace(/^[\(\)]+|[\(\)]+$/g, '')).filter(Boolean) : [])
+
   return (
     <div className="space-y-6">
-       <button onClick={() => navigate('/suppliers')} className="text-sm text-gray-500 hover:text-gray-800 font-medium flex items-center gap-2">
-         &larr; Back to Suppliers
-       </button>
+       <div className="flex items-center justify-between">
+         <button onClick={() => navigate('/suppliers')} className="text-sm text-gray-500 hover:text-gray-800 font-medium flex items-center gap-2">
+           &larr; Back to Suppliers
+         </button>
+         <button
+           onClick={() => setShowEditModal(true)}
+           className="btn-secondary text-xs px-3 py-1.5 flex items-center gap-1.5"
+         >
+           <span>✎</span>
+           <span>Edit Supplier</span>
+         </button>
+       </div>
 
        {/* Header Card */}
        <div className="card p-6 grid grid-cols-1 md:grid-cols-2 gap-6 bg-white shrink-0">
           <div>
-            <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
               <h1 className="text-2xl font-bold text-gray-900">{supplier.supplier_name}</h1>
               <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-gray-100 text-gray-600">{supplier.supplier_code}</span>
-              {supplier.stock_group && (
-                <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                  {supplier.stock_group}
+              {sgList.map(sg => (
+                <span key={sg} className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                  {sg}
                 </span>
-              )}
+              ))}
               {(supplier.supplier_type || supplier.type) && (
-                <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
                   (supplier.supplier_type || supplier.type) === 'JOB WORK'
-                    ? 'bg-purple-100 text-purple-700'
+                    ? 'bg-purple-100 text-purple-700 border border-purple-200'
                     : (supplier.supplier_type || supplier.type) === 'JOB WORK & PURCHASE'
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : 'bg-blue-100 text-blue-700'
+                    ? 'bg-indigo-100 text-indigo-700 border border-indigo-200'
+                    : 'bg-blue-100 text-blue-700 border border-blue-200'
                 }`}>
                   {supplier.supplier_type || supplier.type}
                 </span>
@@ -60,13 +76,12 @@ export default function SupplierDetail() {
             </div>
             
             <div className="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
-               <div><p className="text-gray-500 text-xs">Stock Group</p><p className="font-medium">{supplier.stock_group || '-'}</p></div>
-               <div><p className="text-gray-500 text-xs">Type</p><p className="font-medium">{supplier.supplier_type || supplier.type || 'PURCHASE'}</p></div>
+               <div><p className="text-gray-500 text-xs">Supplier Type</p><p className="font-semibold text-gray-800">{supplier.supplier_type || supplier.type || 'PURCHASE'}</p></div>
+               <div><p className="text-gray-500 text-xs">Payment Terms</p><p className="font-medium">{supplier.payment_terms || '-'}</p></div>
                <div><p className="text-gray-500 text-xs">Contact Person</p><p className="font-medium">{supplier.contact_person || '-'}</p></div>
                <div><p className="text-gray-500 text-xs">Phone & Email</p><p className="font-medium">{supplier.phone || '-'} <br/> {supplier.email || '-'}</p></div>
                <div><p className="text-gray-500 text-xs">Address</p><p className="font-medium line-clamp-2">{supplier.address || '-'} {supplier.city}</p></div>
-               <div><p className="text-gray-500 text-xs">GSTIN</p><p className="font-medium">{supplier.gstin || '-'}</p></div>
-               <div><p className="text-gray-500 text-xs">Payment Terms</p><p className="font-medium">{supplier.payment_terms || '-'}</p></div>
+               <div><p className="text-gray-500 text-xs">GSTIN</p><p className="font-medium font-mono">{supplier.gstin || '-'}</p></div>
             </div>
           </div>
 
@@ -186,6 +201,13 @@ export default function SupplierDetail() {
            supplierId={id} 
            outstanding={outstanding} 
            onClose={() => setShowPayModal(false)} 
+         />
+       )}
+
+       {showEditModal && (
+         <SupplierForm
+           supplier={supplier}
+           onClose={() => setShowEditModal(false)}
          />
        )}
     </div>

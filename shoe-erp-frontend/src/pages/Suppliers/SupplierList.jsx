@@ -42,8 +42,10 @@ export default function SupplierList() {
       if (filterStatus === 'ACTIVE' && !sup.is_active) return false
       if (filterStatus === 'INACTIVE' && sup.is_active) return false
       if (filterStockGroup) {
-        const sg = (sup.stock_group || '').trim().toLowerCase()
-        if (sg !== filterStockGroup.trim().toLowerCase()) return false
+        const target = filterStockGroup.trim().toLowerCase()
+        const sgString = (sup.stock_group || '').toLowerCase()
+        const sgArray = Array.isArray(sup.stock_groups) ? sup.stock_groups.map(s => String(s).toLowerCase()) : []
+        if (!sgString.includes(target) && !sgArray.includes(target)) return false
       }
       if (filterType) {
         const st = (sup.supplier_type || sup.type || '').trim().toUpperCase()
@@ -147,6 +149,51 @@ export default function SupplierList() {
       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap shadow-xs">
         {upper}
       </span>
+    )
+  }
+
+  const renderStockGroups = (sup) => {
+    let list = []
+    if (Array.isArray(sup.stock_groups) && sup.stock_groups.length > 0) {
+      list = sup.stock_groups.map(s => String(s).trim()).filter(Boolean)
+    } else if (sup.stock_group) {
+      list = sup.stock_group.split(',').map(s => s.trim().replace(/^[\(\)]+|[\(\)]+$/g, '')).filter(Boolean)
+    }
+
+    if (list.length === 0) {
+      return <span className="text-gray-300 text-xs">—</span>
+    }
+
+    if (list.length === 1) {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/80 whitespace-nowrap shadow-xs">
+          {list[0]}
+        </span>
+      )
+    }
+
+    const visible = list.slice(0, 2)
+    const hiddenCount = list.length - visible.length
+
+    return (
+      <div className="flex flex-wrap items-center gap-1 max-w-[260px]">
+        {visible.map(g => (
+          <span 
+            key={g} 
+            className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/80 whitespace-nowrap shadow-xs"
+          >
+            {g}
+          </span>
+        ))}
+        {hiddenCount > 0 && (
+          <span 
+            title={list.join(', ')} 
+            className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 cursor-help"
+          >
+            +{hiddenCount}
+          </span>
+        )}
+      </div>
     )
   }
 
@@ -376,14 +423,8 @@ export default function SupplierList() {
                     </td>
 
                     {/* Stock Group */}
-                    <td className="px-4 py-3.5 whitespace-nowrap">
-                      {sup.stock_group ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/80 whitespace-nowrap shadow-xs">
-                          {sup.stock_group}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300 text-xs">—</span>
-                      )}
+                    <td className="px-4 py-3.5">
+                      {renderStockGroups(sup)}
                     </td>
 
                     {/* Type (Protected from wrapping) */}

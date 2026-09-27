@@ -12,6 +12,50 @@ async function generateSupplierCode() {
 }
 
 /**
+ * Helper to parse single or multiple stock groups into both array and comma-string
+ */
+async function parseStockGroups(stock_group, stock_groups) {
+  let list = [];
+  if (Array.isArray(stock_groups)) {
+    list = stock_groups.map(s => String(s).trim()).filter(Boolean);
+  } else if (Array.isArray(stock_group)) {
+    list = stock_group.map(s => String(s).trim()).filter(Boolean);
+  } else if (typeof stock_groups === 'string' && stock_groups.trim()) {
+    list = stock_groups.split(',').map(s => s.trim().replace(/^[\(\)]+|[\(\)]+$/g, '')).filter(Boolean);
+  } else if (typeof stock_group === 'string' && stock_group.trim()) {
+    list = stock_group.split(',').map(s => s.trim().replace(/^[\(\)]+|[\(\)]+$/g, '')).filter(Boolean);
+  }
+
+  // Deduplicate case-insensitively
+  const seen = new Set();
+  const uniqueList = [];
+  for (const item of list) {
+    const lower = item.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      uniqueList.push(item);
+    }
+  }
+
+  let ids = [];
+  if (uniqueList.length > 0) {
+    const { rows } = await query(
+      `SELECT id, dept_name FROM department_master WHERE UPPER(dept_name) = ANY($1)`,
+      [uniqueList.map(s => s.toUpperCase())]
+    );
+    const nameToId = new Map(rows.map(r => [r.dept_name.toUpperCase(), r.id]));
+    ids = uniqueList.map(name => nameToId.get(name.toUpperCase())).filter(Boolean);
+  }
+
+  return {
+    stock_groups: uniqueList.length > 0 ? uniqueList : null,
+    stock_group_ids: ids.length > 0 ? ids : null,
+    stock_group: uniqueList.length > 0 ? uniqueList.join(', ') : null,
+    stock_group_id: ids.length > 0 ? ids[0] : null
+  };
+}
+
+/**
  * GET /api/suppliers
  */
 exports.getAllSuppliers = async (req, res, next) => {
@@ -47,7 +91,10 @@ exports.getAllSuppliers = async (req, res, next) => {
     }
     if (stock_group) {
       params.push(`%${stock_group}%`);
-      q += ` AND (s.stock_group ILIKE $${params.length} OR sg.dept_name ILIKE $${params.length})`;
+      const pLike = params.length;
+      params.push(stock_group.trim());
+      const pExact = params.length;
+      q += ` AND (s.stock_group ILIKE $${pLike} OR sg.dept_name ILIKE $${pLike} OR $${pExact} = ANY(s.stock_groups))`;
     }
     const filterType = type || supplier_type;
     if (filterType) {
@@ -130,7 +177,7 @@ exports.createSupplier = async (req, res, next) => {
       contact_person, phone, email,
       customer_care_no, msme_certificate, licence_no,
       credit_limit,
-      stock_group, stock_group_id,
+      stock_group, stock_groups, stock_group_id, stock_group_ids,
       supplier_type, type
     } = req.body;
 
@@ -141,12 +188,11 @@ exports.createSupplier = async (req, res, next) => {
     }
 
     const finalType = (supplier_type || type || 'PURCHASE').trim().toUpperCase();
-    const finalStockGroup = (stock_group || '').trim() || null;
-    let finalStockGroupId = stock_group_id ? Number(stock_group_id) : null;
-    if (!finalStockGroupId && finalStockGroup) {
-      const sgRes = await query('SELECT id FROM department_master WHERE UPPER(dept_name) = UPPER($1) LIMIT 1', [finalStockGroup]);
-      if (sgRes.rows.length > 0) finalStockGroupId = sgRes.rows[0].id;
-    }
+    const parsedSG = await parseStockGroups(stock_group, stock_groups);
+    const finalStockGroup = parsedSG.stock_group;
+    const finalStockGroupId = stock_group_id ? Number(stock_group_id) : parsedSG.stock_group_id;
+    const finalStockGroups = parsedSG.stock_groups;
+    const finalStockGroupIds = parsedSG.stock_group_ids;
 
     const supplier_code = (customCode && String(customCode).trim()) ? String(customCode).trim() : await generateSupplierCode();
 
@@ -155,9 +201,10 @@ exports.createSupplier = async (req, res, next) => {
         supplier_code, supplier_name, gstin, brand_id, payment_terms,
         address, city, state, pincode, contact_person, phone, email,
         customer_care_no, msme_certificate, licence_no, credit_limit,
-        stock_group, stock_group_id, supplier_type, type,
+        stock_group, stock_group_id, stock_groups, stock_group_ids,
+        supplier_type, type,
         created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19, $20)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $21, $22)
       RETURNING *
     `, [
       supplier_code,
@@ -178,6 +225,8 @@ exports.createSupplier = async (req, res, next) => {
       credit_limit || 0,
       finalStockGroup,
       finalStockGroupId,
+      finalStockGroups,
+      finalStockGroupIds,
       finalType,
       req.user?.id || null
     ]);
@@ -202,7 +251,7 @@ exports.updateSupplier = async (req, res, next) => {
       contact_person, phone, email,
       customer_care_no, msme_certificate, licence_no,
       credit_limit, is_active,
-      stock_group, stock_group_id,
+      stock_group, stock_groups, stock_group_id, stock_group_ids,
       supplier_type, type
     } = req.body;
 
@@ -213,10 +262,20 @@ exports.updateSupplier = async (req, res, next) => {
     }
 
     const finalType = (supplier_type || type) ? (supplier_type || type).trim().toUpperCase() : null;
-    let finalStockGroupId = stock_group_id !== undefined ? (stock_group_id ? Number(stock_group_id) : null) : null;
-    if (stock_group && !finalStockGroupId) {
-      const sgRes = await query('SELECT id FROM department_master WHERE UPPER(dept_name) = UPPER($1) LIMIT 1', [stock_group.trim()]);
-      if (sgRes.rows.length > 0) finalStockGroupId = sgRes.rows[0].id;
+    
+    let updateSG = false;
+    let finalStockGroup = null;
+    let finalStockGroupId = null;
+    let finalStockGroups = null;
+    let finalStockGroupIds = null;
+
+    if (stock_group !== undefined || stock_groups !== undefined) {
+      updateSG = true;
+      const parsedSG = await parseStockGroups(stock_group, stock_groups);
+      finalStockGroup = parsedSG.stock_group;
+      finalStockGroupId = stock_group_id !== undefined ? (stock_group_id ? Number(stock_group_id) : null) : parsedSG.stock_group_id;
+      finalStockGroups = parsedSG.stock_groups;
+      finalStockGroupIds = parsedSG.stock_group_ids;
     }
 
     const { rows } = await query(`
@@ -238,13 +297,15 @@ exports.updateSupplier = async (req, res, next) => {
         licence_no = COALESCE($15, licence_no),
         credit_limit = COALESCE($16, credit_limit),
         is_active = COALESCE($17, is_active),
-        stock_group = COALESCE($18, stock_group),
-        stock_group_id = COALESCE($19, stock_group_id),
-        supplier_type = COALESCE($20, supplier_type),
-        type = COALESCE($20, type),
+        stock_group = CASE WHEN $18::boolean THEN $19 ELSE stock_group END,
+        stock_group_id = CASE WHEN $18::boolean THEN $20 ELSE stock_group_id END,
+        stock_groups = CASE WHEN $18::boolean THEN $21 ELSE stock_groups END,
+        stock_group_ids = CASE WHEN $18::boolean THEN $22 ELSE stock_group_ids END,
+        supplier_type = COALESCE($23, supplier_type),
+        type = COALESCE($23, type),
         updated_at = NOW(),
-        updated_by = $21
-      WHERE id = $22
+        updated_by = $24
+      WHERE id = $25
       RETURNING *
     `, [
       supplier_code !== undefined ? (supplier_code ? String(supplier_code).trim() : null) : null,
@@ -264,8 +325,11 @@ exports.updateSupplier = async (req, res, next) => {
       licence_no !== undefined ? (licence_no ? licence_no.trim() : null) : null,
       credit_limit !== undefined ? credit_limit : null,
       is_active !== undefined ? is_active : null,
-      stock_group !== undefined ? (stock_group ? stock_group.trim() : null) : null,
+      updateSG,
+      finalStockGroup,
       finalStockGroupId,
+      finalStockGroups,
+      finalStockGroupIds,
       finalType,
       req.user?.id || null,
       id
@@ -428,6 +492,8 @@ exports.importSuppliers = async (req, res, next) => {
         continue;
       }
 
+      const parsedSG = await parseStockGroups(stock_group_in, null);
+
       // Check duplicates
       const dup = await query(
         'SELECT id FROM suppliers WHERE LOWER(supplier_name) = LOWER($1)',
@@ -438,12 +504,21 @@ exports.importSuppliers = async (req, res, next) => {
           UPDATE suppliers SET
             supplier_code = COALESCE(NULLIF($1, ''), supplier_code),
             stock_group = COALESCE(NULLIF($2, ''), stock_group),
-            supplier_type = COALESCE(NULLIF($3, ''), supplier_type),
-            type = COALESCE(NULLIF($3, ''), type),
+            stock_groups = COALESCE($3, stock_groups),
+            stock_group_ids = COALESCE($4, stock_group_ids),
+            supplier_type = COALESCE(NULLIF($5, ''), supplier_type),
+            type = COALESCE(NULLIF($5, ''), type),
             is_active = true,
             updated_at = NOW()
-          WHERE id = $4
-        `, [supplier_code_in, stock_group_in, type_in, dup.rows[0].id]);
+          WHERE id = $6
+        `, [
+          supplier_code_in,
+          parsedSG.stock_group,
+          parsedSG.stock_groups,
+          parsedSG.stock_group_ids,
+          type_in,
+          dup.rows[0].id
+        ]);
         imported++;
         continue;
       }
@@ -456,26 +531,22 @@ exports.importSuppliers = async (req, res, next) => {
         }
       }
 
-      let stock_group_id = null;
-      if (stock_group_in) {
-        const sgRes = await query('SELECT id FROM department_master WHERE UPPER(dept_name) = UPPER($1) LIMIT 1', [stock_group_in]);
-        if (sgRes.rows.length > 0) stock_group_id = sgRes.rows[0].id;
-      }
-
       const supplier_code = supplier_code_in || await generateSupplierCode();
 
       await query(`
         INSERT INTO suppliers (
-          supplier_code, supplier_name, stock_group, stock_group_id, supplier_type, type,
+          supplier_code, supplier_name, stock_group, stock_group_id, stock_groups, stock_group_ids, supplier_type, type,
           gstin, brand_id, payment_terms, address, city, state, pincode,
           contact_person, phone, email, customer_care_no, msme_certificate,
           licence_no, credit_limit, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       `, [
         supplier_code,
         supplier_name,
-        stock_group_in || null,
-        stock_group_id,
+        parsedSG.stock_group,
+        parsedSG.stock_group_id,
+        parsedSG.stock_groups,
+        parsedSG.stock_group_ids,
         type_in || 'PURCHASE',
         gstin || null,
         brand_id,

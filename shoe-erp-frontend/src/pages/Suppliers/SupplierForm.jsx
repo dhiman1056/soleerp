@@ -1,25 +1,240 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useCreateSupplier, useUpdateSupplier } from '../../hooks/useSuppliers'
 import { useBrands } from '../../hooks/useBrands.js'
 import { useStockGroups } from '../../hooks/useDepartments'
 import toast from 'react-hot-toast'
 
+// ── Multi-Select Stock Group Picker ──────────────────────────────────────────
+function MultiStockGroupPicker({ selected = [], onChange, stockGroups = [] }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [query, setQuery]   = useState('')
+  const containerRef        = useRef(null)
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  const normalizedGroups = stockGroups.map(sg => {
+    const name = sg.dept_name || sg.stock_group || sg.department_name || ''
+    const code = sg.sg_code || ''
+    const type = sg.stock_type || ''
+    return { id: sg.id, name, code, type }
+  }).filter(g => Boolean(g.name))
+
+  const filteredGroups = normalizedGroups.filter(g => {
+    if (!query.trim()) return true
+    const q = query.toLowerCase()
+    return g.name.toLowerCase().includes(q) || g.code.toLowerCase().includes(q)
+  })
+
+  const toggleGroup = (name) => {
+    if (!name) return
+    const exists = selected.some(s => s.toLowerCase() === name.toLowerCase())
+    if (exists) {
+      onChange(selected.filter(s => s.toLowerCase() !== name.toLowerCase()))
+    } else {
+      onChange([...selected, name])
+    }
+  }
+
+  const removeGroup = (e, name) => {
+    e.stopPropagation()
+    onChange(selected.filter(s => s.toLowerCase() !== name.toLowerCase()))
+  }
+
+  const selectAll = (e) => {
+    e.preventDefault()
+    const allNames = normalizedGroups.map(g => g.name)
+    onChange([...new Set([...selected, ...allNames])])
+  }
+
+  const clearAll = (e) => {
+    e.preventDefault()
+    onChange([])
+  }
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <label className="text-xs font-semibold text-gray-700 flex items-center justify-between mb-1">
+        <span>Stock Groups (Multiple Applicable)</span>
+        <span className="text-[11px] text-gray-400 font-normal">
+          {selected.length > 0 ? `${selected.length} group${selected.length > 1 ? 's' : ''} selected` : 'Choose one or more'}
+        </span>
+      </label>
+
+      {/* Trigger Box */}
+      <div
+        onClick={() => setIsOpen(prev => !prev)}
+        className={`min-h-[42px] p-1.5 rounded-lg border bg-white cursor-pointer flex flex-wrap items-center gap-1.5 transition-all ${
+          isOpen 
+            ? 'border-blue-500 ring-2 ring-blue-500/20' 
+            : 'border-gray-200 hover:border-gray-300'
+        }`}
+      >
+        {selected.length === 0 ? (
+          <span className="text-xs text-gray-400 px-2 py-1 select-none">
+            + Click to select applicable Stock Groups (e.g. Raw Material, Accessories)...
+          </span>
+        ) : (
+          selected.map((name) => {
+            const match = normalizedGroups.find(g => g.name.toLowerCase() === name.toLowerCase())
+            return (
+              <span
+                key={name}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs animate-in fade-in duration-100"
+              >
+                {match?.code && <span className="font-mono text-[10px] text-amber-700 font-bold">#{match.code}</span>}
+                <span>{name}</span>
+                <button
+                  type="button"
+                  onClick={(e) => removeGroup(e, name)}
+                  className="w-3.5 h-3.5 rounded-full hover:bg-amber-200 text-amber-700 inline-flex items-center justify-center font-bold text-[10px] transition-colors"
+                  title="Remove"
+                >
+                  ✕
+                </button>
+              </span>
+            )
+          })
+        )}
+
+        <div className="ml-auto pr-1 flex items-center gap-1 text-gray-400">
+          <svg className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          {/* Search & Actions Bar */}
+          <div className="p-2 border-b border-gray-100 bg-slate-50 flex items-center gap-2">
+            <input
+              type="text"
+              placeholder="Search stock group..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 text-xs px-2.5 py-1.5 rounded-md border border-gray-200 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              autoFocus
+            />
+            <button
+              type="button"
+              onClick={selectAll}
+              className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50 whitespace-nowrap"
+            >
+              Select All
+            </button>
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 px-2 py-1 rounded hover:bg-rose-50 whitespace-nowrap"
+            >
+              Clear
+            </button>
+          </div>
+
+          {/* Options List */}
+          <div className="max-h-52 overflow-y-auto p-1 divide-y divide-gray-50">
+            {filteredGroups.length === 0 ? (
+              <div className="p-4 text-center text-xs text-gray-400">
+                No matching stock groups found
+              </div>
+            ) : (
+              filteredGroups.map(g => {
+                const isChecked = selected.some(s => s.toLowerCase() === g.name.toLowerCase())
+                return (
+                  <div
+                    key={g.id || g.name}
+                    onClick={() => toggleGroup(g.name)}
+                    className={`px-3 py-2 text-xs rounded-lg flex items-center justify-between cursor-pointer transition-colors ${
+                      isChecked 
+                        ? 'bg-amber-50/70 text-amber-950 font-semibold' 
+                        : 'hover:bg-slate-50 text-gray-700'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => {}} // handled by row click
+                        className="rounded text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer pointer-events-none"
+                      />
+                      <div>
+                        <span>{g.name}</span>
+                        {g.code && (
+                          <span className="ml-2 font-mono text-[10px] text-gray-400">
+                            [{g.code}]
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {g.type && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                        g.type === 'INVENTORY' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {g.type}
+                      </span>
+                    )}
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* Footer note */}
+          <div className="px-3 py-1.5 bg-slate-50 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
+            <span>{selected.length} of {normalizedGroups.length} selected</span>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="font-semibold text-blue-600 hover:text-blue-800"
+            >
+              Done ✓
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main Supplier Form Modal ──────────────────────────────────────────────────
 export default function SupplierForm({ supplier, onClose }) {
   const { data: brands = [] } = useBrands()
   const { data: rawStockGroups = [] } = useStockGroups()
-
-  // Normalize stock groups safely
   const stockGroups = Array.isArray(rawStockGroups) ? rawStockGroups : []
 
   const [activeTab, setActiveTab] = useState('general')
+
+  // Parse initial stock groups
+  const initialStockGroups = (() => {
+    if (Array.isArray(supplier?.stock_groups) && supplier.stock_groups.length > 0) {
+      return supplier.stock_groups.map(s => String(s).trim()).filter(Boolean)
+    }
+    if (supplier?.stock_group) {
+      return supplier.stock_group.split(',').map(s => s.trim().replace(/^[\(\)]+|[\(\)]+$/g, '')).filter(Boolean)
+    }
+    return []
+  })()
+
+  const [selectedStockGroups, setSelectedStockGroups] = useState(initialStockGroups)
 
   const [form, setForm] = useState(() => {
     if (supplier) {
       return {
         supplier_code: supplier.supplier_code || '',
         supplier_name: supplier.supplier_name || '',
-        stock_group: supplier.stock_group || '',
-        stock_group_id: supplier.stock_group_id || '',
         supplier_type: supplier.supplier_type || supplier.type || 'PURCHASE',
         contact_person: supplier.contact_person || '',
         phone: supplier.phone || '',
@@ -41,8 +256,6 @@ export default function SupplierForm({ supplier, onClose }) {
     return {
       supplier_code: '',
       supplier_name: '',
-      stock_group: '',
-      stock_group_id: '',
       supplier_type: 'PURCHASE',
       contact_person: '',
       phone: '',
@@ -114,13 +327,19 @@ export default function SupplierForm({ supplier, onClose }) {
       return
     }
 
+    const payload = {
+      ...form,
+      stock_groups: selectedStockGroups,
+      stock_group: selectedStockGroups.join(', ')
+    }
+
     if (isEdit) {
-      updateMut.mutate({ id: supplier.id, ...form }, {
+      updateMut.mutate({ id: supplier.id, ...payload }, {
         onSuccess: () => { toast.success('Supplier updated.'); onClose(); },
         onError: (err) => toast.error(err?.response?.data?.message || 'Update failed')
       })
     } else {
-      createMut.mutate(form, {
+      createMut.mutate(payload, {
         onSuccess: () => { toast.success('Supplier created.'); onClose(); },
         onError: (err) => toast.error(err?.response?.data?.message || 'Create failed')
       })
@@ -128,9 +347,9 @@ export default function SupplierForm({ supplier, onClose }) {
   }
 
   const tabs = [
-    { id: 'general',    label: '1. Basic & Stock Group', icon: '🏢' },
-    { id: 'address',    label: '2. Address & Location',  icon: '📍' },
-    { id: 'compliance', label: '3. Contact & Tax',       icon: '📋' },
+    { id: 'general',    label: '1. Basic & Stock Groups', icon: '🏢' },
+    { id: 'address',    label: '2. Address & Location',    icon: '📍' },
+    { id: 'compliance', label: '3. Contact & Tax',         icon: '📋' },
   ]
 
   return (
@@ -161,7 +380,7 @@ export default function SupplierForm({ supplier, onClose }) {
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                Assign stock group, vendor category, payment terms & GST details
+                Assign multiple stock groups, vendor category, payment terms & GST details
               </p>
             </div>
           </div>
@@ -209,7 +428,8 @@ export default function SupplierForm({ supplier, onClose }) {
           {activeTab === 'general' && (
             <div className="space-y-4 animate-in fade-in duration-150">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
+                {/* Supplier Name */}
+                <div>
                   <label className="text-xs font-semibold text-gray-700 flex items-center justify-between">
                     <span>Supplier Name <span className="text-red-500">*</span></span>
                     {errors.supplier_name && <span className="text-xs text-red-500 font-normal">{errors.supplier_name}</span>}
@@ -227,6 +447,7 @@ export default function SupplierForm({ supplier, onClose }) {
                   />
                 </div>
 
+                {/* Supplier Code */}
                 <div>
                   <label className="text-xs font-semibold text-gray-700">Supplier Code</label>
                   <input
@@ -239,38 +460,16 @@ export default function SupplierForm({ supplier, onClose }) {
                   <span className="text-[11px] text-gray-400 mt-0.5 block">Excel SUPP CODE or ERP sequence</span>
                 </div>
 
-                <div>
-                  <label className="text-xs font-semibold text-gray-700">Stock Group</label>
-                  <select
-                    className="input-field mt-1 font-medium text-gray-800"
-                    value={form.stock_group}
-                    onChange={e => {
-                      const val = e.target.value
-                      const sel = stockGroups.find(sg => (sg.dept_name || sg.stock_group || sg.department_name) === val)
-                      setForm({
-                        ...form,
-                        stock_group: val,
-                        stock_group_id: sel ? sel.id : ''
-                      })
-                    }}
-                  >
-                    <option value="">— Select Stock Group —</option>
-                    {stockGroups.map(sg => {
-                      const name = sg.dept_name || sg.stock_group || sg.department_name || ''
-                      const code = sg.sg_code || ''
-                      return (
-                        <option key={sg.id} value={name}>
-                          {code ? `${code} — ` : ''}{name}
-                        </option>
-                      )
-                    })}
-                    {form.stock_group && !stockGroups.some(sg => (sg.dept_name || sg.stock_group || sg.department_name) === form.stock_group) && (
-                      <option value={form.stock_group}>{form.stock_group}</option>
-                    )}
-                  </select>
-                  <span className="text-[11px] text-gray-400 mt-0.5 block">Associated Stock Group for raw materials / goods</span>
+                {/* Multi-Stock Groups Picker (Full Width) */}
+                <div className="sm:col-span-2">
+                  <MultiStockGroupPicker
+                    selected={selectedStockGroups}
+                    onChange={setSelectedStockGroups}
+                    stockGroups={stockGroups}
+                  />
                 </div>
 
+                {/* Supplier Type */}
                 <div>
                   <label className="text-xs font-semibold text-gray-700">Supplier Type</label>
                   <select
@@ -285,6 +484,7 @@ export default function SupplierForm({ supplier, onClose }) {
                   <span className="text-[11px] text-gray-400 mt-0.5 block">Purchase, Job Work, or both</span>
                 </div>
 
+                {/* Brand */}
                 <div>
                   <label className="text-xs font-semibold text-gray-700">Brand (Optional)</label>
                   <select
@@ -301,6 +501,7 @@ export default function SupplierForm({ supplier, onClose }) {
                   </select>
                 </div>
 
+                {/* Payment Terms */}
                 <div>
                   <label className="text-xs font-semibold text-gray-700">Payment Terms</label>
                   <input
@@ -312,6 +513,7 @@ export default function SupplierForm({ supplier, onClose }) {
                   />
                 </div>
 
+                {/* Credit Limit */}
                 <div>
                   <label className="text-xs font-semibold text-gray-700">Credit Limit (₹)</label>
                   <input
@@ -324,6 +526,7 @@ export default function SupplierForm({ supplier, onClose }) {
                   />
                 </div>
 
+                {/* Active Checkbox */}
                 <div className="sm:col-span-2 pt-2">
                   <label className="inline-flex items-center gap-2.5 cursor-pointer bg-slate-50 p-2.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors w-full">
                     <input
