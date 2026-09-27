@@ -41,3 +41,11 @@ export const useDeleteDepartment = () => {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['departments'] })
   })
 }
+
+// ── Stock Group Aliases ────────────────────────────────────────────────────────
+export const useStockGroups       = useDepartments
+export const useStockGroup        = useDepartment
+export const useCreateStockGroup  = useCreateDepartment
+export const useUpdateStockGroup  = useUpdateDepartment
+export const useDeleteStockGroup  = useDeleteDepartment
+

@@ -51,7 +51,11 @@ const routeLabels = {
   '/settings-v2/notification': ['Settings', 'Notifications'],
   '/settings-v2/users': ['Settings', 'User Management'],
   '/settings-v2/locations': ['Settings', 'Location Master'],
+  '/settings-v2/department-master': ['Settings', 'Stock Group Master'],
+  '/settings-v2/stock-group-master': ['Settings', 'Stock Group Master'],
   '/users': ['Settings', 'User Management'],
+  '/masters/departments': ['Masters', 'Stock Group Master'],
+  '/masters/stock-groups': ['Masters', 'Stock Group Master'],
 }
 
 const getLabels = (pathname) => {

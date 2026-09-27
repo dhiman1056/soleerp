@@ -65,9 +65,13 @@ const SELECT_COLS = `
   p.brand_id, p.category_id, p.sub_category_id, p.design_id, p.color_id, p.hsn_id,
   p.rate, p.created_at, p.updated_at,
   b.brand_name  AS brand_name_resolved,
-  cm.category_name,
   cm.dept_id,
   dept.dept_name AS department_name,
+  dept.dept_name AS stock_group,
+  dept.dept_name AS stock_group_name,
+  dept.sg_code,
+  dept.stock_type,
+  dept.bom_applicable,
   sc.sub_category_name,
   dm.design_no  AS design_no_resolved,
   col.color_name,
@@ -86,8 +90,8 @@ const listProducts = async (req, res, next) => {
     const typeFilter   = req.query.product_type    || '';
     const category     = req.query.category        || '';
     const categoryId   = req.query.category_id     || '';
-    const departmentId = req.query.department_id   || req.query.dept_id || '';
-    const department   = req.query.department      || '';
+    const departmentId = req.query.department_id   || req.query.dept_id || req.query.stock_group_id || '';
+    const department   = req.query.department      || req.query.stock_group || '';
 
     if (typeFilter && !VALID_TYPES.includes(typeFilter.toUpperCase())) {
       throw createError(400, `Invalid product_type. Must be one of: ${VALID_TYPES.join(', ')}`);

@@ -19,7 +19,12 @@ const listCategories = async (req, res) => {
       SELECT 
         c.*,
         d.dept_name,
-        d.dept_code
+        d.dept_code,
+        d.dept_name AS stock_group,
+        d.dept_name AS stock_group_name,
+        d.sg_code,
+        d.stock_type,
+        d.bom_applicable
       FROM category_master c
       LEFT JOIN department_master d ON c.dept_id = d.id
       WHERE c.is_active = true
@@ -40,7 +45,12 @@ const getCategory = async (req, res) => {
       SELECT 
         c.*,
         d.dept_name,
-        d.dept_code
+        d.dept_code,
+        d.dept_name AS stock_group,
+        d.dept_name AS stock_group_name,
+        d.sg_code,
+        d.stock_type,
+        d.bom_applicable
       FROM category_master c
       LEFT JOIN department_master d ON c.dept_id = d.id
       WHERE c.id = $1
@@ -156,7 +166,7 @@ const importCategories = async (req, res) => {
     const rowNum = i + 1
     try {
       const catg_name = (row['Category Description'] || row['Category Name'] || row['catg_name'] || row['category_name'] || '').trim()
-      const dept_name = (row['Department Name'] || row['dept_name'] || '').trim()
+      const dept_name = (row['STOCK GROUP'] || row['Stock Group'] || row['Stock Group Name'] || row['Department Name'] || row['dept_name'] || '').trim()
       const discount  = parseFloat(row['Discount %'] || row['discount'] || 0)
 
       if (!catg_name) {
@@ -168,16 +178,16 @@ const importCategories = async (req, res) => {
         continue
       }
 
-      // Resolve department name → dept_id (optional)
+      // Resolve stock group / department name → dept_id (optional)
       let dept_id = null
       if (dept_name) {
         const deptRes = await query(
-          'SELECT id FROM department_master WHERE LOWER(dept_name) = LOWER($1) AND is_active = true',
+          'SELECT id FROM department_master WHERE (LOWER(dept_name) = LOWER($1) OR sg_code = $1) AND is_active = true',
           [dept_name]
         )
         if (deptRes.rows.length === 0) {
           errors.push({ row: rowNum,
-            message: `Department "${dept_name}" not found. Create it first in Department Master.` })
+            message: `Stock Group "${dept_name}" not found. Create it first in Stock Group Master.` })
           continue
         }
         dept_id = deptRes.rows[0].id
