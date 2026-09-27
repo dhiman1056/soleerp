@@ -21,6 +21,8 @@ const generateCode = async () => {
 
 const formatRow = (r) => ({
   ...r,
+  dept_name: r.dept_name,
+  department_name: r.dept_name,
   stock_group: r.dept_name,
   stock_group_name: r.dept_name,
   stock_type: r.stock_type || 'INVENTORY',

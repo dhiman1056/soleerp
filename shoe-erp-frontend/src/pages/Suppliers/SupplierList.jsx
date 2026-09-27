@@ -14,10 +14,12 @@ export default function SupplierList() {
   const [filterStockGroup, setFilterStockGroup] = useState('')
   const [filterType,       setFilterType]       = useState('')
   const [isModalOpen,      setIsModalOpen]      = useState(false)
+  const [editingSupplier,  setEditingSupplier]  = useState(null)
   const [showImport,       setShowImport]       = useState(false)
 
   const qc = useQueryClient()
-  const { data: stockGroups = [] } = useStockGroups()
+  const { data: rawStockGroups = [] } = useStockGroups()
+  const stockGroups = Array.isArray(rawStockGroups) ? rawStockGroups : []
   const { data, isLoading } = useSuppliersQuery({ 
     search, 
     stock_group: filterStockGroup, 
@@ -79,9 +81,12 @@ export default function SupplierList() {
             onChange={(e) => setFilterStockGroup(e.target.value)}
           >
             <option value="">All Stock Groups</option>
-            {stockGroups.map(sg => (
-              <option key={sg.id} value={sg.department_name}>{sg.department_name}</option>
-            ))}
+            {stockGroups.map(sg => {
+              const name = sg.dept_name || sg.stock_group || sg.department_name || ''
+              return (
+                <option key={sg.id} value={name}>{name}</option>
+              )
+            })}
           </select>
           <select
             className="input-field max-w-[150px]"
@@ -163,9 +168,20 @@ export default function SupplierList() {
                       </span>
                     </td>
                     <td className="px-5 py-3 text-right">
-                      <button onClick={() => navigate(`/suppliers/${sup.id}`)} className="text-blue-600 hover:text-blue-800 font-medium text-xs">
-                        View
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => setEditingSupplier(sup)} 
+                          className="text-gray-600 hover:text-blue-600 font-medium text-xs px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => navigate(`/suppliers/${sup.id}`)} 
+                          className="text-blue-600 hover:text-blue-800 font-medium text-xs px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                        >
+                          View
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -176,6 +192,7 @@ export default function SupplierList() {
       </div>
 
       {isModalOpen && <SupplierForm onClose={() => setIsModalOpen(false)} />}
+      {editingSupplier && <SupplierForm supplier={editingSupplier} onClose={() => setEditingSupplier(null)} />}
 
       {showImport && (
         <ImportModal
@@ -193,5 +210,3 @@ export default function SupplierList() {
     </div>
   )
 }
-
-
