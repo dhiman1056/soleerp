@@ -66,6 +66,8 @@ const SELECT_COLS = `
   p.rate, p.created_at, p.updated_at,
   b.brand_name  AS brand_name_resolved,
   cm.category_name,
+  cm.dept_id,
+  dept.dept_name AS department_name,
   sc.sub_category_name,
   dm.design_no  AS design_no_resolved,
   col.color_name,
@@ -77,13 +79,15 @@ const SELECT_COLS = `
 // ── GET /api/products ──────────────────────────────────────────────────────────
 const listProducts = async (req, res, next) => {
   try {
-    const page      = Math.max(1, parseInt(req.query.page)  || 1);
-    const limit     = Math.min(200, parseInt(req.query.limit) || 50);
-    const offset    = (page - 1) * limit;
-    const search     = req.query.search       || '';
-    const typeFilter = req.query.product_type || '';
-    const category   = req.query.category     || '';
-    const categoryId = req.query.category_id  || '';
+    const page         = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit        = Math.min(200, parseInt(req.query.limit) || 50);
+    const offset       = (page - 1) * limit;
+    const search       = req.query.search          || '';
+    const typeFilter   = req.query.product_type    || '';
+    const category     = req.query.category        || '';
+    const categoryId   = req.query.category_id     || '';
+    const departmentId = req.query.department_id   || req.query.dept_id || '';
+    const department   = req.query.department      || '';
 
     if (typeFilter && !VALID_TYPES.includes(typeFilter.toUpperCase())) {
       throw createError(400, `Invalid product_type. Must be one of: ${VALID_TYPES.join(', ')}`);
@@ -94,7 +98,7 @@ const listProducts = async (req, res, next) => {
 
     if (search) {
       params.push(`%${search}%`);
-      conditions.push(`(p.sku_code ILIKE $${params.length} OR p.description ILIKE $${params.length} OR p.short_description ILIKE $${params.length} OR p.design_no ILIKE $${params.length})`);
+      conditions.push(`(p.sku_code ILIKE $${params.length} OR p.description ILIKE $${params.length} OR p.short_description ILIKE $${params.length} OR p.design_no ILIKE $${params.length} OR p.brand_name ILIKE $${params.length})`);
     }
     if (typeFilter) {
       params.push(typeFilter.toUpperCase());
@@ -102,23 +106,44 @@ const listProducts = async (req, res, next) => {
     }
     if (categoryId) {
       params.push(parseInt(categoryId, 10));
-      conditions.push(`p.category_id = $${params.length}`);
+      conditions.push(`(p.category_id = $${params.length} OR cm.id = $${params.length})`);
     } else if (category) {
       params.push(category);
-      conditions.push(`(p.category = $${params.length} OR cm.category_name = $${params.length})`);
+      conditions.push(`(p.category = $${params.length} OR cm.category_name = $${params.length} OR cm.catg_name = $${params.length})`);
+    }
+    if (departmentId) {
+      params.push(parseInt(departmentId, 10));
+      conditions.push(`(
+        cm.dept_id = $${params.length}
+        OR (cm.dept_id IS NULL AND EXISTS (
+          SELECT 1 FROM department_master dm_check 
+          WHERE dm_check.id = $${params.length} AND (
+            (UPPER(dm_check.dept_name) = 'RAW MATERIAL' AND p.product_type = 'RAW_MATERIAL') OR
+            (UPPER(dm_check.dept_name) = 'SEMI FINISHED' AND p.product_type = 'SEMI_FINISHED') OR
+            (UPPER(dm_check.dept_name) IN ('FINISHED GOODS', 'FINISHED GOOD') AND p.product_type = 'FINISHED')
+          )
+        ))
+      )`);
+    } else if (department) {
+      params.push(`%${department}%`);
+      conditions.push(`(dept.dept_name ILIKE $${params.length} OR dept.dept_code ILIKE $${params.length})`);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countRes = await query(
       `SELECT COUNT(*) FROM product_master p
-       LEFT JOIN brand_master b     ON p.brand_id    = b.id
-       LEFT JOIN category_master cm ON p.category_id = cm.id
+       LEFT JOIN brand_master b         ON p.brand_id        = b.id
+       LEFT JOIN category_master cm     ON (
+         p.category_id = cm.id
+         OR (p.category_id IS NULL AND p.category IS NOT NULL AND (LOWER(cm.category_name) = LOWER(p.category) OR LOWER(cm.catg_name) = LOWER(p.category)))
+       )
+       LEFT JOIN department_master dept ON cm.dept_id        = dept.id
        LEFT JOIN sub_category_master sc ON p.sub_category_id = sc.id
-       LEFT JOIN design_master dm   ON p.design_id   = dm.id
-       LEFT JOIN color_master col   ON p.color_id    = col.id
-       LEFT JOIN hsn_master h       ON p.hsn_id      = h.id
-       LEFT JOIN uom_master u       ON p.uom_id      = u.id
+       LEFT JOIN design_master dm       ON p.design_id       = dm.id
+       LEFT JOIN color_master col       ON p.color_id        = col.id
+       LEFT JOIN hsn_master h           ON p.hsn_id          = h.id
+       LEFT JOIN uom_master u           ON p.uom_id          = u.id
        ${where}`, params
     );
     const total = parseInt(countRes.rows[0].count);
@@ -128,7 +153,11 @@ const listProducts = async (req, res, next) => {
       SELECT ${SELECT_COLS}
       FROM product_master p
       LEFT JOIN brand_master b         ON p.brand_id        = b.id
-      LEFT JOIN category_master cm     ON p.category_id     = cm.id
+      LEFT JOIN category_master cm     ON (
+        p.category_id = cm.id
+        OR (p.category_id IS NULL AND p.category IS NOT NULL AND (LOWER(cm.category_name) = LOWER(p.category) OR LOWER(cm.catg_name) = LOWER(p.category)))
+      )
+      LEFT JOIN department_master dept ON cm.dept_id        = dept.id
       LEFT JOIN sub_category_master sc ON p.sub_category_id = sc.id
       LEFT JOIN design_master dm       ON p.design_id       = dm.id
       LEFT JOIN color_master col       ON p.color_id        = col.id
@@ -157,7 +186,11 @@ const getProduct = async (req, res, next) => {
       SELECT ${SELECT_COLS}
       FROM product_master p
       LEFT JOIN brand_master b         ON p.brand_id        = b.id
-      LEFT JOIN category_master cm     ON p.category_id     = cm.id
+      LEFT JOIN category_master cm     ON (
+        p.category_id = cm.id
+        OR (p.category_id IS NULL AND p.category IS NOT NULL AND (LOWER(cm.category_name) = LOWER(p.category) OR LOWER(cm.catg_name) = LOWER(p.category)))
+      )
+      LEFT JOIN department_master dept ON cm.dept_id        = dept.id
       LEFT JOIN sub_category_master sc ON p.sub_category_id = sc.id
       LEFT JOIN design_master dm       ON p.design_id       = dm.id
       LEFT JOIN color_master col       ON p.color_id        = col.id

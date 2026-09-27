@@ -322,6 +322,7 @@ export default function ProductList() {
     page,
     limit: 50,
     ...(typeFilter !== 'All' ? { product_type: typeFilter } : {}),
+    ...(filterDept           ? { department_id: filterDept } : {}),
     ...(filterCategory       ? { category_id: filterCategory } : {}),
     ...(search.trim()        ? { search: search.trim() } : {}),
   }
@@ -332,23 +333,64 @@ export default function ProductList() {
   const records  = rawData?.records ?? []
   const meta     = rawData?.meta    ?? {}
 
-  // Client-side filter by search (supplemental to server search param)
+  // Client-side filter by department, category, and search
   const filtered = useMemo(() => {
-    if (!search.trim()) return records
+    let list = records
+    if (filterDept) {
+      const selectedDept = departments.find(d => String(d.id) === String(filterDept))
+      const deptName = selectedDept?.dept_name?.trim().toLowerCase() || ''
+      const deptCatIds = new Set(
+        categories
+          .filter(c => String(c.dept_id) === String(filterDept))
+          .map(c => String(c.id))
+      )
+      const deptCatNames = new Set(
+        categories
+          .filter(c => String(c.dept_id) === String(filterDept))
+          .map(c => (c.catg_name || c.category_name || '').trim().toLowerCase())
+          .filter(Boolean)
+      )
+
+      list = list.filter((r) => {
+        if (r.dept_id && String(r.dept_id) === String(filterDept)) return true
+        if (r.department_id && String(r.department_id) === String(filterDept)) return true
+        if (r.category_id && deptCatIds.has(String(r.category_id))) return true
+        if (r.category && deptCatNames.has(String(r.category).trim().toLowerCase())) return true
+        if (deptName) {
+          if (r.department_name && r.department_name.trim().toLowerCase() === deptName) return true
+          if (deptName.includes('raw') && r.product_type === 'RAW_MATERIAL') return true
+          if (deptName.includes('semi') && r.product_type === 'SEMI_FINISHED') return true
+          if (deptName.includes('finish') && r.product_type === 'FINISHED') return true
+        }
+        return false
+      })
+    }
+
+    if (filterCategory) {
+      const cat = categories.find(c => String(c.id) === String(filterCategory))
+      const catName = (cat?.catg_name || cat?.category_name || '').trim().toLowerCase()
+      list = list.filter((r) => {
+        if (r.category_id && String(r.category_id) === String(filterCategory)) return true
+        if (catName && r.category && String(r.category).trim().toLowerCase() === catName) return true
+        return false
+      })
+    }
+
+    if (!search.trim()) return list
     const q = search.toLowerCase()
-    return records.filter(
+    return list.filter(
       (r) =>
         (r.sku_code      || '').toLowerCase().includes(q) ||
         (r.description   || '').toLowerCase().includes(q) ||
         (r.design_no     || '').toLowerCase().includes(q) ||
         (r.brand_name    || '').toLowerCase().includes(q)
     )
-  }, [records, search])
+  }, [records, search, filterDept, filterCategory, categories, departments])
 
   // Summary counts
-  const rawCount  = records.filter((r) => r.product_type === 'RAW_MATERIAL').length
-  const sfCount   = records.filter((r) => r.product_type === 'SEMI_FINISHED').length
-  const fgCount   = records.filter((r) => r.product_type === 'FINISHED').length
+  const rawCount  = filtered.filter((r) => r.product_type === 'RAW_MATERIAL').length
+  const sfCount   = filtered.filter((r) => r.product_type === 'SEMI_FINISHED').length
+  const fgCount   = filtered.filter((r) => r.product_type === 'FINISHED').length
 
   const handleDelete = (sku) => {
     deleteMut.mutate(sku, { onSuccess: () => setDeleteTarget(null) })
@@ -422,7 +464,6 @@ export default function ProductList() {
             setPage(1)
           }}
           className="input-field w-auto min-w-[160px]"
-          disabled={!filterDept}
         >
           <option value="">All Categories</option>
           {filteredCategories.map(c => (
