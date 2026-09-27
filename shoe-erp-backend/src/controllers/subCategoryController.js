@@ -128,9 +128,17 @@ const importSubCategories = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const sub_category_name = (row['Sub Category Description'] || '').trim()
-      const discount = parseFloat(row['Discount %'] || 0)
-      const catg_name = (row['Category Name'] || '').trim()
+      const sub_category_name = (
+        row['Sub Category Description'] ||
+        row['Sub-Category Description'] ||
+        row['Sub Category Name'] ||
+        row['Sub-Category Name'] ||
+        row['sub_category_name'] ||
+        row['sub_catg_name'] ||
+        ''
+      ).trim()
+      const discount = parseFloat(row['Discount %'] || row['discount'] || 0)
+      const catg_name = (row['Category Name'] || row['Category Description'] || row['catg_name'] || row['category_name'] || '').trim()
 
       if (!sub_category_name) {
         errors.push({ row: rowNum, message: 'Sub Category Description is required' })
@@ -145,7 +153,7 @@ const importSubCategories = async (req, res) => {
       let category_id = null
       if (catg_name) {
         const catRes = await query(
-          'SELECT id FROM category_master WHERE LOWER(catg_name) = LOWER($1)',
+          'SELECT id FROM category_master WHERE LOWER(COALESCE(catg_name, category_name)) = LOWER($1) AND is_active = true',
           [catg_name]
         )
         if (catRes.rows.length === 0) {

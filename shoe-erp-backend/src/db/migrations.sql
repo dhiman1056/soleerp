@@ -721,4 +721,17 @@ CREATE INDEX IF NOT EXISTS idx_bom_output ON bom_header(output_sku);
 CREATE INDEX IF NOT EXISTS idx_purchases_sku ON purchases(sku_code);
 CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(purchase_date);
 
+-- Ensure all masters have discount and relational columns required by controllers & import
+ALTER TABLE brand_master ADD COLUMN IF NOT EXISTS discount NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE department_master ADD COLUMN IF NOT EXISTS discount NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE sub_category_master ADD COLUMN IF NOT EXISTS discount NUMERIC(5,2) DEFAULT 0;
+ALTER TABLE design_master ADD COLUMN IF NOT EXISTS category_id INTEGER REFERENCES category_master(id);
+ALTER TABLE category_master ALTER COLUMN category_name DROP NOT NULL;
+UPDATE category_master SET category_name = catg_name WHERE category_name IS NULL AND catg_name IS NOT NULL;
+UPDATE category_master SET catg_name = category_name WHERE catg_name IS NULL AND category_name IS NOT NULL;
+
+ALTER TABLE size_master ALTER COLUMN size_code TYPE VARCHAR(30);
+ALTER TABLE size_master ALTER COLUMN uk_size TYPE VARCHAR(20);
+ALTER TABLE size_master ALTER COLUMN euro_size TYPE VARCHAR(20);
+
 

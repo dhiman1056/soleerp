@@ -56,6 +56,7 @@ const DivisionMaster      = React.lazy(() => import('./pages/Masters/DivisionMas
 const TeamMaster          = React.lazy(() => import('./pages/Masters/TeamMaster.jsx'))
 const EmployeeMaster      = React.lazy(() => import('./pages/Masters/EmployeeMaster.jsx'))
 const ColorMaster         = React.lazy(() => import('./pages/Masters/ColorMaster.jsx'))
+const SizeMaster          = React.lazy(() => import('./pages/Masters/SizeMaster.jsx'))
 
 export default function App() {
   return (
@@ -120,6 +121,7 @@ export default function App() {
                 <Route path="team-master"           element={<TeamMaster />} />
                 <Route path="employee-master"       element={<EmployeeMaster />} />
                 <Route path="color-master"          element={<ColorMaster />} />
+                <Route path="size-master"           element={<SizeMaster />} />
               </Route>
 
               <Route path="/users" element={<UserManagement />} />
@@ -140,6 +142,7 @@ export default function App() {
               <Route path="/masters/employees"       element={<EmployeeMaster />} />
               <Route path="/masters/colors"          element={<ColorMaster />} />
               <Route path="/masters/locations"       element={<LocationMaster />} />
+              <Route path="/masters/sizes"           element={<SizeMaster />} />
 
               {/* Reports */}
               <Route path="/reports" element={<ReportsLayout />}>

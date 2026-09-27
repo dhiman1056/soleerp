@@ -58,17 +58,18 @@ const createCategory = async (req, res) => {
   try {
     const { catg_name, dept_id, discount } = req.body
 
-    if (!catg_name || !catg_name.trim()) {
+    const name = (catg_name || req.body.category_name || '').trim()
+    if (!name) {
       return res.status(400).json({ success: false, message: 'Category name is required' })
     }
 
     const catg_code = await generateCode()
 
     const { rows } = await query(`
-      INSERT INTO category_master (catg_code, catg_name, dept_id, discount)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO category_master (catg_code, catg_name, category_name, dept_id, discount)
+      VALUES ($1, $2, $2, $3, $4)
       RETURNING *
-    `, [catg_code, catg_name.trim().toUpperCase(), dept_id || null, discount ? Number(discount) : 0])
+    `, [catg_code, name.toUpperCase(), dept_id || null, discount ? Number(discount) : 0])
 
     const { rows: full } = await query(`
       SELECT c.*, d.dept_name, d.dept_code
@@ -154,9 +155,9 @@ const importCategories = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const catg_name = (row['Category Description'] || '').trim()
-      const dept_name = (row['Department Name'] || '').trim()
-      const discount  = parseFloat(row['Discount %'] || 0)
+      const catg_name = (row['Category Description'] || row['Category Name'] || row['catg_name'] || row['category_name'] || '').trim()
+      const dept_name = (row['Department Name'] || row['dept_name'] || '').trim()
+      const discount  = parseFloat(row['Discount %'] || row['discount'] || 0)
 
       if (!catg_name) {
         errors.push({ row: rowNum, message: 'Category Description is required' })
@@ -184,15 +185,15 @@ const importCategories = async (req, res) => {
 
       // Skip duplicate
       const dup = await query(
-        'SELECT id FROM category_master WHERE LOWER(catg_name) = LOWER($1)',
+        'SELECT id FROM category_master WHERE LOWER(COALESCE(catg_name, category_name)) = LOWER($1)',
         [catg_name]
       )
       if (dup.rows.length > 0) { skipped++; continue }
 
       const catg_code = await generateCode()
       await query(`
-        INSERT INTO category_master (catg_code, catg_name, dept_id, discount)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO category_master (catg_code, catg_name, category_name, dept_id, discount)
+        VALUES ($1, $2, $2, $3, $4)
       `, [catg_code, catg_name.toUpperCase(), dept_id, discount])
 
       imported++

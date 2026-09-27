@@ -117,7 +117,7 @@ const importDivisions = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const div_name = (row['Division Name'] || '').trim()
+      const div_name = (row['Division Name'] || row['div_name'] || '').trim()
 
       if (!div_name) {
         errors.push({ row: rowNum, message: 'Division Name is required' })

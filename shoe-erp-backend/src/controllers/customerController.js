@@ -181,19 +181,19 @@ const importCustomers = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const cust_name       = (row['Customer Name']    || '').trim()
-      const customer_type   = (row['Customer Type']    || 'B2C').trim().toUpperCase()
-      const gstin           = (row['GSTIN']            || '').trim()
-      const credit_limit    = parseFloat(row['Credit Limit'] || 0)
-      const payment_terms   = (row['Payment Terms']    || '').trim()
-      const address         = (row['Address']          || '').trim()
-      const city            = (row['City']             || '').trim()
-      const state           = (row['State']            || '').trim()
-      const pincode         = (row['Pincode']          || '').trim()
-      const contact_person  = (row['Contact Person']   || '').trim()
-      const contact_mobile  = (row['Contact Mobile']   || '').trim()
-      const email           = (row['Email']            || '').trim()
-      const customer_care_no = (row['Customer Care No'] || '').trim()
+      const cust_name       = (row['Customer Name']    || row['cust_name']        || '').trim()
+      const customer_type   = (row['Customer Type']    || row['customer_type']    || 'B2C').trim().toUpperCase()
+      const gstin           = (row['GSTIN']            || row['gstin']            || '').trim()
+      const credit_limit    = parseFloat(row['Credit Limit'] || row['credit_limit'] || 0)
+      const payment_terms   = (row['Payment Terms']    || row['payment_terms']    || '').trim()
+      const address         = (row['Address']          || row['address']          || '').trim()
+      const city            = (row['City']             || row['city']             || '').trim()
+      const state           = (row['State']            || row['state']            || '').trim()
+      const pincode         = (row['Pincode']          || row['pincode']          || '').trim()
+      const contact_person  = (row['Contact Person']   || row['contact_person']   || '').trim()
+      const contact_mobile  = (row['Contact Mobile']   || row['contact_mobile']   || '').trim()
+      const email           = (row['Email']            || row['email']            || '').trim()
+      const customer_care_no = (row['Customer Care No'] || row['customer_care_no'] || '').trim()
 
       // Validations
       if (!cust_name) {

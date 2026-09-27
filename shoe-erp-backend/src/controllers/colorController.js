@@ -175,9 +175,9 @@ const importColors = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const color_code = (row['Color Code'] || '').trim().toUpperCase()
-      const color_name = (row['Color Name'] || '').trim()
-      const hex_code   = (row['Hex Code']   || '').trim()
+      const color_code = (row['Color Code'] || row['color_code'] || '').trim().toUpperCase()
+      const color_name = (row['Color Name'] || row['color_name'] || '').trim()
+      const hex_code   = (row['Hex Code']   || row['hex_code']   || '').trim()
 
       if (!color_code) {
         errors.push({ row: rowNum, message: 'Color Code is required' })

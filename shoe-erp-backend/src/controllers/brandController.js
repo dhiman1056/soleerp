@@ -132,11 +132,11 @@ const importBrands = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const brand_name = (row['Brand Description'] || row['brand_name'] || '').trim()
+      const brand_name = (row['Brand Description'] || row['Brand Name'] || row['brand_name'] || '').trim()
       const discount   = parseFloat(row['Discount %'] || row['discount'] || 0)
 
       if (!brand_name) {
-        errors.push({ row: rowNum, message: 'Brand Description is required' })
+        errors.push({ row: rowNum, message: 'Brand name/description is required' })
         continue
       }
       if (isNaN(discount) || discount < 0 || discount > 100) {

@@ -569,36 +569,36 @@ const importProducts = async (req, res, next) => {
       const rowNum = i + 1
       try {
         // Basic Info
-        const product_type_raw  = (row['Product Type'] || '').trim()
-        const sku_code          = (row['SKU Code'] || '').trim().toUpperCase()
-        const description       = (row['Short Description'] || '').trim()
-        const long_desc         = (row['Long Description'] || '').trim()
-        const uom_name          = (row['UOM'] || '').trim()
-        const pack_size         = (row['Pack Size'] || '1').trim()
-        const brand_name        = (row['Brand Name'] || '').trim()
-        const supplier_name     = (row['Supplier Name'] || '').trim()
+        const product_type_raw  = (row['Product Type'] || row['product_type'] || '').trim()
+        const sku_code          = (row['SKU Code'] || row['sku_code'] || '').trim().toUpperCase()
+        const description       = (row['Short Description'] || row['description'] || '').trim()
+        const long_desc         = (row['Long Description'] || row['long_description'] || '').trim()
+        const uom_name          = (row['UOM'] || row['uom'] || '').trim()
+        const pack_size         = (row['Pack Size'] || row['pack_size'] || '1').trim()
+        const brand_name        = (row['Brand Name'] || row['brand_name'] || '').trim()
+        const supplier_name     = (row['Supplier Name'] || row['supplier_name'] || '').trim()
 
         // Classification
-        const catg_name     = (row['Category'] || '').trim()
-        const sub_catg_name = (row['Sub Category'] || '').trim()
-        const design_no     = (row['Design No'] || '').trim()
-        const color_code    = (row['Color Code'] || '').trim()
+        const catg_name     = (row['Category'] || row['category'] || row['catg_name'] || '').trim()
+        const sub_catg_name = (row['Sub Category'] || row['sub_category'] || row['sub_category_name'] || '').trim()
+        const design_no     = (row['Design No'] || row['design_no'] || '').trim()
+        const color_code    = (row['Color Code'] || row['color_code'] || row['Color Name'] || row['color_name'] || '').trim()
 
         // Pricing & Tax
-        const hsn_code_val  = (row['HSN Code'] || '').trim()
-        const gst_rate_val  = (row['GST Rate %'] || '').trim()
-        const basic_cost    = parseFloat(row['Basic Cost Price'] || 0)
-        const mrp           = parseFloat(row['MRP'] || 0)
-        const selling_price = parseFloat(row['Selling Price'] || 0)
+        const hsn_code_val  = (row['HSN Code'] || row['hsn_code'] || '').trim()
+        const gst_rate_val  = (row['GST Rate %'] || row['gst_rate'] || '').trim()
+        const basic_cost    = parseFloat(row['Basic Cost Price'] || row['basic_cost_price'] || 0)
+        const mrp           = parseFloat(row['MRP'] || row['mrp'] || 0)
+        const selling_price = parseFloat(row['Selling Price'] || row['selling_price'] || row['sp'] || 0)
 
         // Validations
         let ptype = ''
-        const ptype_lower = product_type_raw.toLowerCase()
-        if (ptype_lower === 'raw material' || ptype_lower === 'raw_material') {
+        const ptype_lower = product_type_raw.toLowerCase().trim()
+        if (['raw material', 'raw_material', 'rm'].includes(ptype_lower)) {
           ptype = 'RAW_MATERIAL'
-        } else if (ptype_lower === 'semi finished' || ptype_lower === 'semi_finished') {
+        } else if (['semi finished', 'semi_finished', 'sfg'].includes(ptype_lower)) {
           ptype = 'SEMI_FINISHED'
-        } else if (ptype_lower === 'finished good' || ptype_lower === 'finished_good' || ptype_lower === 'finished goods' || ptype_lower === 'finished') {
+        } else if (['finished good', 'finished goods', 'finished_good', 'finished_goods', 'finished', 'fg'].includes(ptype_lower)) {
           ptype = 'FINISHED'
         }
 

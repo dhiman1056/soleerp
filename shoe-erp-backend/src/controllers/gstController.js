@@ -136,7 +136,7 @@ const importGSTs = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const description = (row['Description'] || '').trim()
+      const description = (row['Description'] || row['description'] || '').trim()
       const gst_rate    = parseFloat(row['GST Rate %'] || row['gst_rate'] || 0)
 
       if (!description) {

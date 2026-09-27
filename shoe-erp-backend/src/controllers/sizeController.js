@@ -2,7 +2,7 @@
 
 const { query } = require('../config/db');
 
-const VALID_CHARTS = ['INFANT', 'KIDS', 'LADIES', 'MEN'];
+const VALID_CHARTS = ['INFANT', 'KIDS', 'LADIES', 'MEN', 'UK', 'EURO', 'US', 'IND'];
 
 // ─── Auto-generate size_master_code: SIZE-0001, SIZE-0002 … ─────────────────
 const generateCode = async () => {
@@ -165,12 +165,12 @@ const importSizes = async (req, res) => {
     const row = rows[i];
     const rowNum = i + 1;
     try {
-      const size_label  = (row['Size Label']  || '').trim();
-      const size_chart  = (row['Size Chart']  || '').trim().toUpperCase();
-      const uk_size     = (row['UK Size']     || '').trim() || null;
-      const euro_size   = (row['Euro Size']   || '').trim() || null;
-      const description = (row['Description'] || '').trim() || null;
-      const sort_order  = parseInt(row['Sort Order'] || '0', 10);
+      const size_label  = (row['Size Label']  || row['size_label']  || '').trim();
+      const size_chart  = (row['Size Chart']  || row['size_chart']  || '').trim().toUpperCase();
+      const uk_size     = (row['UK Size']     || row['uk_size']     || '').trim() || null;
+      const euro_size   = (row['Euro Size']   || row['euro_size']   || '').trim() || null;
+      const description = (row['Description'] || row['description'] || '').trim() || null;
+      const sort_order  = parseInt(row['Sort Order'] || row['sort_order'] || '0', 10);
 
       if (!size_label) {
         errors.push({ row: rowNum, message: 'Size Label is required' });
@@ -181,17 +181,18 @@ const importSizes = async (req, res) => {
         continue;
       }
 
-      // Skip duplicate (same label + chart)
+      const candidateCode = uk_size ? `${size_chart.toUpperCase()}-${uk_size}` : null;
+      // Skip duplicate (same label + chart or existing size_code)
       const dup = await query(
-        'SELECT id FROM size_master WHERE LOWER(size_label) = LOWER($1) AND size_chart = $2',
-        [size_label, size_chart]
+        `SELECT id FROM size_master 
+         WHERE (LOWER(size_label) = LOWER($1) AND size_chart = $2)
+            OR ($3::varchar IS NOT NULL AND size_code = $3)`,
+        [size_label, size_chart, candidateCode]
       );
       if (dup.rows.length > 0) { skipped++; continue; }
 
       const size_master_code = await generateCode();
-      const size_code = uk_size
-        ? `${size_chart}-${uk_size}`
-        : size_master_code;
+      const size_code = candidateCode || size_master_code;
 
       await query(`
         INSERT INTO size_master

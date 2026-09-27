@@ -223,19 +223,19 @@ const importCompanies = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const company_name    = (row['Company Name']      || '').trim()
-      const description     = (row['Description']       || '').trim() || null
-      const licence_no      = (row['Licence No']        || '').trim() || null
-      const address         = (row['Address']           || '').trim() || null
-      const state           = (row['State']             || '').trim() || null
-      const city            = (row['City']              || '').trim() || null
-      const pincode         = (row['Pincode']           || '').trim() || null
-      const contact_person  = (row['Contact Person']    || '').trim() || null
-      const contact_mobile  = (row['Contact Mobile']    || '').trim() || null
-      const email           = (row['Email']             || '').trim() || null
-      const customer_care_no = (row['Customer Care No'] || '').trim() || null
-      const msme_certificate = (row['MSME Certificate'] || '').trim() || null
-      const gstin           = (row['GSTIN']             || '').trim() || null
+      const company_name    = (row['Company Name']      || row['company_name']      || '').trim()
+      const description     = (row['Description']       || row['description']       || '').trim() || null
+      const licence_no      = (row['Licence No']        || row['licence_no']        || '').trim() || null
+      const address         = (row['Address']           || row['address']           || '').trim() || null
+      const state           = (row['State']             || row['state']             || '').trim() || null
+      const city            = (row['City']              || row['city']              || '').trim() || null
+      const pincode         = (row['Pincode']           || row['pincode']           || '').trim() || null
+      const contact_person  = (row['Contact Person']    || row['contact_person']    || '').trim() || null
+      const contact_mobile  = (row['Contact Mobile']    || row['contact_mobile']    || '').trim() || null
+      const email           = (row['Email']             || row['email']             || '').trim() || null
+      const customer_care_no = (row['Customer Care No'] || row['customer_care_no'] || '').trim() || null
+      const msme_certificate = (row['MSME Certificate'] || row['msme_certificate'] || '').trim() || null
+      const gstin           = (row['GSTIN']             || row['gstin']             || '').trim() || null
 
       if (!company_name) {
         errors.push({ row: rowNum, message: 'Company Name is required' })

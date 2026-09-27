@@ -320,3 +320,106 @@ exports.recordPayment = async (req, res, next) => {
     client.release();
   }
 };
+
+/**
+ * POST /api/suppliers/import
+ * Bulk import suppliers from Excel / CSV
+ */
+exports.importSuppliers = async (req, res, next) => {
+  const rows = req.body.rows || req.body.items;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ success: false, message: 'No rows provided for import' });
+  }
+
+  let imported = 0;
+  let skipped = 0;
+  const errors = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNum = i + 1;
+
+    try {
+      const supplier_name   = (row['Supplier Name']    || row['supplier_name']    || '').trim();
+      const gstin           = (row['GSTIN']            || row['gstin']            || '').trim().toUpperCase();
+      const contact_person  = (row['Contact Person']   || row['contact_person']   || '').trim();
+      const phone           = (row['Phone']            || row['phone']            || row['contact_mobile'] || '').trim();
+      const email           = (row['Email']            || row['email']            || '').trim().toLowerCase();
+      const address         = (row['Address']          || row['address']          || '').trim();
+      const city            = (row['City']             || row['city']             || '').trim();
+      const state           = (row['State']            || row['state']            || '').trim();
+      const pincode         = (row['Pincode']          || row['pincode']          || '').trim();
+      const payment_terms   = (row['Payment Terms']    || row['payment_terms']    || '').trim();
+      const credit_limit    = parseFloat(row['Credit Limit'] || row['credit_limit'] || 0) || 0;
+      const customer_care_no = (row['Customer Care No'] || row['customer_care_no'] || '').trim();
+      const msme_certificate = (row['MSME Certificate'] || row['msme_certificate'] || '').trim();
+      const licence_no      = (row['Licence No']       || row['licence_no']       || '').trim();
+      const brand_name      = (row['Brand Name']       || row['brand_name']       || '').trim();
+
+      if (!supplier_name) {
+        errors.push({ row: rowNum, message: 'Supplier Name is required' });
+        continue;
+      }
+      if (gstin && gstin.length !== 15) {
+        errors.push({ row: rowNum, message: 'GSTIN must be 15 characters' });
+        continue;
+      }
+      if (email && !email.includes('@')) {
+        errors.push({ row: rowNum, message: 'Invalid email format' });
+        continue;
+      }
+
+      // Check duplicates
+      const dup = await query(
+        'SELECT id FROM suppliers WHERE LOWER(supplier_name) = LOWER($1)',
+        [supplier_name]
+      );
+      if (dup.rows.length > 0) {
+        skipped++;
+        continue;
+      }
+
+      let brand_id = null;
+      if (brand_name) {
+        const brandRes = await query('SELECT id FROM brand_master WHERE LOWER(brand_name) = LOWER($1)', [brand_name]);
+        if (brandRes.rows.length > 0) {
+          brand_id = brandRes.rows[0].id;
+        }
+      }
+
+      const supplier_code = await generateSupplierCode();
+
+      await query(`
+        INSERT INTO suppliers (
+          supplier_code, supplier_name, gstin, brand_id, payment_terms,
+          address, city, state, pincode, contact_person, phone, email,
+          customer_care_no, msme_certificate, licence_no, credit_limit, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      `, [
+        supplier_code,
+        supplier_name,
+        gstin || null,
+        brand_id,
+        payment_terms || null,
+        address || null,
+        city || null,
+        state || null,
+        pincode || null,
+        contact_person || null,
+        phone || null,
+        email || null,
+        customer_care_no || null,
+        msme_certificate || null,
+        licence_no || null,
+        credit_limit,
+        req.user?.id || null
+      ]);
+
+      imported++;
+    } catch (err) {
+      errors.push({ row: rowNum, message: err.message });
+    }
+  }
+
+  return res.json({ success: true, imported, skipped, errors });
+};

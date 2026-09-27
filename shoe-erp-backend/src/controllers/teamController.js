@@ -141,9 +141,9 @@ const importTeams = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const team_name  = (row['Team Name']      || '').trim()
-      const div_name   = (row['Division Name']  || '').trim()
-      const description = (row['Description']   || '').trim()
+      const team_name   = (row['Team Name']      || row['team_name'] || '').trim()
+      const div_name    = (row['Division Name']  || row['div_name']  || '').trim()
+      const description = (row['Description']    || row['description'] || '').trim()
 
       if (!team_name) {
         errors.push({ row: rowNum, message: 'Team Name is required' })

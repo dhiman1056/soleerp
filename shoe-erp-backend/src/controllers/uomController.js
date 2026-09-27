@@ -131,8 +131,8 @@ const importUOMs = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const uom_code = (row['Short Code'] || row['uom_code'] || '').trim().toUpperCase()
-      const uom_name = (row['UOM Description'] || row['uom_name'] || '').trim()
+      const uom_code = (row['Short Code'] || row['uom_code'] || row['UOM Code'] || row['UOM'] || row['uom'] || row['UOM Name'] || row['uom_name'] || '').trim().toUpperCase()
+      const uom_name = (row['UOM Description'] || row['uom_name'] || row['UOM Name'] || uom_code || '').trim()
 
       if (!uom_code) {
         errors.push({ row: rowNum, message: 'Short Code is required' })

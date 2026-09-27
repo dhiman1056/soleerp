@@ -1,21 +1,40 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSuppliersQuery } from '../../hooks/useSuppliers'
 import { useAuth } from '../../hooks/useAuth'
 import { formatCurrency } from '../../utils/formatCurrency'
 import Loader from '../../components/common/Loader'
 import SupplierForm from './SupplierForm'
+import ImportModal from '../../components/shared/ImportModal'
 
 export default function SupplierList() {
   const [search,       setSearch]       = useState('')
   const [isModalOpen,  setIsModalOpen]  = useState(false)
+  const [showImport,   setShowImport]   = useState(false)
 
+  const qc = useQueryClient()
   // useSuppliersQuery now returns the array directly
   const { data, isLoading } = useSuppliersQuery({ search })
   const { user }   = useAuth()
   const navigate   = useNavigate()
 
   const suppliers = Array.isArray(data) ? data : []
+
+  const templateColumns = [
+    { key: 'supplier_name', label: 'Supplier Name', required: true, example: 'Apex Leather Works', example2: 'Kanpur Soles Ltd' },
+    { key: 'contact_person', label: 'Contact Person', required: false, example: 'Rajesh Kumar', example2: 'Amit Verma' },
+    { key: 'phone', label: 'Phone', required: false, example: '9876543210', example2: '9812345678' },
+    { key: 'email', label: 'Email', required: false, example: 'sales@apexleather.com', example2: 'info@kanpursoles.com' },
+    { key: 'gstin', label: 'GSTIN', required: false, example: '07AAAAA0000A1Z5', example2: '09BBBBB1111B2Z6', note: '15 characters if provided' },
+    { key: 'payment_terms', label: 'Payment Terms', required: false, example: 'Net 30', example2: 'Immediate' },
+    { key: 'credit_limit', label: 'Credit Limit', required: false, example: 50000, example2: 100000 },
+    { key: 'address', label: 'Address', required: false, example: 'Plot 45, Industrial Area', example2: '12 Transport Nagar' },
+    { key: 'city', label: 'City', required: false, example: 'Agra', example2: 'Kanpur' },
+    { key: 'state', label: 'State', required: false, example: 'Uttar Pradesh', example2: 'Uttar Pradesh' },
+    { key: 'pincode', label: 'Pincode', required: false, example: '282007', example2: '208001' },
+    { key: 'brand_name', label: 'Brand Name', required: false, example: '', example2: '' },
+  ]
 
   return (
     <div className="space-y-6">
@@ -30,9 +49,18 @@ export default function SupplierList() {
             onChange={(e) => setSearch(e.target.value)}
           />
           {['admin', 'manager'].includes(user?.role) && (
-            <button onClick={() => setIsModalOpen(true)} className="btn-primary shrink-0">
-              New Supplier
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setShowImport(true)}
+                className="btn-secondary shrink-0"
+              >
+                Import
+              </button>
+              <button onClick={() => setIsModalOpen(true)} className="btn-primary shrink-0">
+                New Supplier
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -89,6 +117,21 @@ export default function SupplierList() {
       </div>
 
       {isModalOpen && <SupplierForm onClose={() => setIsModalOpen(false)} />}
+
+      {showImport && (
+        <ImportModal
+          isOpen={showImport}
+          onClose={() => setShowImport(false)}
+          title="Import Suppliers"
+          apiEndpoint="/suppliers/import"
+          templateColumns={templateColumns}
+          onSuccess={() => {
+            qc.invalidateQueries({ queryKey: ['suppliers'] })
+            setShowImport(false)
+          }}
+        />
+      )}
     </div>
   )
 }
+

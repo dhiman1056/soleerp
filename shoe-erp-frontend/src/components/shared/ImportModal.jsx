@@ -75,7 +75,8 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
   // ─── Step 2: Mapping columns from CSV/Excel to keys ────────────────────────
   const mapParsedRows = (rawRows) => {
     return rawRows.map(row => {
-      const mapped = {}
+      // Retain original raw fields while guaranteeing normalized key & label access
+      const mapped = { ...row }
       templateColumns.forEach(col => {
         const possibleKeys = [col.label, col.key]
         let value = undefined
@@ -95,7 +96,9 @@ export default function ImportModal({ isOpen, onClose, masterName, templateColum
             break
           }
         }
-        mapped[col.key] = value !== undefined && value !== null ? String(value).trim() : ''
+        const cleanVal = value !== undefined && value !== null ? String(value).trim() : ''
+        mapped[col.key] = cleanVal
+        mapped[col.label] = cleanVal
       })
       return mapped
     })

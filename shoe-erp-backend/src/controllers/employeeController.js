@@ -203,11 +203,11 @@ const importEmployees = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const emp_name    = (row['Employee Name']    || '').trim()
-      const team_name   = (row['Team Name']        || '').trim()
-      const designation = (row['Designation']      || '').trim()
-      const mobile      = (row['Contact Mobile']   || '').trim()
-      const email       = (row['Email Address']    || '').trim()
+      const emp_name    = (row['Employee Name']  || row['emp_name']  || '').trim()
+      const team_name   = (row['Team Name']      || row['team_name'] || '').trim()
+      const designation = (row['Designation']    || row['designation'] || '').trim()
+      const mobile      = (row['Contact Mobile'] || row['mobile'] || row['contact_mobile'] || '').trim()
+      const email       = (row['Email Address']  || row['Email']  || row['email'] || '').trim()
 
       if (!emp_name) {
         errors.push({ row: rowNum, message: 'Employee Name is required' })

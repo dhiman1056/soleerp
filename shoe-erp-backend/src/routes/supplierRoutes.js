@@ -10,6 +10,7 @@ const roleMiddleware = require('../middleware/roleMiddleware');
 const ctrl = require('../controllers/supplierController');
 
 router.get('/', auth, ctrl.getAllSuppliers);
+router.post('/import', auth, roleMiddleware('admin', 'manager'), ctrl.importSuppliers);
 router.get('/:id', auth, ctrl.getSupplierById);
 router.post('/', auth, roleMiddleware('admin', 'manager'), ctrl.createSupplier);
 router.put('/:id', auth, roleMiddleware('admin', 'manager'), ctrl.updateSupplier);

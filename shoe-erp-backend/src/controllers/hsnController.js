@@ -171,9 +171,9 @@ const importHSNs = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const hsn_code    = (row['HSN Code']    || '').trim()
-      const description = (row['Description'] || '').trim()
-      const gst_rate_val = (row['GST Rate %'] || '').trim()
+      const hsn_code    = (row['HSN Code']    || row['hsn_code']    || '').trim()
+      const description = String(row['Description'] || row['description'] || '').trim()
+      const gst_rate_val = String(row['GST Rate %'] ?? row['gst_rate'] ?? '').trim()
 
       if (!hsn_code) {
         errors.push({ row: rowNum, message: 'HSN Code is required' })

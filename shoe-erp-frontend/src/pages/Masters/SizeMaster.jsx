@@ -343,7 +343,7 @@ export default function SizeMaster() {
 
   const templateColumns = [
     { key: 'size_label', label: 'Size Label', required: true, example: '8', example2: '9' },
-    { key: 'size_chart', label: 'Size Chart', required: true, example: 'UK', example2: 'EURO', note: 'IND | UK | EURO | US | KIDS' },
+    { key: 'size_chart', label: 'Size Chart', required: true, example: 'MEN', example2: 'LADIES', note: 'MEN | LADIES | KIDS | INFANT | UK | EURO | US | IND' },
     { key: 'uk_size', label: 'UK Size', required: false, example: '8' },
     { key: 'euro_size', label: 'Euro Size', required: false, example: '42' },
     { key: 'sort_order', label: 'Sort Order', required: false, example: '1' },

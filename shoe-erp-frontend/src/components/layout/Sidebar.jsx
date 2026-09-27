@@ -136,6 +136,10 @@ const mastersNav = [
     to: '/masters/locations', label: 'Location Master',
     icon: <Icon path="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />,
   },
+  {
+    to: '/masters/sizes', label: 'Size Master',
+    icon: <Icon path="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25H12" />,
+  },
 ]
 
 const adminNav = [

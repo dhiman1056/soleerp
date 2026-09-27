@@ -116,7 +116,7 @@ const importComponents = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const comp_name = (row['Component Name'] || '').trim()
+      const comp_name = (row['Component Name'] || row['comp_name'] || '').trim()
 
       if (!comp_name) {
         errors.push({ row: rowNum, message: 'Component Name is required' })

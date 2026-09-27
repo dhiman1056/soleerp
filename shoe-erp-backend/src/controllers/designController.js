@@ -128,8 +128,10 @@ const importDesigns = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const design_no  = (row['Design No']      || '').trim()
-      const catg_name  = (row['Category Name']  || '').trim()
+      const design_no  = (row['Design No'] || row['design_no'] || '').trim()
+      const catg_name  = (row['Category Name'] || row['Category Description'] || row['catg_name'] || row['category_name'] || '').trim()
+      const design_name = (row['Design Name'] || row['design_name'] || '').trim() || null
+      const description = (row['Description'] || row['description'] || '').trim() || null
 
       if (!design_no) {
         errors.push({ row: rowNum, message: 'Design No is required' })
@@ -147,7 +149,7 @@ const importDesigns = async (req, res) => {
       let category_id = null
       if (catg_name) {
         const catRes = await query(
-          'SELECT id FROM category_master WHERE LOWER(catg_name) = LOWER($1) AND is_active = true',
+          'SELECT id FROM category_master WHERE LOWER(COALESCE(catg_name, category_name)) = LOWER($1) AND is_active = true',
           [catg_name]
         )
         if (catRes.rows.length === 0) {
@@ -160,9 +162,9 @@ const importDesigns = async (req, res) => {
 
       const design_master_code = await generateCode()
       await query(`
-        INSERT INTO design_master (design_master_code, design_no, category_id)
-        VALUES ($1, $2, $3)
-      `, [design_master_code, design_no, category_id])
+        INSERT INTO design_master (design_master_code, design_no, design_name, description, category_id)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [design_master_code, design_no, design_name, description, category_id])
 
       imported++
     } catch (err) {

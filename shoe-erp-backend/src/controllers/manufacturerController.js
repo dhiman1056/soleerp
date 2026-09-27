@@ -185,16 +185,16 @@ const importManufacturers = async (req, res) => {
     const row = rows[i]
     const rowNum = i + 1
     try {
-      const mfr_name        = (row['Manufacturer Name']  || '').trim()
-      const licence_no      = (row['Licence No']         || '').trim()
-      const address         = (row['Address']            || '').trim()
-      const city            = (row['City']               || '').trim()
-      const state           = (row['State']              || '').trim()
-      const pincode         = (row['Pincode']            || '').trim()
-      const contact_person  = (row['Contact Person']     || '').trim()
-      const contact_mobile  = (row['Contact Mobile']     || '').trim()
-      const email           = (row['Email']              || '').trim()
-      const customer_care_no = (row['Customer Care No']  || '').trim()
+      const mfr_name        = (row['Manufacturer Name']  || row['mfr_name'] || row['manufacturer_name'] || '').trim()
+      const licence_no      = (row['Licence No']         || row['licence_no']      || '').trim()
+      const address         = (row['Address']            || row['address']         || '').trim()
+      const city            = (row['City']               || row['city']            || '').trim()
+      const state           = (row['State']              || row['state']           || '').trim()
+      const pincode         = (row['Pincode']            || row['pincode']         || '').trim()
+      const contact_person  = (row['Contact Person']     || row['contact_person']  || '').trim()
+      const contact_mobile  = (row['Contact Mobile']     || row['contact_mobile']  || '').trim()
+      const email           = (row['Email']              || row['email']           || '').trim()
+      const customer_care_no = (row['Customer Care No']  || row['customer_care_no'] || '').trim()
 
       if (!mfr_name) {
         errors.push({ row: rowNum, message: 'Manufacturer Name is required' })
