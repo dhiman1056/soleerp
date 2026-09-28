@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useDirectGRN } from '../../hooks/usePurchaseOrders'
 import { useSuppliers } from '../../hooks/useSuppliers'
 import { useStock }     from '../../hooks/useInventory'
+import SearchableSelect from '../../components/common/SearchableSelect'
 import toast from 'react-hot-toast'
 import { today } from '../../utils/formatDate'
 import { formatCurrency } from '../../utils/formatCurrency'
@@ -14,6 +15,16 @@ export default function DirectGRNForm({ isOpen, onClose }) {
   const { data: stockRaw }     = useStock()
   const suppliers = Array.isArray(suppliersRaw) ? suppliersRaw : []
   const stockList = Array.isArray(stockRaw)     ? stockRaw     : []
+
+  const supplierOptions = useMemo(() => {
+    return suppliers.map(s => ({
+      value: String(s.id),
+      label: s.supplier_name,
+      subLabel: s.supplier_code || null,
+      badge: s.supplier_type || s.type || s.city || null,
+      searchKey: `${s.supplier_name} ${s.supplier_code || ''} ${s.city || ''} ${s.supplier_type || s.type || ''}`
+    }))
+  }, [suppliers])
 
   const [supplierId, setSupplierId] = useState('')
   const [grnDate,    setGrnDate]    = useState(today())
@@ -83,10 +94,14 @@ export default function DirectGRNForm({ isOpen, onClose }) {
           <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4 bg-gray-50 border-b border-gray-100">
             <div>
               <label className="label">Supplier (Optional)</label>
-              <select value={supplierId} onChange={e => setSupplierId(e.target.value)} className="input-field">
-                <option value="">— No Supplier —</option>
-                {suppliers.map(s => <option key={s.id} value={s.id}>{s.supplier_name}</option>)}
-              </select>
+              <SearchableSelect
+                value={supplierId}
+                onChange={val => setSupplierId(val)}
+                options={supplierOptions}
+                placeholder="— No Supplier —"
+                searchPlaceholder="Search supplier..."
+                isClearable={true}
+              />
             </div>
             <div>
               <label className="label">GRN Date *</label>

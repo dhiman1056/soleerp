@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useNavigate }  from 'react-router-dom'
 import { useCreatePO }  from '../../hooks/usePurchaseOrders'
 import { useSuppliers } from '../../hooks/useSuppliers'
 import { useRawMaterials } from '../../hooks/useRawMaterials'
 import { formatCurrency }  from '../../utils/formatCurrency'
+import SearchableSelect from '../../components/common/SearchableSelect'
 import toast from 'react-hot-toast'
 
 export default function POForm() {
@@ -17,6 +18,16 @@ export default function POForm() {
   // Safe array extraction — defensive even though hooks already return arrays
   const suppliers = Array.isArray(suppliersRaw) ? suppliersRaw : []
   const materials = Array.isArray(materialsRaw) ? materialsRaw : []
+
+  const supplierOptions = useMemo(() => {
+    return suppliers.map(s => ({
+      value: String(s.id),
+      label: s.supplier_name,
+      subLabel: s.supplier_code || null,
+      badge: s.supplier_type || s.type || s.city || null,
+      searchKey: `${s.supplier_name} ${s.supplier_code || ''} ${s.city || ''} ${s.supplier_type || s.type || ''} ${s.stock_group || ''}`
+    }))
+  }, [suppliers])
 
   const [form, setForm] = useState({
     supplier_id:            '',
@@ -88,18 +99,15 @@ export default function POForm() {
         <div className="card p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
             <label className="text-xs font-semibold text-gray-600 block mb-1">Supplier *</label>
-            <select
-              required
-              className="input-field"
+            <SearchableSelect
               value={form.supplier_id}
-              onChange={e => setForm({ ...form, supplier_id: e.target.value })}
+              onChange={val => setForm(prev => ({ ...prev, supplier_id: val }))}
+              options={supplierOptions}
+              placeholder={supLoading ? 'Loading suppliers…' : '— Select Supplier —'}
+              searchPlaceholder="Search supplier by name, code, type..."
               disabled={supLoading}
-            >
-              <option value="">{supLoading ? 'Loading suppliers…' : 'Select Supplier...'}</option>
-              {suppliers.map(s => (
-                <option key={s.id} value={s.id}>{s.supplier_name}</option>
-              ))}
-            </select>
+              error={!form.supplier_id && false}
+            />
           </div>
 
           <div>
