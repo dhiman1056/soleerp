@@ -1,11 +1,10 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
-import { createPortal } from 'react-dom'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 
 /**
  * SearchableSelect
- * A high-performance, accessible searchable dropdown with Portal positioning,
- * live multi-field filtering, keyboard navigation, clear support, and custom badges.
- * Rendered via createPortal to prevent ANY clipping in modals, tables, or cards.
+ * A high-performance, rock-solid searchable select dropdown.
+ * Uses in-flow relative/absolute anchoring with zero-coordinate latency.
+ * Eliminates top-left detached rendering, coordinate jumping, and portal desync.
  */
 export default function SearchableSelect({
   value,
@@ -23,10 +22,9 @@ export default function SearchableSelect({
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
-  const [coords, setCoords] = useState({ top: 0, left: 0, width: 220, maxHeight: 280, openUpward: false })
+  const [openUpward, setOpenUpward] = useState(false)
 
   const containerRef = useRef(null)
-  const popoverRef = useRef(null)
   const searchInputRef = useRef(null)
   const listRef = useRef(null)
 
@@ -70,64 +68,38 @@ export default function SearchableSelect({
     setHighlightedIndex(0)
   }, [filteredOptions])
 
-  // Calculate fixed portal coordinates
-  const updatePosition = useCallback(() => {
-    if (!containerRef.current) return
-    const rect = containerRef.current.getBoundingClientRect()
-    const viewportHeight = window.innerHeight
-    const spaceBelow = viewportHeight - rect.bottom
-    const spaceAbove = rect.top
-    const dropdownHeight = 290
-
-    const openUpward = spaceBelow < dropdownHeight && spaceAbove > dropdownHeight
-    const top = openUpward
-      ? Math.max(10, rect.top - dropdownHeight - 4)
-      : rect.bottom + 4
-
-    const availableHeight = openUpward
-      ? Math.min(spaceAbove - 16, 300)
-      : Math.min(spaceBelow - 16, 300)
-
-    setCoords({
-      top,
-      left: rect.left,
-      width: Math.max(rect.width, 220),
-      maxHeight: Math.max(availableHeight, 180),
-      openUpward
-    })
-  }, [])
-
-  // Update position on open, scroll or resize
-  useEffect(() => {
+  // Toggle open and detect upward/downward direction
+  const handleToggle = () => {
+    if (disabled) return
     if (!isOpen) {
-      setSearch('')
-      return
-    }
-
-    updatePosition()
-    window.addEventListener('scroll', updatePosition, true)
-    window.addEventListener('resize', updatePosition)
-
-    // Autofocus search input
-    const timer = setTimeout(() => {
-      if (searchInputRef.current) {
-        searchInputRef.current.focus()
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        const spaceBelow = window.innerHeight - rect.bottom
+        // If space below is less than 240px and space above is larger, open upward
+        setOpenUpward(spaceBelow < 240 && rect.top > spaceBelow)
       }
-    }, 40)
-
-    return () => {
-      window.removeEventListener('scroll', updatePosition, true)
-      window.removeEventListener('resize', updatePosition)
-      clearTimeout(timer)
+      setIsOpen(true)
+    } else {
+      setIsOpen(false)
     }
-  }, [isOpen, updatePosition])
+  }
 
-  // Click outside listener (checks both container & portal popover)
+  // Autofocus search input on open
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus()
+      }, 30)
+      return () => clearTimeout(timer)
+    } else {
+      setSearch('')
+    }
+  }, [isOpen])
+
+  // Click outside listener
   useEffect(() => {
     function handleClickOutside(e) {
-      const inContainer = containerRef.current && containerRef.current.contains(e.target)
-      const inPopover = popoverRef.current && popoverRef.current.contains(e.target)
-      if (!inContainer && !inPopover) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
         setIsOpen(false)
       }
     }
@@ -171,7 +143,7 @@ export default function SearchableSelect({
     if (!isOpen) {
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
         e.preventDefault()
-        setIsOpen(true)
+        handleToggle()
       }
       return
     }
@@ -195,7 +167,7 @@ export default function SearchableSelect({
   return (
     <div
       ref={containerRef}
-      className={`relative select-none ${className}`}
+      className={`relative select-none ${isOpen ? 'z-40' : 'z-10'} ${className}`}
       onKeyDown={handleKeyDown}
       id={id ? `${id}-container` : undefined}
     >
@@ -212,7 +184,7 @@ export default function SearchableSelect({
       {/* Main trigger bar */}
       <div
         tabIndex={disabled ? -1 : 0}
-        onClick={() => !disabled && setIsOpen(prev => !prev)}
+        onClick={handleToggle}
         className={`w-full min-h-[40px] px-3 py-2 bg-white rounded-lg border text-sm flex items-center justify-between gap-2 cursor-pointer transition-all duration-150 ${
           disabled
             ? 'bg-slate-100/70 border-slate-200 text-slate-400 cursor-not-allowed'
@@ -269,19 +241,12 @@ export default function SearchableSelect({
         </div>
       </div>
 
-      {/* Portal-based Dropdown Panel */}
-      {isOpen && !disabled && createPortal(
+      {/* In-flow Dropdown Panel */}
+      {isOpen && !disabled && (
         <div
-          ref={popoverRef}
-          style={{
-            position: 'fixed',
-            top: `${coords.top}px`,
-            left: `${coords.left}px`,
-            width: `${coords.width}px`,
-            maxHeight: `${coords.maxHeight}px`,
-            zIndex: 99999
-          }}
-          className="bg-white rounded-xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100"
+          className={`absolute left-0 right-0 z-50 bg-white rounded-xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col max-h-72 animate-in fade-in duration-100 ${
+            openUpward ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+          }`}
           onClick={e => e.stopPropagation()}
         >
           {/* Live Search input */}
@@ -379,8 +344,7 @@ export default function SearchableSelect({
               })
             )}
           </div>
-        </div>,
-        document.body
+        </div>
       )}
     </div>
   )

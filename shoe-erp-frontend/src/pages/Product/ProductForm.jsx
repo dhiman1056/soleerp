@@ -511,10 +511,10 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
           </div>
 
           {/* ── 3. Scrollable Form Content ─────────────────────────────── */}
-          <form id="product-form" onSubmit={handleSubmit(onSubmit)} className="p-7 overflow-y-auto flex-1 min-h-[360px]">
+          <form id="product-form" onSubmit={handleSubmit(onSubmit)} className="p-7 pb-32 overflow-y-auto flex-1 min-h-[420px]">
 
             {/* ═════ STEP 0: BASIC DETAILS ═════ */}
-            <div className={activeStep === 0 ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
+            <div className={activeStep === 0 ? 'space-y-6 animate-in fade-in duration-150 min-h-[380px]' : 'hidden'}>
 
               {/* Product Type Cards */}
               <div>
@@ -697,7 +697,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
             </div>
 
             {/* ═════ STEP 1: CLASSIFICATION ═════ */}
-            <div className={activeStep === 1 ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
+            <div className={activeStep === 1 ? 'space-y-6 animate-in fade-in duration-150 min-h-[380px]' : 'hidden'}>
 
               <SectionHeading title="Category & Styling" subtitle="Organize product into stock group, sub-category, and design" />
 
@@ -851,7 +851,7 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
             </div>
 
             {/* ═════ STEP 2: PRICING & TAX ═════ */}
-            <div className={activeStep === 2 ? 'space-y-6 animate-in fade-in duration-150' : 'hidden'}>
+            <div className={activeStep === 2 ? 'space-y-6 animate-in fade-in duration-150 min-h-[380px]' : 'hidden'}>
 
               {/* Tax Settings */}
               <div>
