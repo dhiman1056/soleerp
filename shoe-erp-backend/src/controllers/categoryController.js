@@ -15,6 +15,35 @@ const generateCode = async () => {
 // ─── GET /api/categories ──────────────────────────────────────────────────────
 const listCategories = async (req, res) => {
   try {
+    const { search, dept_id, is_active, all, include_inactive } = req.query
+    const conditions = []
+    const params = []
+
+    if (is_active === 'true' || is_active === true) {
+      params.push(true)
+      conditions.push(`c.is_active = $${params.length}`)
+    } else if (is_active === 'false' || is_active === false) {
+      params.push(false)
+      conditions.push(`c.is_active = $${params.length}`)
+    } else if (is_active === 'all' || all === 'true' || include_inactive === 'true') {
+      // Return both active and inactive
+    } else {
+      // Default: active only (preserves dropdown behavior)
+      conditions.push(`c.is_active = true`)
+    }
+
+    if (dept_id) {
+      params.push(dept_id)
+      conditions.push(`c.dept_id = $${params.length}`)
+    }
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim()}%`)
+      conditions.push(`(c.catg_name ILIKE $${params.length} OR c.catg_code ILIKE $${params.length})`)
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
     const { rows } = await query(`
       SELECT 
         c.*,
@@ -27,9 +56,9 @@ const listCategories = async (req, res) => {
         d.bom_applicable
       FROM category_master c
       LEFT JOIN department_master d ON c.dept_id = d.id
-      WHERE c.is_active = true
+      ${whereClause}
       ORDER BY c.catg_code
-    `)
+    `, params)
 
     res.json({ success: true, data: rows })
   } catch (err) {

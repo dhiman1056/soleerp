@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   useCategories,
   useCreateCategory,
@@ -186,7 +186,12 @@ export default function CategoryMaster() {
   const { user } = useAuth()
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
-  const [search, setSearch]         = useState('')
+  const [search, setSearch]                     = useState('')
+  const [stockGroupFilter, setStockGroupFilter] = useState('')
+  const [statusFilter, setStatusFilter]         = useState('ALL') // 'ALL', 'ACTIVE', 'INACTIVE'
+  const [page, setPage]                         = useState(1)
+  const [pageSize, setPageSize]                 = useState(10)
+
   const [showModal, setShowModal]   = useState(false)
   const [editItem, setEditItem]     = useState(null)
   const [showImport, setShowImport] = useState(false)
@@ -217,13 +222,71 @@ export default function CategoryMaster() {
     }
   ]
 
-  const params = {}
-  if (search.trim()) params.search = search.trim()
-
-  const { data, isLoading, refetch } = useCategories(params)
+  const { data: departments = [] } = useDepartments()
+  const { data, isLoading, refetch } = useCategories({ all: 'true' })
   const updateMut = useUpdateCategory()
 
   const categories = Array.isArray(data) ? data : []
+
+  // Multi-Filter logic
+  const filteredCategories = useMemo(() => {
+    return categories.filter((c) => {
+      // 1. Search text filter (Code or Description)
+      if (search.trim()) {
+        const q = search.trim().toLowerCase()
+        const matchName = (c.catg_name || '').toLowerCase().includes(q)
+        const matchCode = (c.catg_code || '').toLowerCase().includes(q)
+        if (!matchName && !matchCode) return false
+      }
+
+      // 2. Stock Group filter
+      if (stockGroupFilter) {
+        const matchesId = String(c.dept_id) === String(stockGroupFilter)
+        const groupName = (c.stock_group || c.dept_name || '').toLowerCase()
+        const matchesName = groupName === stockGroupFilter.toLowerCase()
+        if (!matchesId && !matchesName) return false
+      }
+
+      // 3. Status filter
+      if (statusFilter === 'ACTIVE' && !c.is_active) return false
+      if (statusFilter === 'INACTIVE' && c.is_active) return false
+
+      return true
+    })
+  }, [categories, search, stockGroupFilter, statusFilter])
+
+  // Pagination calculations
+  const totalItems = filteredCategories.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+
+  const paginatedCategories = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return filteredCategories.slice(start, start + pageSize)
+  }, [filteredCategories, safePage, pageSize])
+
+  const isFiltered = search.trim() !== '' || stockGroupFilter !== '' || statusFilter !== 'ALL'
+
+  const handleResetFilters = () => {
+    setSearch('')
+    setStockGroupFilter('')
+    setStatusFilter('ALL')
+    setPage(1)
+  }
+
+  const getPageNumbers = () => {
+    const pages = []
+    const maxVisible = 5
+    let start = Math.max(1, safePage - Math.floor(maxVisible / 2))
+    let end = Math.min(totalPages, start + maxVisible - 1)
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1)
+    }
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+    return pages
+  }
 
   const openCreate = () => { setEditItem(null); setShowModal(true) }
   const openEdit   = (c) => { setEditItem(c);   setShowModal(true) }
@@ -278,20 +341,99 @@ export default function CategoryMaster() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Search */}
-        <div className="relative flex-1">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-          </svg>
-          <input
-            id="catg-search"
-            className="input-field pl-9"
-            placeholder="Search by name or code…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      {/* Multi-Filter Section */}
+      <div className="card p-4 space-y-3 bg-white border border-gray-100 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+            {/* 1. Search by name or code */}
+            <div className="relative">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+              </svg>
+              <input
+                id="catg-search"
+                className="input-field pl-9 pr-8"
+                placeholder="Search by name or code…"
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setPage(1) }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full"
+                  title="Clear search"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* 2. Stock Group Filter */}
+            <div>
+              <select
+                id="catg-stock-group-filter"
+                className="input-field"
+                value={stockGroupFilter}
+                onChange={e => { setStockGroupFilter(e.target.value); setPage(1) }}
+              >
+                <option value="">All Stock Groups</option>
+                {departments.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.dept_name} {d.dept_code ? `(${d.dept_code})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 3. Status Filter */}
+            <div>
+              <select
+                id="catg-status-filter"
+                className="input-field"
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
+              >
+                <option value="ALL">All Status (Active & Inactive)</option>
+                <option value="ACTIVE">Active Only</option>
+                <option value="INACTIVE">Inactive Only</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Clear Filters Button */}
+          {isFiltered && (
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors whitespace-nowrap self-start md:self-auto"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear Filters
+            </button>
+          )}
+        </div>
+
+        {/* Filter Summary Stats */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100 gap-2">
+          <span>
+            Showing <strong className="text-gray-900 font-semibold">{filteredCategories.length}</strong> of{' '}
+            <strong className="text-gray-900 font-semibold">{categories.length}</strong> total categories
+            {isFiltered && <span className="ml-2 text-blue-600 font-medium">(Filtered)</span>}
+          </span>
+          <div className="flex gap-4">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              {categories.filter(c => c.is_active).length} Active
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+              {categories.filter(c => !c.is_active).length} Inactive
+            </span>
+          </div>
         </div>
       </div>
 
@@ -313,7 +455,7 @@ export default function CategoryMaster() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {categories.length === 0 ? (
+                {paginatedCategories.length === 0 ? (
                   <tr>
                     <td colSpan={canEdit ? 6 : 5} className="p-10 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
@@ -321,13 +463,22 @@ export default function CategoryMaster() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                         </svg>
                         <span>
-                          No categories found.
-                          {canEdit && ' Click "Add Category" to get started.'}
+                          {isFiltered ? 'No categories match the selected filters.' : 'No categories found.'}
+                          {isFiltered ? (
+                            <button
+                              onClick={handleResetFilters}
+                              className="ml-2 text-blue-600 hover:underline font-semibold"
+                            >
+                              Clear filters
+                            </button>
+                          ) : (
+                            canEdit && ' Click "Add Category" to get started.'
+                          )}
                         </span>
                       </div>
                     </td>
                   </tr>
-                ) : categories.map(c => (
+                ) : paginatedCategories.map(c => (
                   <tr key={c.id} className={`hover:bg-gray-50/60 transition-colors ${!c.is_active ? 'opacity-55' : ''}`}>
                     <td className="px-5 py-3 font-mono font-bold text-xs whitespace-nowrap text-violet-700">
                       {c.catg_code || <span className="text-gray-300 italic">—</span>}
@@ -362,6 +513,97 @@ export default function CategoryMaster() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3.5 border-t border-gray-100 bg-gray-50/70">
+            {/* Left: Summary & Page Size selector */}
+            <div className="flex items-center gap-4 text-xs text-gray-600">
+              <span>
+                Showing{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1}
+                </strong>{' '}
+                to{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {Math.min(safePage * pageSize, totalItems)}
+                </strong>{' '}
+                of <strong className="text-gray-900 font-semibold">{totalItems}</strong> categories
+              </span>
+
+              <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+                <label htmlFor="catg-page-size" className="text-gray-500">Rows:</label>
+                <select
+                  id="catg-page-size"
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Right: Page Navigation */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={safePage <= 1}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="First Page"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Previous Page"
+                >
+                  ‹ Prev
+                </button>
+
+                <div className="flex items-center gap-1 mx-1">
+                  {getPageNumbers().map(pageNum => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md transition-colors ${
+                        pageNum === safePage
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Next Page"
+                >
+                  Next ›
+                </button>
+                <button
+                  onClick={() => setPage(totalPages)}
+                  disabled={safePage >= totalPages}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Last Page"
+                >
+                  »
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
