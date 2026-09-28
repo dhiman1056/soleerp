@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import Modal from '../../components/common/Modal.jsx'
+import SearchableSelect from '../../components/common/SearchableSelect.jsx'
 
 import {
   useCreateProduct, useUpdateProduct, useProductById, useNextSku
@@ -138,9 +139,19 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
   // Watch fields
   const productType = watch('product_type')
   const categoryId = watch('category_id')
+  const subCategoryId = watch('sub_category_id')
+  const designId = watch('design_id')
+  const colorId = watch('color_id')
   const hsnId = watch('hsn_id')
   const basicCostPrice = watch('basic_cost_price') || 0
   const gstRate = watch('gst_rate') || 0
+
+  useEffect(() => {
+    register('category_id')
+    register('sub_category_id')
+    register('design_id')
+    register('color_id')
+  }, [register])
 
   // ── Hooks ─────────────────────────────────────────────────────────────────────
   const { data: uoms = [] } = useUOMs()
@@ -153,6 +164,44 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
   const { data: gstRatesData = [] } = useGST({ is_active: 'true' })
   const { data: suppliers = [] } = useSuppliers()
   const { data: nextSku } = useNextSku(productType)
+
+  // Memoized options for SearchableSelect
+  const categoryOptions = useMemo(() => {
+    return categories.map(c => ({
+      value: c.id,
+      label: c.catg_name,
+      subLabel: c.dept_name || 'No Dept',
+      badge: c.catg_code || null,
+      searchKey: `${c.catg_name} ${c.dept_name || ''} ${c.catg_code || ''}`
+    }))
+  }, [categories])
+
+  const subCategoryOptions = useMemo(() => {
+    return subCategories.map(sc => ({
+      value: sc.id,
+      label: sc.sub_category_name,
+      badge: sc.sub_category_code || null,
+      searchKey: `${sc.sub_category_name} ${sc.sub_category_code || ''}`
+    }))
+  }, [subCategories])
+
+  const designOptions = useMemo(() => {
+    return designs.map(d => ({
+      value: d.id,
+      label: d.design_no,
+      subLabel: d.design_name || null,
+      searchKey: `${d.design_no} ${d.design_name || ''}`
+    }))
+  }, [designs])
+
+  const colorOptions = useMemo(() => {
+    return colors.map(c => ({
+      value: c.id,
+      label: c.color_name,
+      subLabel: c.color_code || null,
+      searchKey: `${c.color_name} ${c.color_code || ''}`
+    }))
+  }, [colors])
 
   // Derive GST rates dynamically
   const uniqueGstRates = useMemo(() => {
@@ -314,9 +363,9 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
       {isLoadingExisting ? (
         <div className="p-8 text-center text-gray-500">Loading product data...</div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
           {/* Tabs Header */}
-          <div className="flex border-b border-gray-200">
+          <div className="flex border-b border-gray-200 rounded-t-xl overflow-hidden">
             {TABS.map((t, i) => (
               <button
                 key={t}
@@ -464,26 +513,28 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                 {/* ── Category (shows dept name) ─────────────────────────── */}
                 <div>
                   <label className="label">Category</label>
-                  <select {...register('category_id')} className="input-field">
-                    <option value="">— Select —</option>
-                    {categories.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.catg_name} ({c.dept_name || 'No Dept'})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={categoryId}
+                    onChange={(val) => {
+                      setValue('category_id', val, { shouldValidate: true, shouldDirty: true })
+                      setValue('sub_category_id', '', { shouldValidate: true, shouldDirty: true })
+                    }}
+                    options={categoryOptions}
+                    placeholder="— Select Category —"
+                    searchPlaceholder="Search category or stock group..."
+                  />
                 </div>
                 {/* ── Sub Category (filtered by category) ────────────────── */}
                 <div>
                   <label className="label">Sub Category</label>
-                  <select {...register('sub_category_id')} className="input-field" disabled={!categoryId}>
-                    <option value="">— Select —</option>
-                    {subCategories.map(sc => (
-                      <option key={sc.id} value={sc.id}>
-                        {sc.sub_category_name}
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={subCategoryId}
+                    onChange={(val) => setValue('sub_category_id', val, { shouldValidate: true, shouldDirty: true })}
+                    options={subCategoryOptions}
+                    placeholder={!categoryId ? '— Select Category first —' : '— Select Sub Category —'}
+                    searchPlaceholder="Search sub category..."
+                    disabled={!categoryId}
+                  />
                 </div>
               </div>
 
@@ -491,26 +542,24 @@ export default function ProductForm({ isOpen, onClose, editSku }) {
                 {/* ── Design ─────────────────────────────────────────────── */}
                 <div>
                   <label className="label">Design No</label>
-                  <select {...register('design_id')} className="input-field font-mono">
-                    <option value="">— Select —</option>
-                    {designs.map(d => (
-                      <option key={d.id} value={d.id}>
-                        {d.design_no} — {d.design_name}
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={designId}
+                    onChange={(val) => setValue('design_id', val, { shouldValidate: true, shouldDirty: true })}
+                    options={designOptions}
+                    placeholder="— Select Design —"
+                    searchPlaceholder="Search design no or name..."
+                  />
                 </div>
                 {/* ── Color ──────────────────────────────────────────────── */}
                 <div>
                   <label className="label">Color</label>
-                  <select {...register('color_id')} className="input-field">
-                    <option value="">— Select —</option>
-                    {colors.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.color_name} ({c.color_code})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    value={colorId}
+                    onChange={(val) => setValue('color_id', val, { shouldValidate: true, shouldDirty: true })}
+                    options={colorOptions}
+                    placeholder="— Select Color —"
+                    searchPlaceholder="Search color name or code..."
+                  />
                 </div>
               </div>
 
