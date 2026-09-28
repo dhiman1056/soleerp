@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { 
   useUOMs, useCreateUOM, useUpdateUOM, useDeleteUOM
 } from '../../hooks/useUOM'
@@ -174,7 +174,10 @@ export default function UOMMaster() {
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
   const [search, setSearch]             = useState('')
-  const [filterActive, setFilterActive] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL', 'ACTIVE', 'INACTIVE'
+  const [categoryFilter, setCategoryFilter] = useState('ALL') // 'ALL', 'COUNT', 'LENGTH', 'WEIGHT_VOLUME'
+  const [page, setPage]                 = useState(1)
+  const [pageSize, setPageSize]         = useState(10)
   const [showModal, setShowModal]       = useState(false)
   const [showImport, setShowImport]     = useState(false)
   const [editItem, setEditItem]         = useState(null)
@@ -197,14 +200,79 @@ export default function UOMMaster() {
     }
   ]
 
-  const params = {}
-  if (search.trim())       params.search    = search.trim()
-  if (filterActive !== '') params.is_active = filterActive
-
-  const { data, isLoading, refetch } = useUOMs(params)
+  const { data, isLoading, refetch } = useUOMs({ all: 'true' })
   const updateMut = useUpdateUOM()
 
-  const uoms = Array.isArray(data) ? data : []
+  const rawUOMs = Array.isArray(data) ? data : []
+
+  const getUomCategory = (u) => {
+    const code = (u.uom_code || '').toUpperCase()
+    const name = (u.uom_name || '').toUpperCase()
+    if (['PCS', 'PAIR', 'PRS', 'SET', 'DOZ', 'BOX', 'PACKS', 'PCKT', 'ASRTD', 'ASSORTED', 'NOS', 'UNIT'].some(k => code.includes(k) || name.includes(k))) {
+      return 'COUNT'
+    }
+    if (['MTR', 'METER', 'SQF', 'SQMT', 'ROLL', 'RL', 'SHT', 'SHEETS', 'INCH', 'FT', 'YD'].some(k => code.includes(k) || name.includes(k))) {
+      return 'LENGTH'
+    }
+    if (['KG', 'KILOGRAM', 'GM', 'GRAM', 'LTR', 'LITERS', 'LITRE', 'ML', 'TON'].some(k => code.includes(k) || name.includes(k))) {
+      return 'WEIGHT_VOLUME'
+    }
+    return 'OTHER'
+  }
+
+  // Multi-Filter logic
+  const filteredUOMs = useMemo(() => {
+    return rawUOMs.filter((u) => {
+      // 1. Search filter (uom_master_code, uom_code, uom_name)
+      if (search.trim()) {
+        const q = search.trim().toLowerCase()
+        const matchCode = (u.uom_master_code || '').toLowerCase().includes(q)
+        const matchShort = (u.uom_code || '').toLowerCase().includes(q)
+        const matchName = (u.uom_name || '').toLowerCase().includes(q)
+        if (!matchCode && !matchShort && !matchName) return false
+      }
+
+      // 2. Category filter
+      if (categoryFilter !== 'ALL') {
+        const cat = getUomCategory(u)
+        if (cat !== categoryFilter) return false
+      }
+
+      // 3. Status filter
+      if (statusFilter === 'ACTIVE' && !u.is_active) return false
+      if (statusFilter === 'INACTIVE' && u.is_active) return false
+
+      return true
+    })
+  }, [rawUOMs, search, categoryFilter, statusFilter])
+
+  // Pagination calculation
+  const totalItems = filteredUOMs.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage   = Math.min(page, totalPages)
+
+  const paginatedUOMs = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return filteredUOMs.slice(start, start + pageSize)
+  }, [filteredUOMs, safePage, pageSize])
+
+  const isFiltered = search.trim() !== '' || statusFilter !== 'ALL' || categoryFilter !== 'ALL'
+
+  const handleResetFilters = () => {
+    setSearch('')
+    setStatusFilter('ALL')
+    setCategoryFilter('ALL')
+    setPage(1)
+  }
+
+  const getPageNumbers = () => {
+    const delta = 2
+    const range = []
+    for (let i = Math.max(1, safePage - delta); i <= Math.min(totalPages, safePage + delta); i++) {
+      range.push(i)
+    }
+    return range
+  }
 
   const openCreate = () => { setEditItem(null); setShowModal(true) }
   const openEdit   = (u) => { setEditItem(u);   setShowModal(true) }
@@ -249,21 +317,113 @@ export default function UOMMaster() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-          </svg>
-          <input id="uom-search" className="input-field pl-9" placeholder="Search by code or name…"
-            value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Multi-Filter Bar */}
+      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
+          {/* 1. Search */}
+          <div className="relative lg:col-span-6">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+            </svg>
+            <input
+              id="uom-search"
+              className="input-field pl-9 pr-8"
+              placeholder="Search by code, short code, or name…"
+              value={search}
+              onChange={e => {
+                setSearch(e.target.value)
+                setPage(1)
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => { setSearch(''); setPage(1) }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* 2. Unit Category Filter */}
+          <div className="lg:col-span-3">
+            <select
+              id="uom-category-filter"
+              value={categoryFilter}
+              onChange={e => {
+                setCategoryFilter(e.target.value)
+                setPage(1)
+              }}
+              className="input-field bg-white"
+            >
+              <option value="ALL">All Categories</option>
+              <option value="COUNT">Count / Quantity (PCS, PAIR...)</option>
+              <option value="LENGTH">Length / Linear (MTR, ROLL...)</option>
+              <option value="WEIGHT_VOLUME">Weight / Volume (KG, LTR...)</option>
+            </select>
+          </div>
+
+          {/* 3. Status Filter */}
+          <div className="lg:col-span-3">
+            <select
+              id="uom-status-filter"
+              value={statusFilter}
+              onChange={e => {
+                setStatusFilter(e.target.value)
+                setPage(1)
+              }}
+              className="input-field bg-white"
+            >
+              <option value="ALL">All Status</option>
+              <option value="ACTIVE">Active Only</option>
+              <option value="INACTIVE">Inactive Only</option>
+            </select>
+          </div>
         </div>
-        <select id="uom-status-filter" className="input-field w-auto min-w-[140px]"
-          value={filterActive} onChange={e => setFilterActive(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
+
+        {/* Filter Summary & Quick Reset */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
+          <div className="flex items-center gap-2">
+            <span>
+              Showing <strong className="text-gray-800">{filteredUOMs.length}</strong> of{' '}
+              <strong className="text-gray-800">{rawUOMs.length}</strong> UOMs
+            </span>
+            {isFiltered && (
+              <button
+                onClick={handleResetFilters}
+                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium ml-2 px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 transition-colors"
+              >
+                ✕ Clear filters
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              {rawUOMs.filter(u => u.is_active).length} Active
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+              {rawUOMs.filter(u => !u.is_active).length} Inactive
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+              {rawUOMs.filter(u => getUomCategory(u) === 'COUNT').length} Count Units
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-cyan-500"></span>
+              {rawUOMs.filter(u => ['LENGTH', 'WEIGHT_VOLUME'].includes(getUomCategory(u))).length} Measures
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
@@ -282,18 +442,30 @@ export default function UOMMaster() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {uoms.length === 0 ? (
+                {paginatedUOMs.length === 0 ? (
                   <tr>
                     <td colSpan={canEdit ? 4 : 3} className="p-10 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M12 7h.01M9 11h6" />
                         </svg>
-                        <span>No UOMs found.{canEdit && ' Click "Add UOM" to get started.'}</span>
+                        <span>
+                          {isFiltered ? 'No UOMs match the selected filters.' : 'No UOMs found.'}
+                          {isFiltered ? (
+                            <button
+                              onClick={handleResetFilters}
+                              className="ml-2 text-blue-600 hover:underline font-semibold"
+                            >
+                              Clear filters
+                            </button>
+                          ) : (
+                            canEdit && ' Click "Add UOM" to get started.'
+                          )}
+                        </span>
                       </div>
                     </td>
                   </tr>
-                ) : uoms.map(u => {
+                ) : paginatedUOMs.map(u => {
                   return (
                     <tr key={u.id} className={`hover:bg-gray-50/60 transition-colors ${!u.is_active ? 'opacity-55' : ''}`}>
                       <td className="px-5 py-3 font-mono font-bold text-xs whitespace-nowrap text-violet-700">
@@ -321,6 +493,97 @@ export default function UOMMaster() {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3.5 border-t border-gray-100 bg-gray-50/70">
+            {/* Left: Summary & Page Size selector */}
+            <div className="flex items-center gap-4 text-xs text-gray-600">
+              <span>
+                Showing{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1}
+                </strong>{' '}
+                to{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {Math.min(safePage * pageSize, totalItems)}
+                </strong>{' '}
+                of <strong className="text-gray-900 font-semibold">{totalItems}</strong> UOMs
+              </span>
+
+              <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+                <label htmlFor="uom-page-size" className="text-gray-500">Rows:</label>
+                <select
+                  id="uom-page-size"
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Right: Page Navigation */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={safePage <= 1}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="First Page"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Previous Page"
+                >
+                  ‹ Prev
+                </button>
+
+                <div className="flex items-center gap-1 mx-1">
+                  {getPageNumbers().map(pageNum => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md transition-colors ${
+                        pageNum === safePage
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Next Page"
+                >
+                  Next ›
+                </button>
+                <button
+                  onClick={() => setPage(totalPages)}
+                  disabled={safePage >= totalPages}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Last Page"
+                >
+                  »
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

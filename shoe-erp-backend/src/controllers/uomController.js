@@ -14,12 +14,16 @@ const listUOMs = async (req, res) => {
     const { search, is_active } = req.query
     const conditions = [], params = []
 
-    if (is_active !== undefined) {
-      params.push(is_active === 'true')
+    if (is_active === 'true' || is_active === true) {
+      params.push(true)
+      conditions.push(`is_active = $${params.length}`)
+    } else if (is_active === 'false' || is_active === false) {
+      params.push(false)
       conditions.push(`is_active = $${params.length}`)
     }
-    if (search) {
-      params.push(`%${search}%`)
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim()}%`)
       conditions.push(`(uom_name ILIKE $${params.length} OR uom_code ILIKE $${params.length} OR uom_master_code ILIKE $${params.length})`)
     }
 
