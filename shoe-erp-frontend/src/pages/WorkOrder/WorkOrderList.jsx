@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Table          from '../../components/common/Table.jsx'
 import StatusBadge    from '../../components/common/StatusBadge.jsx'
@@ -17,14 +17,13 @@ export default function WorkOrderList() {
   const [typeFilter,   setTypeFilter]   = useState('')
   const [search,       setSearch]       = useState('')
   const [page,         setPage]         = useState(1)
+  const [pageSize,     setPageSize]     = useState(10)
   const [showForm,     setShowForm]     = useState(false)
   const [receiveWO,    setReceiveWO]    = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [editWOId,     setEditWOId]     = useState(null)
 
   const params = {
-    page,
-    limit: 20,
     ...(statusFilter ? { status: statusFilter } : {}),
     ...(typeFilter   ? { wo_type: typeFilter }  : {}),
     ...(search       ? { search }              : {}),
@@ -36,6 +35,25 @@ export default function WorkOrderList() {
   const { role }             = useAuth()
 
   const records = Array.isArray(data) ? data : []
+
+  // Pagination calculation
+  const totalItems = records.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage   = Math.min(page, totalPages)
+
+  const paginatedRecords = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return records.slice(start, start + pageSize)
+  }, [records, safePage, pageSize])
+
+  const getPageNumbers = () => {
+    const delta = 2
+    const range = []
+    for (let i = Math.max(1, safePage - delta); i <= Math.min(totalPages, safePage + delta); i++) {
+      range.push(i)
+    }
+    return range
+  }
 
   const columns = [
     { key: 'wo_number',          label: 'WO No.',  className: 'font-mono font-semibold text-xs text-gray-800' },
@@ -129,12 +147,103 @@ export default function WorkOrderList() {
 
       <Table
         columns={columns}
-        data={records}
+        data={paginatedRecords}
         loading={isLoading}
         empty="No work orders found."
         onRowClick={(row) => navigate(`/work-orders/${row.id}`)}
-        pagination={{ page, pages: 1, total: records.length, limit: 20, onPageChange: setPage }}
+        pagination={null}
       />
+
+      {/* Pagination Controls */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+        {/* Left: Summary & Page Size selector */}
+        <div className="flex items-center gap-4 text-xs text-gray-600">
+          <span>
+            Showing{' '}
+            <strong className="text-gray-900 font-semibold">
+              {totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1}
+            </strong>{' '}
+            to{' '}
+            <strong className="text-gray-900 font-semibold">
+              {Math.min(safePage * pageSize, totalItems)}
+            </strong>{' '}
+            of <strong className="text-gray-900 font-semibold">{totalItems}</strong> work orders
+          </span>
+
+          <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+            <label htmlFor="wo-page-size" className="text-gray-500">Rows:</label>
+            <select
+              id="wo-page-size"
+              value={pageSize}
+              onChange={e => {
+                setPageSize(Number(e.target.value))
+                setPage(1)
+              }}
+              className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Right: Page Navigation */}
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(1)}
+              disabled={safePage <= 1}
+              className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+              title="First Page"
+            >
+              «
+            </button>
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+              className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+              title="Previous Page"
+            >
+              ‹ Prev
+            </button>
+
+            <div className="flex items-center gap-1 mx-1">
+              {getPageNumbers().map(pageNum => (
+                <button
+                  key={pageNum}
+                  onClick={() => setPage(pageNum)}
+                  className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md transition-colors ${
+                    pageNum === safePage
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+              className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+              title="Next Page"
+            >
+              Next ›
+            </button>
+            <button
+              onClick={() => setPage(totalPages)}
+              disabled={safePage >= totalPages}
+              className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+              title="Last Page"
+            >
+              »
+            </button>
+          </div>
+        )}
+      </div>
 
       <WorkOrderForm
         isOpen={showForm || !!editWOId}

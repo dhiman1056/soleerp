@@ -176,6 +176,7 @@ export default function ProductList() {
   const [filterDept,     setFilterDept]    = useState('')
   const [filterCategory, setFilterCategory] = useState('')
   const [page,           setPage]          = useState(1)
+  const [pageSize,       setPageSize]      = useState(10)
   const [editTarget,     setEditTarget]    = useState(null)
   const [deleteTarget,   setDeleteTarget]  = useState(null)
   const [showImport,     setShowImport]    = useState(false)
@@ -320,7 +321,7 @@ export default function ProductList() {
 
   const apiParams = {
     page,
-    limit: 50,
+    limit: pageSize,
     ...(typeFilter !== 'All' ? { product_type: typeFilter } : {}),
     ...(filterDept           ? { department_id: filterDept } : {}),
     ...(filterCategory       ? { category_id: filterCategory } : {}),
@@ -332,6 +333,16 @@ export default function ProductList() {
 
   const records  = rawData?.records ?? []
   const meta     = rawData?.meta    ?? {}
+
+  const totalPages = meta.pages || 1
+  const getPageNumbers = () => {
+    const delta = 2
+    const range = []
+    for (let i = Math.max(1, page - delta); i <= Math.min(totalPages, page + delta); i++) {
+      range.push(i)
+    }
+    return range
+  }
 
   // Client-side filter by department, category, and search
   const filtered = useMemo(() => {
@@ -536,30 +547,96 @@ export default function ProductList() {
           </div>
         )}
 
-        {/* Pagination */}
-        {(meta.pages > 1) && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-            <p className="text-xs text-gray-500">
-              Page {meta.page} of {meta.pages} · {meta.total} total products
-            </p>
-            <div className="flex gap-2">
-              <button
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-                className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50"
+        {/* Pagination Controls */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3.5 border-t border-gray-100 bg-gray-50/70">
+          {/* Left: Summary & Page Size selector */}
+          <div className="flex items-center gap-4 text-xs text-gray-600">
+            <span>
+              Showing{' '}
+              <strong className="text-gray-900 font-semibold">
+                {(meta.total || 0) === 0 ? 0 : (page - 1) * pageSize + 1}
+              </strong>{' '}
+              to{' '}
+              <strong className="text-gray-900 font-semibold">
+                {Math.min(page * pageSize, meta.total || 0)}
+              </strong>{' '}
+              of <strong className="text-gray-900 font-semibold">{meta.total || 0}</strong> products
+            </span>
+
+            <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+              <label htmlFor="product-page-size" className="text-gray-500">Rows:</label>
+              <select
+                id="product-page-size"
+                value={pageSize}
+                onChange={e => {
+                  setPageSize(Number(e.target.value))
+                  setPage(1)
+                }}
+                className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
               >
-                ← Prev
-              </button>
-              <button
-                disabled={page >= meta.pages}
-                onClick={() => setPage((p) => p + 1)}
-                className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50"
-              >
-                Next →
-              </button>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
             </div>
           </div>
-        )}
+
+          {/* Right: Page Navigation */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(1)}
+                disabled={page <= 1}
+                className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                title="First Page"
+              >
+                «
+              </button>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                title="Previous Page"
+              >
+                ‹ Prev
+              </button>
+
+              <div className="flex items-center gap-1 mx-1">
+                {getPageNumbers().map(pageNum => (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md transition-colors ${
+                      pageNum === page
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                title="Next Page"
+              >
+                Next ›
+              </button>
+              <button
+                onClick={() => setPage(totalPages)}
+                disabled={page >= totalPages}
+                className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                title="Last Page"
+              >
+                »
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Product Form Modal */}

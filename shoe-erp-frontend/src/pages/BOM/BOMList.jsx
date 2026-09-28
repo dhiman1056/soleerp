@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../../components/common/ConfirmDialog.jsx'
 import { useBOMsQuery, useDeleteBOM, useBOMQuery } from '../../hooks/useBOM.js'
@@ -61,6 +61,8 @@ export default function BOMList() {
   const navigate = useNavigate()
   const [search,       setSearch]      = useState('')
   const [typeFilter,   setTypeFilter]  = useState('')
+  const [page,         setPage]        = useState(1)
+  const [pageSize,     setPageSize]    = useState(10)
   const [expandedId,   setExpandedId]  = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
@@ -69,6 +71,25 @@ export default function BOMList() {
   const { role }             = useAuth()
 
   const records = Array.isArray(data) ? data : []
+
+  // Pagination calculation
+  const totalItems = records.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage   = Math.min(page, totalPages)
+
+  const paginatedRecords = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return records.slice(start, start + pageSize)
+  }, [records, safePage, pageSize])
+
+  const getPageNumbers = () => {
+    const delta = 2
+    const range = []
+    for (let i = Math.max(1, safePage - delta); i <= Math.min(totalPages, safePage + delta); i++) {
+      range.push(i)
+    }
+    return range
+  }
 
   const handleExport = () => {
     downloadFile('/api/export/bom/excel', `BOM_Master.xlsx`)
@@ -131,12 +152,12 @@ export default function BOMList() {
           placeholder="Search BOM code or product..."
           className="input-field w-64"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); setPage(1) }}
         />
         <select
           className="input-field w-auto"
           value={typeFilter}
-          onChange={e => setTypeFilter(e.target.value)}
+          onChange={e => { setTypeFilter(e.target.value); setPage(1) }}
         >
           <option value="">All Types</option>
           <option value="SF">Semi-Finished</option>
@@ -144,7 +165,7 @@ export default function BOMList() {
         </select>
         {(search || typeFilter) && (
           <button
-            onClick={() => { setSearch(''); setTypeFilter('') }}
+            onClick={() => { setSearch(''); setTypeFilter(''); setPage(1) }}
             className="text-xs text-gray-500 hover:text-gray-700"
           >
             Clear filters
@@ -171,7 +192,7 @@ export default function BOMList() {
               ) : records.length === 0 ? (
                 <tr><td colSpan={columns.length + 1} className="py-12 text-center text-gray-400 text-sm">No BOMs found. Create your first BOM.</td></tr>
               ) : (
-                records.map((row, i) => (
+                paginatedRecords.map((row, i) => (
                   <React.Fragment key={row.id}>
                     <tr
                       onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
@@ -198,6 +219,97 @@ export default function BOMList() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination Controls */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3.5 border-t border-gray-200 bg-gray-50/70">
+          {/* Left: Summary & Page Size selector */}
+          <div className="flex items-center gap-4 text-xs text-gray-600">
+            <span>
+              Showing{' '}
+              <strong className="text-gray-900 font-semibold">
+                {totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1}
+              </strong>{' '}
+              to{' '}
+              <strong className="text-gray-900 font-semibold">
+                {Math.min(safePage * pageSize, totalItems)}
+              </strong>{' '}
+              of <strong className="text-gray-900 font-semibold">{totalItems}</strong> BOMs
+            </span>
+
+            <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+              <label htmlFor="bom-page-size" className="text-gray-500">Rows:</label>
+              <select
+                id="bom-page-size"
+                value={pageSize}
+                onChange={e => {
+                  setPageSize(Number(e.target.value))
+                  setPage(1)
+                }}
+                className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Right: Page Navigation */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setPage(1)}
+                disabled={safePage <= 1}
+                className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                title="First Page"
+              >
+                «
+              </button>
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+                className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                title="Previous Page"
+              >
+                ‹ Prev
+              </button>
+
+              <div className="flex items-center gap-1 mx-1">
+                {getPageNumbers().map(pageNum => (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md transition-colors ${
+                      pageNum === safePage
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+                className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                title="Next Page"
+              >
+                Next ›
+              </button>
+              <button
+                onClick={() => setPage(totalPages)}
+                disabled={safePage >= totalPages}
+                className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                title="Last Page"
+              >
+                »
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
