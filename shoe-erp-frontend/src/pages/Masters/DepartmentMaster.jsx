@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   useDepartments,
   useCreateDepartment,
@@ -203,9 +203,6 @@ export default function DepartmentMaster() {
   const { user } = useAuth()
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
-  const [search, setSearch]         = useState('')
-  const [filterActive, setFilterActive]     = useState('')
-  const [filterStockType, setFilterStockType] = useState('')
   const [showModal, setShowModal]   = useState(false)
   const [editItem, setEditItem]     = useState(null)
   const [showImport, setShowImport] = useState(false)
@@ -253,27 +250,77 @@ export default function DepartmentMaster() {
     }
   ]
 
-  // Filters for query
-  const params = {}
-  if (search.trim()) params.search = search.trim()
-  if (filterActive !== '') params.is_active = filterActive
+  const [search, setSearch]                 = useState('')
+  const [filterStockType, setFilterStockType] = useState('ALL')
+  const [filterBOM, setFilterBOM]             = useState('ALL') // 'ALL', 'BOM_ONLY', 'NON_BOM'
+  const [statusFilter, setStatusFilter]       = useState('ALL') // 'ALL', 'ACTIVE', 'INACTIVE'
+  const [page, setPage]                       = useState(1)
+  const [pageSize, setPageSize]               = useState(10)
 
-  const { data, isLoading, refetch } = useDepartments(params)
+  const { data, isLoading, refetch } = useDepartments({ all: 'true' })
   const updateMut = useUpdateDepartment()
 
   const rawGroups = Array.isArray(data) ? data : []
 
-  // Client filtering
-  const stockGroups = rawGroups.filter(g => {
-    if (filterStockType && g.stock_type !== filterStockType) return false
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      const matchName = (g.stock_group || g.dept_name || '').toLowerCase().includes(q)
-      const matchCode = (g.sg_code || g.dept_code || '').toLowerCase().includes(q)
-      if (!matchName && !matchCode) return false
+  // Multi-Filter logic
+  const filteredStockGroups = useMemo(() => {
+    return rawGroups.filter((g) => {
+      // 1. Search text filter
+      if (search.trim()) {
+        const q = search.trim().toLowerCase()
+        const matchName = (g.stock_group || g.dept_name || '').toLowerCase().includes(q)
+        const matchCode = (g.sg_code || g.dept_code || '').toLowerCase().includes(q)
+        if (!matchName && !matchCode) return false
+      }
+
+      // 2. Stock Type filter
+      if (filterStockType !== 'ALL' && g.stock_type !== filterStockType) return false
+
+      // 3. BOM Applicable filter
+      if (filterBOM === 'BOM_ONLY' && !g.bom_applicable) return false
+      if (filterBOM === 'NON_BOM' && g.bom_applicable) return false
+
+      // 4. Status filter
+      if (statusFilter === 'ACTIVE' && !g.is_active) return false
+      if (statusFilter === 'INACTIVE' && g.is_active) return false
+
+      return true
+    })
+  }, [rawGroups, search, filterStockType, filterBOM, statusFilter])
+
+  // Pagination calculations
+  const totalItems = filteredStockGroups.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+
+  const paginatedStockGroups = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return filteredStockGroups.slice(start, start + pageSize)
+  }, [filteredStockGroups, safePage, pageSize])
+
+  const isFiltered = search.trim() !== '' || filterStockType !== 'ALL' || filterBOM !== 'ALL' || statusFilter !== 'ALL'
+
+  const handleResetFilters = () => {
+    setSearch('')
+    setFilterStockType('ALL')
+    setFilterBOM('ALL')
+    setStatusFilter('ALL')
+    setPage(1)
+  }
+
+  const getPageNumbers = () => {
+    const pages = []
+    const maxVisible = 5
+    let start = Math.max(1, safePage - Math.floor(maxVisible / 2))
+    let end = Math.min(totalPages, start + maxVisible - 1)
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1)
     }
-    return true
-  })
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+    return pages
+  }
 
   const openCreate = () => { setEditItem(null); setShowModal(true) }
   const openEdit   = (d) => { setEditItem(d);   setShowModal(true) }
@@ -327,44 +374,119 @@ export default function DepartmentMaster() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Search */}
-        <div className="relative flex-1">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-          </svg>
-          <input
-            id="dept-search"
-            className="input-field pl-9"
-            placeholder="Search by stock group or SG code…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      {/* Multi-Filter Section */}
+      <div className="card p-4 space-y-3 bg-white border border-gray-100 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 flex-1">
+            {/* 1. Search */}
+            <div className="relative">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+              </svg>
+              <input
+                id="dept-search"
+                className="input-field pl-9 pr-8"
+                placeholder="Search by stock group or SG code…"
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setPage(1) }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full"
+                  title="Clear search"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* 2. Stock Type Filter */}
+            <div>
+              <select
+                id="dept-stock-type-filter"
+                className="input-field"
+                value={filterStockType}
+                onChange={e => { setFilterStockType(e.target.value); setPage(1) }}
+              >
+                <option value="ALL">All Stock Types</option>
+                <option value="INVENTORY">Inventory</option>
+                <option value="NON-INVENTORY">Non-Inventory</option>
+              </select>
+            </div>
+
+            {/* 3. BOM Applicable Filter */}
+            <div>
+              <select
+                id="dept-bom-filter"
+                className="input-field"
+                value={filterBOM}
+                onChange={e => { setFilterBOM(e.target.value); setPage(1) }}
+              >
+                <option value="ALL">All BOM Status</option>
+                <option value="BOM_ONLY">BOM Applicable Only</option>
+                <option value="NON_BOM">Non-BOM Only</option>
+              </select>
+            </div>
+
+            {/* 4. Status Filter */}
+            <div>
+              <select
+                id="dept-status-filter"
+                className="input-field"
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
+              >
+                <option value="ALL">All Status (Active & Inactive)</option>
+                <option value="ACTIVE">Active Only</option>
+                <option value="INACTIVE">Inactive Only</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Clear Filters Button */}
+          {isFiltered && (
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors whitespace-nowrap self-start md:self-auto"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear Filters
+            </button>
+          )}
         </div>
 
-        {/* Stock Type filter */}
-        <select
-          className="input-field w-auto min-w-[150px]"
-          value={filterStockType}
-          onChange={e => setFilterStockType(e.target.value)}
-        >
-          <option value="">All Stock Types</option>
-          <option value="INVENTORY">Inventory</option>
-          <option value="NON-INVENTORY">Non-Inventory</option>
-        </select>
-
-        {/* Status filter */}
-        <select
-          id="dept-status-filter"
-          className="input-field w-auto min-w-[130px]"
-          value={filterActive}
-          onChange={e => setFilterActive(e.target.value)}
-        >
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
+        {/* Filter Summary Stats */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100 gap-2">
+          <span>
+            Showing <strong className="text-gray-900 font-semibold">{filteredStockGroups.length}</strong> of{' '}
+            <strong className="text-gray-900 font-semibold">{rawGroups.length}</strong> total stock groups
+            {isFiltered && <span className="ml-2 text-blue-600 font-medium">(Filtered)</span>}
+          </span>
+          <div className="flex flex-wrap gap-4">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              {rawGroups.filter(d => d.is_active).length} Active
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+              {rawGroups.filter(d => !d.is_active).length} Inactive
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+              {rawGroups.filter(d => d.stock_type !== 'NON-INVENTORY').length} Inventory
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+              {rawGroups.filter(d => d.bom_applicable).length} BOM Applicable
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
@@ -385,7 +507,7 @@ export default function DepartmentMaster() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {stockGroups.length === 0 ? (
+                {paginatedStockGroups.length === 0 ? (
                   <tr>
                     <td colSpan={canEdit ? 6 : 5} className="p-10 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
@@ -393,13 +515,22 @@ export default function DepartmentMaster() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
                         <span>
-                          No stock groups found.
-                          {canEdit && ' Click "Add Stock Group" to get started.'}
+                          {isFiltered ? 'No stock groups match the selected filters.' : 'No stock groups found.'}
+                          {isFiltered ? (
+                            <button
+                              onClick={handleResetFilters}
+                              className="ml-2 text-blue-600 hover:underline font-semibold"
+                            >
+                              Clear filters
+                            </button>
+                          ) : (
+                            canEdit && ' Click "Add Stock Group" to get started.'
+                          )}
                         </span>
                       </div>
                     </td>
                   </tr>
-                ) : stockGroups.map(d => (
+                ) : paginatedStockGroups.map(d => (
                   <tr
                     key={d.id}
                     className={`hover:bg-gray-50/60 transition-colors ${!d.is_active ? 'opacity-55' : ''}`}
@@ -477,19 +608,96 @@ export default function DepartmentMaster() {
             </table>
           </div>
 
-          {/* Footer row count */}
-          {stockGroups.length > 0 && (
-            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50 flex justify-between items-center">
-              <p className="text-xs text-gray-400">
-                {stockGroups.length} {stockGroups.length === 1 ? 'stock group' : 'stock groups'} found
-              </p>
-              <div className="flex gap-4 text-xs text-gray-500">
-                <span>Inventory: <strong>{stockGroups.filter(s => s.stock_type !== 'NON-INVENTORY').length}</strong></span>
-                <span>Non-Inventory: <strong>{stockGroups.filter(s => s.stock_type === 'NON-INVENTORY').length}</strong></span>
-                <span>BOM Applicable: <strong>{stockGroups.filter(s => s.bom_applicable).length}</strong></span>
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3.5 border-t border-gray-100 bg-gray-50/70">
+            {/* Left: Summary & Page Size selector */}
+            <div className="flex items-center gap-4 text-xs text-gray-600">
+              <span>
+                Showing{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1}
+                </strong>{' '}
+                to{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {Math.min(safePage * pageSize, totalItems)}
+                </strong>{' '}
+                of <strong className="text-gray-900 font-semibold">{totalItems}</strong> stock groups
+              </span>
+
+              <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+                <label htmlFor="dept-page-size" className="text-gray-500">Rows:</label>
+                <select
+                  id="dept-page-size"
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
               </div>
             </div>
-          )}
+
+            {/* Right: Page Navigation */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={safePage <= 1}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="First Page"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Previous Page"
+                >
+                  ‹ Prev
+                </button>
+
+                <div className="flex items-center gap-1 mx-1">
+                  {getPageNumbers().map(pageNum => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md transition-colors ${
+                        pageNum === safePage
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Next Page"
+                >
+                  Next ›
+                </button>
+                <button
+                  onClick={() => setPage(totalPages)}
+                  disabled={safePage >= totalPages}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Last Page"
+                >
+                  »
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

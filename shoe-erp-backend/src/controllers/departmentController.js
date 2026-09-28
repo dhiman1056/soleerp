@@ -33,13 +33,42 @@ const formatRow = (r) => ({
 // ─── GET /api/departments (also /api/stock-groups) ─────────────────────────────
 const listDepartments = async (req, res) => {
   try {
+    const { search, stock_type, is_active, all, include_inactive } = req.query
+    const conditions = []
+    const params = []
+
+    if (is_active === 'true' || is_active === true) {
+      params.push(true)
+      conditions.push(`is_active = $${params.length}`)
+    } else if (is_active === 'false' || is_active === false) {
+      params.push(false)
+      conditions.push(`is_active = $${params.length}`)
+    } else if (is_active === 'all' || all === 'true' || include_inactive === 'true') {
+      // Return both active and inactive
+    } else {
+      // Default: active only (preserves dropdown behavior)
+      conditions.push(`is_active = true`)
+    }
+
+    if (stock_type) {
+      params.push(stock_type)
+      conditions.push(`stock_type = $${params.length}`)
+    }
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim()}%`)
+      conditions.push(`(dept_name ILIKE $${params.length} OR sg_code ILIKE $${params.length} OR dept_code ILIKE $${params.length})`)
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
     const { rows } = await query(`
       SELECT * FROM department_master
-      WHERE is_active = true
+      ${whereClause}
       ORDER BY 
         CASE WHEN sg_code ~ '^[0-9]+$' THEN CAST(sg_code AS INTEGER) ELSE 999999 END ASC,
         dept_name ASC
-    `)
+    `, params)
 
     res.json({ success: true, data: rows.map(formatRow) })
   } catch (err) {
