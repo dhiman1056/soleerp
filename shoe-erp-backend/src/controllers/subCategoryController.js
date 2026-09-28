@@ -15,11 +15,45 @@ const generateCode = async () => {
 // ─── GET /api/sub-categories ──────────────────────────────────────────────────
 const listSubCategories = async (req, res) => {
   try {
+    const { search, category_id, is_active, all, include_inactive } = req.query
+    const conditions = []
+    const params = []
+
+    if (is_active === 'true' || is_active === true) {
+      params.push(true)
+      conditions.push(`sc.is_active = $${params.length}`)
+    } else if (is_active === 'false' || is_active === false) {
+      params.push(false)
+      conditions.push(`sc.is_active = $${params.length}`)
+    } else if (is_active === 'all' || all === 'true' || include_inactive === 'true') {
+      // Return both active and inactive
+    } else {
+      // Default: active only (preserves dropdown behavior)
+      conditions.push(`sc.is_active = true`)
+    }
+
+    if (category_id) {
+      params.push(category_id)
+      conditions.push(`sc.category_id = $${params.length}`)
+    }
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim()}%`)
+      conditions.push(`(sc.sub_category_name ILIKE $${params.length} OR sc.sub_catg_code ILIKE $${params.length})`)
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
     const { rows } = await query(`
-      SELECT * FROM sub_category_master
-      WHERE is_active = true
-      ORDER BY sub_catg_code
-    `)
+      SELECT 
+        sc.*,
+        c.catg_name,
+        c.catg_code
+      FROM sub_category_master sc
+      LEFT JOIN category_master c ON sc.category_id = c.id
+      ${whereClause}
+      ORDER BY sc.sub_catg_code
+    `, params)
 
     res.json({ success: true, data: rows })
   } catch (err) {

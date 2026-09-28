@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   useSubCategories,
   useCreateSubCategory,
@@ -162,10 +162,15 @@ export default function SubCategoryMaster() {
   const { user } = useAuth()
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
-  const [search, setSearch]           = useState('')
-  const [showModal, setShowModal]     = useState(false)
-  const [showImport, setShowImport]   = useState(false)
-  const [editItem, setEditItem]       = useState(null)
+  const [search, setSearch]                 = useState('')
+  const [statusFilter, setStatusFilter]     = useState('ALL') // 'ALL', 'ACTIVE', 'INACTIVE'
+  const [discountFilter, setDiscountFilter] = useState('ALL') // 'ALL', 'WITH_DISCOUNT', 'NO_DISCOUNT'
+  const [page, setPage]                     = useState(1)
+  const [pageSize, setPageSize]             = useState(10)
+
+  const [showModal, setShowModal]   = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [editItem, setEditItem]     = useState(null)
 
   const templateColumns = [
     {
@@ -185,13 +190,67 @@ export default function SubCategoryMaster() {
     }
   ]
 
-  const params = {}
-  if (search.trim()) params.search = search.trim()
-
-  const { data, isLoading, refetch } = useSubCategories(params)
+  const { data, isLoading, refetch } = useSubCategories({ all: 'true' })
   const updateMut = useUpdateSubCategory()
 
   const subCategories = Array.isArray(data) ? data : []
+
+  // Multi-Filter logic
+  const filteredSubCategories = useMemo(() => {
+    return subCategories.filter((sc) => {
+      // 1. Search text filter (Code or Description)
+      if (search.trim()) {
+        const q = search.trim().toLowerCase()
+        const matchName = (sc.sub_category_name || '').toLowerCase().includes(q)
+        const matchCode = (sc.sub_catg_code || '').toLowerCase().includes(q)
+        if (!matchName && !matchCode) return false
+      }
+
+      // 2. Status filter
+      if (statusFilter === 'ACTIVE' && !sc.is_active) return false
+      if (statusFilter === 'INACTIVE' && sc.is_active) return false
+
+      // 3. Discount filter
+      const disc = parseFloat(sc.discount) || 0
+      if (discountFilter === 'WITH_DISCOUNT' && disc <= 0) return false
+      if (discountFilter === 'NO_DISCOUNT' && disc > 0) return false
+
+      return true
+    })
+  }, [subCategories, search, statusFilter, discountFilter])
+
+  // Pagination calculations
+  const totalItems = filteredSubCategories.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+
+  const paginatedSubCategories = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return filteredSubCategories.slice(start, start + pageSize)
+  }, [filteredSubCategories, safePage, pageSize])
+
+  const isFiltered = search.trim() !== '' || statusFilter !== 'ALL' || discountFilter !== 'ALL'
+
+  const handleResetFilters = () => {
+    setSearch('')
+    setStatusFilter('ALL')
+    setDiscountFilter('ALL')
+    setPage(1)
+  }
+
+  const getPageNumbers = () => {
+    const pages = []
+    const maxVisible = 5
+    let start = Math.max(1, safePage - Math.floor(maxVisible / 2))
+    let end = Math.min(totalPages, start + maxVisible - 1)
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1)
+    }
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+    return pages
+  }
 
   const openCreate = () => { setEditItem(null); setShowModal(true) }
   const openEdit   = (sc) => { setEditItem(sc); setShowModal(true) }
@@ -246,20 +305,100 @@ export default function SubCategoryMaster() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Search */}
-        <div className="relative flex-1">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-          </svg>
-          <input
-            id="subcatg-search"
-            className="input-field pl-9"
-            placeholder="Search by name or code…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      {/* Multi-Filter Section */}
+      <div className="card p-4 space-y-3 bg-white border border-gray-100 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+            {/* 1. Search */}
+            <div className="relative">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+              </svg>
+              <input
+                id="subcatg-search"
+                className="input-field pl-9 pr-8"
+                placeholder="Search by name or code…"
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setPage(1) }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full"
+                  title="Clear search"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* 2. Status Filter */}
+            <div>
+              <select
+                id="subcatg-status-filter"
+                className="input-field"
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
+              >
+                <option value="ALL">All Status (Active & Inactive)</option>
+                <option value="ACTIVE">Active Only</option>
+                <option value="INACTIVE">Inactive Only</option>
+              </select>
+            </div>
+
+            {/* 3. Discount Filter */}
+            <div>
+              <select
+                id="subcatg-discount-filter"
+                className="input-field"
+                value={discountFilter}
+                onChange={e => { setDiscountFilter(e.target.value); setPage(1) }}
+              >
+                <option value="ALL">All Discounts</option>
+                <option value="WITH_DISCOUNT">With Discount Only (&gt; 0%)</option>
+                <option value="NO_DISCOUNT">No Discount (0%)</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Clear Filters Button */}
+          {isFiltered && (
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors whitespace-nowrap self-start md:self-auto"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear Filters
+            </button>
+          )}
+        </div>
+
+        {/* Filter Summary Stats */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100 gap-2">
+          <span>
+            Showing <strong className="text-gray-900 font-semibold">{filteredSubCategories.length}</strong> of{' '}
+            <strong className="text-gray-900 font-semibold">{subCategories.length}</strong> total sub-categories
+            {isFiltered && <span className="ml-2 text-blue-600 font-medium">(Filtered)</span>}
+          </span>
+          <div className="flex gap-4">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              {subCategories.filter(sc => sc.is_active).length} Active
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+              {subCategories.filter(sc => !sc.is_active).length} Inactive
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+              {subCategories.filter(sc => parseFloat(sc.discount) > 0).length} with Discount
+            </span>
+          </div>
         </div>
       </div>
 
@@ -280,7 +419,7 @@ export default function SubCategoryMaster() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {subCategories.length === 0 ? (
+                {paginatedSubCategories.length === 0 ? (
                   <tr>
                     <td colSpan={canEdit ? 5 : 4} className="p-10 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
@@ -288,13 +427,22 @@ export default function SubCategoryMaster() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                         </svg>
                         <span>
-                          No sub-categories found.
-                          {canEdit && ' Click "Add Sub-Category" to get started.'}
+                          {isFiltered ? 'No sub-categories match the selected filters.' : 'No sub-categories found.'}
+                          {isFiltered ? (
+                            <button
+                              onClick={handleResetFilters}
+                              className="ml-2 text-blue-600 hover:underline font-semibold"
+                            >
+                              Clear filters
+                            </button>
+                          ) : (
+                            canEdit && ' Click "Add Sub-Category" to get started.'
+                          )}
                         </span>
                       </div>
                     </td>
                   </tr>
-                ) : subCategories.map(sc => (
+                ) : paginatedSubCategories.map(sc => (
                   <tr key={sc.id} className={`hover:bg-gray-50/60 transition-colors ${!sc.is_active ? 'opacity-55' : ''}`}>
                     <td className="px-5 py-3 font-mono font-bold text-xs whitespace-nowrap text-teal-700">
                       {sc.sub_catg_code || <span className="text-gray-300 italic">—</span>}
@@ -326,6 +474,97 @@ export default function SubCategoryMaster() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3.5 border-t border-gray-100 bg-gray-50/70">
+            {/* Left: Summary & Page Size selector */}
+            <div className="flex items-center gap-4 text-xs text-gray-600">
+              <span>
+                Showing{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1}
+                </strong>{' '}
+                to{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {Math.min(safePage * pageSize, totalItems)}
+                </strong>{' '}
+                of <strong className="text-gray-900 font-semibold">{totalItems}</strong> sub-categories
+              </span>
+
+              <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+                <label htmlFor="subcatg-page-size" className="text-gray-500">Rows:</label>
+                <select
+                  id="subcatg-page-size"
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Right: Page Navigation */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={safePage <= 1}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="First Page"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Previous Page"
+                >
+                  ‹ Prev
+                </button>
+
+                <div className="flex items-center gap-1 mx-1">
+                  {getPageNumbers().map(pageNum => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md transition-colors ${
+                        pageNum === safePage
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Next Page"
+                >
+                  Next ›
+                </button>
+                <button
+                  onClick={() => setPage(totalPages)}
+                  disabled={safePage >= totalPages}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Last Page"
+                >
+                  »
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
