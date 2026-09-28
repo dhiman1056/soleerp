@@ -8,6 +8,7 @@ import { useRawMaterialsQuery }  from '../../hooks/useRawMaterials.js'
 import { formatCurrency }        from '../../utils/formatCurrency.js'
 import { UOM_OPTIONS } from '../../utils/constants.js'
 import { useUOMs } from '../../hooks/useUOM.js'
+import SearchableSelect from '../../components/common/SearchableSelect.jsx'
 
 const emptyLine = { 
   input_sku: '', 
@@ -93,6 +94,38 @@ export default function BOMForm() {
       return false
     })
   }, [allProducts, watchedBomType])
+
+  const outputProductOptions = useMemo(() => {
+    return outputProducts.map(p => ({
+      value: p.sku_code,
+      label: p.sku_code,
+      subLabel: p.description || null,
+      badge: p.product_type === 'FINISHED' ? 'FG' : 'SF',
+      searchKey: `${p.sku_code} ${p.description || ''} ${p.product_type || ''}`
+    }))
+  }, [outputProducts])
+
+  const inputSkuOptions = useMemo(() => {
+    const rmOptions = allRMs.map(r => ({
+      value: r.sku_code,
+      label: r.sku_code,
+      subLabel: r.description || null,
+      badge: 'RM',
+      searchKey: `${r.sku_code} ${r.description || ''} rm raw material`
+    }))
+
+    const sfOptions = allProducts
+      .filter(p => p.product_type === 'SEMI_FINISHED')
+      .map(p => ({
+        value: p.sku_code,
+        label: p.sku_code,
+        subLabel: p.description || null,
+        badge: 'SF',
+        searchKey: `${p.sku_code} ${p.description || ''} sf semi finished`
+      }))
+
+    return [...rmOptions, ...sfOptions]
+  }, [allRMs, allProducts])
 
   const handleOutputSkuChange = (sku_code) => {
     const product = allProducts.find(p => p.sku_code === sku_code)
@@ -224,20 +257,25 @@ export default function BOMForm() {
 
           <div>
             <label className="label">Output Product SKU *</label>
-            <select
-              {...register('output_sku', { required: 'Output SKU is required' })}
-              onChange={(e) => {
-                register('output_sku').onChange(e);
-                handleOutputSkuChange(e.target.value);
-              }}
-              className={`input-field ${errors.output_sku ? 'input-error' : ''}`}
-              disabled={dropdownsLoading || isEdit}
-            >
-              <option value="">{dropdownsLoading ? 'Loading products…' : '— Select product —'}</option>
-              {outputProducts.map((p) => (
-                <option key={p.sku_code} value={p.sku_code}>{p.sku_code} — {p.description}</option>
-              ))}
-            </select>
+            <Controller
+              name="output_sku"
+              control={control}
+              rules={{ required: 'Output SKU is required' }}
+              render={({ field: f }) => (
+                <SearchableSelect
+                  value={f.value}
+                  onChange={(val) => {
+                    f.onChange(val)
+                    handleOutputSkuChange(val)
+                  }}
+                  options={outputProductOptions}
+                  placeholder={dropdownsLoading ? 'Loading products…' : '— Select product —'}
+                  searchPlaceholder="Search product SKU or description..."
+                  disabled={dropdownsLoading || isEdit}
+                  error={!!errors.output_sku}
+                />
+              )}
+            />
             {errors.output_sku && <p className="text-red-500 text-xs mt-1">{errors.output_sku.message}</p>}
           </div>
 
@@ -275,11 +313,11 @@ export default function BOMForm() {
           <button type="button" onClick={() => append({ ...emptyLine })} className="btn-secondary text-xs">+ Add Row</button>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[340px] pb-32">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Input SKU *</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase min-w-[280px]">Input SKU *</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase">Description</th>
                 <th className="px-3 py-2 text-right text-xs font-semibold text-gray-500 uppercase">Consume Qty *</th>
                 <th className="px-3 py-2 text-right text-xs font-semibold text-blue-600 uppercase" title="Consume Qty / Output Qty">AVG Per Pair</th>
@@ -298,32 +336,24 @@ export default function BOMForm() {
 
                 return (
                   <tr key={field.id} className="border-b border-gray-50">
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 min-w-[280px]">
                       <Controller
                         name={`lines.${index}.input_sku`}
                         control={control}
                         rules={{ required: 'Required' }}
                         render={({ field: f }) => (
-                          <select
-                            {...f}
-                            onChange={(e) => { f.onChange(e); handleComponentSkuChange(index, e.target.value) }}
+                          <SearchableSelect
+                            value={f.value}
+                            onChange={(val) => {
+                              f.onChange(val)
+                              handleComponentSkuChange(index, val)
+                            }}
+                            options={inputSkuOptions}
+                            placeholder={dropdownsLoading ? 'Loading…' : '— Select Input SKU —'}
+                            searchPlaceholder="Search material SKU or name..."
                             disabled={dropdownsLoading}
-                            className={`input-field text-xs font-mono ${errors?.lines?.[index]?.input_sku ? 'input-error' : ''}`}
-                          >
-                            <option value="">{dropdownsLoading ? 'Loading…' : '— Select —'}</option>
-                            {allRMs.length > 0 && (
-                              <optgroup label="Raw Materials">
-                                {allRMs.map((r) => <option key={r.sku_code} value={r.sku_code}>{r.sku_code} — {r.description}</option>)}
-                              </optgroup>
-                            )}
-                            {allProducts.filter(p => p.product_type === 'SEMI_FINISHED').length > 0 && (
-                              <optgroup label="Semi-Finished Products">
-                                {allProducts.filter(p => p.product_type === 'SEMI_FINISHED').map((p) => (
-                                  <option key={p.sku_code} value={p.sku_code}>{p.sku_code} — {p.description}</option>
-                                ))}
-                              </optgroup>
-                            )}
-                          </select>
+                            error={!!errors?.lines?.[index]?.input_sku}
+                          />
                         )}
                       />
                     </td>
