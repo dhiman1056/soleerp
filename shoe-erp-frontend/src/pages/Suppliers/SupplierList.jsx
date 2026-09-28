@@ -15,6 +15,8 @@ export default function SupplierList() {
   const [filterStockGroup, setFilterStockGroup] = useState('')
   const [filterType,       setFilterType]       = useState('')
   const [filterStatus,     setFilterStatus]     = useState('ALL')
+  const [page,             setPage]             = useState(1)
+  const [pageSize,         setPageSize]         = useState(10)
   const [isModalOpen,      setIsModalOpen]      = useState(false)
   const [editingSupplier,  setEditingSupplier]  = useState(null)
   const [showImport,       setShowImport]       = useState(false)
@@ -27,7 +29,7 @@ export default function SupplierList() {
     search: search.trim() || undefined,
     stock_group: filterStockGroup || undefined,
     type: filterType || undefined,
-    is_active: filterStatus === 'ACTIVE' ? 'true' : filterStatus === 'INACTIVE' ? 'false' : undefined,
+    is_active: filterStatus === 'ACTIVE' ? 'true' : filterStatus === 'INACTIVE' ? 'false' : 'all',
   }
 
   const { data, isLoading } = useSuppliersQuery(apiParams)
@@ -64,6 +66,25 @@ export default function SupplierList() {
     })
   }, [rawSuppliers, filterStatus, filterStockGroup, filterType, search])
 
+  // Pagination calculation
+  const totalItems = suppliers.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage   = Math.min(page, totalPages)
+
+  const paginatedSuppliers = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return suppliers.slice(start, start + pageSize)
+  }, [suppliers, safePage, pageSize])
+
+  const getPageNumbers = () => {
+    const delta = 2
+    const range = []
+    for (let i = Math.max(1, safePage - delta); i <= Math.min(totalPages, safePage + delta); i++) {
+      range.push(i)
+    }
+    return range
+  }
+
   // Summary counts
   const totalCount    = rawSuppliers.length
   const activeCount   = rawSuppliers.filter(s => s.is_active).length
@@ -77,6 +98,7 @@ export default function SupplierList() {
     setFilterStockGroup('')
     setFilterType('')
     setFilterStatus('ALL')
+    setPage(1)
   }
 
   const exportCsv = () => {
@@ -279,12 +301,12 @@ export default function SupplierList() {
                 placeholder="Search code, name, city, phone..."
                 className="input-field pl-9 pr-7 py-2 text-xs w-full bg-slate-50/50 hover:bg-white focus:bg-white transition-colors"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setPage(1) }}
               />
               {search && (
                 <button
                   type="button"
-                  onClick={() => setSearch('')}
+                  onClick={() => { setSearch(''); setPage(1) }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
                 >
                   ✕
@@ -297,7 +319,7 @@ export default function SupplierList() {
               <select
                 className="input-field py-2 text-xs font-medium text-gray-700 bg-slate-50/50 hover:bg-white focus:bg-white transition-colors"
                 value={filterStockGroup}
-                onChange={(e) => setFilterStockGroup(e.target.value)}
+                onChange={(e) => { setFilterStockGroup(e.target.value); setPage(1) }}
               >
                 <option value="">All Stock Groups</option>
                 {stockGroups.map(sg => {
@@ -317,7 +339,7 @@ export default function SupplierList() {
               <select
                 className="input-field py-2 text-xs font-medium text-gray-700 bg-slate-50/50 hover:bg-white focus:bg-white transition-colors"
                 value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
+                onChange={(e) => { setFilterType(e.target.value); setPage(1) }}
               >
                 <option value="">All Types</option>
                 <option value="PURCHASE">PURCHASE</option>
@@ -331,7 +353,7 @@ export default function SupplierList() {
               <select
                 className="input-field py-2 text-xs font-medium text-gray-700 bg-slate-50/50 hover:bg-white focus:bg-white transition-colors"
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => { setFilterStatus(e.target.value); setPage(1) }}
               >
                 <option value="ALL">All Status</option>
                 <option value="ACTIVE">Active Only</option>
@@ -384,7 +406,8 @@ export default function SupplierList() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse">
               <thead className="bg-slate-50/80 border-b border-gray-200 text-gray-500 uppercase text-[11px] font-semibold tracking-wider">
                 <tr>
@@ -401,7 +424,7 @@ export default function SupplierList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
-                {suppliers.map(sup => (
+                {paginatedSuppliers.map(sup => (
                   <tr key={sup.id} className="hover:bg-slate-50/70 transition-colors group">
                     {/* Code */}
                     <td className="px-4 py-3.5 font-mono text-xs font-semibold text-slate-700 whitespace-nowrap">
@@ -489,7 +512,99 @@ export default function SupplierList() {
               </tbody>
             </table>
           </div>
-        )}
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3.5 border-t border-gray-200 bg-slate-50/70">
+            {/* Left: Summary & Page Size selector */}
+            <div className="flex items-center gap-4 text-xs text-gray-600">
+              <span>
+                Showing{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1}
+                </strong>{' '}
+                to{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {Math.min(safePage * pageSize, totalItems)}
+                </strong>{' '}
+                of <strong className="text-gray-900 font-semibold">{totalItems}</strong> suppliers
+              </span>
+
+              <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+                <label htmlFor="supplier-page-size" className="text-gray-500">Rows:</label>
+                <select
+                  id="supplier-page-size"
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Right: Page Navigation */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={safePage <= 1}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="First Page"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Previous Page"
+                >
+                  ‹ Prev
+                </button>
+
+                <div className="flex items-center gap-1 mx-1">
+                  {getPageNumbers().map(pageNum => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md transition-colors ${
+                        pageNum === safePage
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Next Page"
+                >
+                  Next ›
+                </button>
+                <button
+                  onClick={() => setPage(totalPages)}
+                  disabled={safePage >= totalPages}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Last Page"
+                >
+                  »
+                </button>
+              </div>
+            )}
+          </div>
+        </>
+      )}
       </div>
 
       {/* ── 4. Modals ────────────────────────────────────────────────── */}

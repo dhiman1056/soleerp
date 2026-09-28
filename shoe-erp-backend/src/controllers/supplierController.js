@@ -101,9 +101,14 @@ exports.getAllSuppliers = async (req, res, next) => {
       params.push(filterType.toUpperCase());
       q += ` AND (UPPER(COALESCE(s.supplier_type, s.type, '')) = $${params.length})`;
     }
-    if (is_active !== undefined) {
-      params.push(is_active === 'true');
+    if (is_active === 'true' || is_active === true) {
+      params.push(true);
       q += ` AND s.is_active = $${params.length}`;
+    } else if (is_active === 'false' || is_active === false) {
+      params.push(false);
+      q += ` AND s.is_active = $${params.length}`;
+    } else if (is_active === 'all' || req.query.all === 'true') {
+      // return all (active and inactive)
     } else {
       q += ` AND s.is_active = true`;
     }
