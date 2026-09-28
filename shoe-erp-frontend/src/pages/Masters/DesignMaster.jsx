@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useDesigns, useCreateDesign, useUpdateDesign, useDeleteDesign } from '../../hooks/useDesigns'
 import { useCategories } from '../../hooks/useCategories'
 import { useAuth } from '../../hooks/useAuth'
@@ -160,8 +160,12 @@ export default function DesignMaster() {
   const { user } = useAuth()
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
-  const [search, setSearch]         = useState('')
-  const [filterActive, setFilterActive] = useState('')
+  const [search, setSearch]                 = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
+  const [statusFilter, setStatusFilter]     = useState('ALL') // 'ALL', 'ACTIVE', 'INACTIVE'
+  const [page, setPage]                     = useState(1)
+  const [pageSize, setPageSize]             = useState(10)
+
   const [showModal, setShowModal]   = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [editItem, setEditItem]     = useState(null)
@@ -184,14 +188,71 @@ export default function DesignMaster() {
     }
   ]
 
-  const params = {}
-  if (search.trim())       params.search    = search.trim()
-  if (filterActive !== '') params.is_active = filterActive
-
-  const { data, isLoading, refetch } = useDesigns(params)
+  const { data: categories = [] } = useCategories({ all: 'true' })
+  const { data, isLoading, refetch } = useDesigns({ is_active: 'all' })
   const updateMut = useUpdateDesign()
 
   const designs = Array.isArray(data) ? data : []
+
+  // Multi-Filter logic
+  const filteredDesigns = useMemo(() => {
+    return designs.filter((d) => {
+      // 1. Search text filter (design no, category, or master code)
+      if (search.trim()) {
+        const q = search.trim().toLowerCase()
+        const matchNo = (d.design_no || '').toLowerCase().includes(q)
+        const matchCat = (d.catg_name || '').toLowerCase().includes(q)
+        const matchMaster = (d.design_master_code || '').toLowerCase().includes(q)
+        if (!matchNo && !matchCat && !matchMaster) return false
+      }
+
+      // 2. Category filter
+      if (categoryFilter) {
+        const matchesId = String(d.category_id) === String(categoryFilter)
+        const matchesName = (d.catg_name || '').toLowerCase() === categoryFilter.toLowerCase()
+        if (!matchesId && !matchesName) return false
+      }
+
+      // 3. Status filter
+      if (statusFilter === 'ACTIVE' && !d.is_active) return false
+      if (statusFilter === 'INACTIVE' && d.is_active) return false
+
+      return true
+    })
+  }, [designs, search, categoryFilter, statusFilter])
+
+  // Pagination calculations
+  const totalItems = filteredDesigns.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+
+  const paginatedDesigns = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return filteredDesigns.slice(start, start + pageSize)
+  }, [filteredDesigns, safePage, pageSize])
+
+  const isFiltered = search.trim() !== '' || categoryFilter !== '' || statusFilter !== 'ALL'
+
+  const handleResetFilters = () => {
+    setSearch('')
+    setCategoryFilter('')
+    setStatusFilter('ALL')
+    setPage(1)
+  }
+
+  const getPageNumbers = () => {
+    const pages = []
+    const maxVisible = 5
+    let start = Math.max(1, safePage - Math.floor(maxVisible / 2))
+    let end = Math.min(totalPages, start + maxVisible - 1)
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1)
+    }
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+    return pages
+  }
 
   const openCreate = () => { setEditItem(null); setShowModal(true) }
   const openEdit   = (d) => { setEditItem(d);   setShowModal(true) }
@@ -236,38 +297,109 @@ export default function DesignMaster() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-          </svg>
-          <input id="design-search" className="input-field pl-9" placeholder="Search by design no or category…"
-            value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-        <select id="design-status-filter" className="input-field w-auto min-w-[140px]"
-          value={filterActive} onChange={e => setFilterActive(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
-      </div>
+      {/* Multi-Filter Section */}
+      <div className="card p-4 space-y-3 bg-white border border-gray-100 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+            {/* 1. Search */}
+            <div className="relative">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+              </svg>
+              <input
+                id="design-search"
+                className="input-field pl-9 pr-8"
+                placeholder="Search by design no or category…"
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setPage(1) }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full"
+                  title="Clear search"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
 
-      {/* Table / Cards */}
-      {isLoading ? (
-        <div className="p-12 flex justify-center"><Loader /></div>
-      ) : designs.length === 0 ? (
-        <div className="card p-10 text-center text-gray-400">
-          <div className="flex flex-col items-center gap-3">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
+            {/* 2. Category Filter */}
             <div>
-              <p className="font-semibold text-gray-500">No designs found</p>
-              {canEdit && <p className="text-sm mt-1">Click "Add Design" to get started</p>}
+              <select
+                id="design-category-filter"
+                className="input-field"
+                value={categoryFilter}
+                onChange={e => { setCategoryFilter(e.target.value); setPage(1) }}
+              >
+                <option value="">All Categories</option>
+                {categories.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.catg_name || c.category_name} {c.catg_code ? `(${c.catg_code})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 3. Status Filter */}
+            <div>
+              <select
+                id="design-status-filter"
+                className="input-field"
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
+              >
+                <option value="ALL">All Status (Active & Inactive)</option>
+                <option value="ACTIVE">Active Only</option>
+                <option value="INACTIVE">Inactive Only</option>
+              </select>
             </div>
           </div>
+
+          {/* Clear Filters Button */}
+          {isFiltered && (
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors whitespace-nowrap self-start md:self-auto"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear Filters
+            </button>
+          )}
         </div>
+
+        {/* Filter Summary Stats */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100 gap-2">
+          <span>
+            Showing <strong className="text-gray-900 font-semibold">{filteredDesigns.length}</strong> of{' '}
+            <strong className="text-gray-900 font-semibold">{designs.length}</strong> total designs
+            {isFiltered && <span className="ml-2 text-blue-600 font-medium">(Filtered)</span>}
+          </span>
+          <div className="flex gap-4">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              {designs.filter(d => d.is_active).length} Active
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+              {designs.filter(d => !d.is_active).length} Inactive
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-fuchsia-500"></span>
+              {new Set(designs.map(d => d.category_id).filter(Boolean)).size} Categories
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      {isLoading ? (
+        <div className="p-12 flex justify-center"><Loader /></div>
       ) : (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
@@ -282,7 +414,30 @@ export default function DesignMaster() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {designs.map(d => (
+                {paginatedDesigns.length === 0 ? (
+                  <tr>
+                    <td colSpan={canEdit ? 5 : 4} className="p-10 text-center text-gray-400">
+                      <div className="flex flex-col items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>
+                          {isFiltered ? 'No designs match the selected filters.' : 'No designs found.'}
+                          {isFiltered ? (
+                            <button
+                              onClick={handleResetFilters}
+                              className="ml-2 text-blue-600 hover:underline font-semibold"
+                            >
+                              Clear filters
+                            </button>
+                          ) : (
+                            canEdit && ' Click "Add Design" to get started.'
+                          )}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedDesigns.map(d => (
                   <tr key={d.id} className={`hover:bg-gray-50/60 transition-colors ${!d.is_active ? 'opacity-55' : ''}`}>
                     {/* Master Code */}
                     <td className="px-5 py-3 font-mono font-bold text-xs whitespace-nowrap text-fuchsia-700">
@@ -320,8 +475,96 @@ export default function DesignMaster() {
               </tbody>
             </table>
           </div>
-          <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-            <p className="text-xs text-gray-400">{designs.length} {designs.length === 1 ? 'design' : 'designs'} found</p>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3.5 border-t border-gray-100 bg-gray-50/70">
+            {/* Left: Summary & Page Size selector */}
+            <div className="flex items-center gap-4 text-xs text-gray-600">
+              <span>
+                Showing{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1}
+                </strong>{' '}
+                to{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {Math.min(safePage * pageSize, totalItems)}
+                </strong>{' '}
+                of <strong className="text-gray-900 font-semibold">{totalItems}</strong> designs
+              </span>
+
+              <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+                <label htmlFor="design-page-size" className="text-gray-500">Rows:</label>
+                <select
+                  id="design-page-size"
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Right: Page Navigation */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={safePage <= 1}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="First Page"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Previous Page"
+                >
+                  ‹ Prev
+                </button>
+
+                <div className="flex items-center gap-1 mx-1">
+                  {getPageNumbers().map(pageNum => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md transition-colors ${
+                        pageNum === safePage
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Next Page"
+                >
+                  Next ›
+                </button>
+                <button
+                  onClick={() => setPage(totalPages)}
+                  disabled={safePage >= totalPages}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Last Page"
+                >
+                  »
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

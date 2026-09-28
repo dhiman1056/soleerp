@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useColors, useCreateColor, useUpdateColor, useDeleteColor } from '../../hooks/useColors'
 import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
@@ -166,7 +166,11 @@ export default function ColorMaster() {
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
   const [search, setSearch]             = useState('')
-  const [filterActive, setFilterActive] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL', 'ACTIVE', 'INACTIVE'
+  const [hexFilter, setHexFilter]       = useState('ALL') // 'ALL', 'WITH_HEX', 'WITHOUT_HEX'
+  const [page, setPage]                 = useState(1)
+  const [pageSize, setPageSize]         = useState(10)
+
   const [showModal, setShowModal]       = useState(false)
   const [showImport, setShowImport]     = useState(false)
   const [editItem, setEditItem]         = useState(null)
@@ -197,14 +201,67 @@ export default function ColorMaster() {
     }
   ]
 
-  const params = {}
-  if (search.trim())       params.search    = search.trim()
-  if (filterActive !== '') params.is_active = filterActive
-
-  const { data, isLoading, refetch } = useColors(params)
+  const { data, isLoading, refetch } = useColors({ is_active: 'all' })
   const updateMut = useUpdateColor()
 
   const colors = Array.isArray(data) ? data : []
+
+  // Multi-Filter logic
+  const filteredColors = useMemo(() => {
+    return colors.filter((c) => {
+      // 1. Search text filter (name, color code, or master code)
+      if (search.trim()) {
+        const q = search.trim().toLowerCase()
+        const matchName = (c.color_name || '').toLowerCase().includes(q)
+        const matchCode = (c.color_code || '').toLowerCase().includes(q)
+        const matchMaster = (c.color_master_code || '').toLowerCase().includes(q)
+        if (!matchName && !matchCode && !matchMaster) return false
+      }
+
+      // 2. Status filter
+      if (statusFilter === 'ACTIVE' && !c.is_active) return false
+      if (statusFilter === 'INACTIVE' && c.is_active) return false
+
+      // 3. Hex code filter
+      if (hexFilter === 'WITH_HEX' && !c.hex_code) return false
+      if (hexFilter === 'WITHOUT_HEX' && c.hex_code) return false
+
+      return true
+    })
+  }, [colors, search, statusFilter, hexFilter])
+
+  // Pagination calculations
+  const totalItems = filteredColors.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage = Math.min(Math.max(1, page), totalPages)
+
+  const paginatedColors = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return filteredColors.slice(start, start + pageSize)
+  }, [filteredColors, safePage, pageSize])
+
+  const isFiltered = search.trim() !== '' || statusFilter !== 'ALL' || hexFilter !== 'ALL'
+
+  const handleResetFilters = () => {
+    setSearch('')
+    setStatusFilter('ALL')
+    setHexFilter('ALL')
+    setPage(1)
+  }
+
+  const getPageNumbers = () => {
+    const pages = []
+    const maxVisible = 5
+    let start = Math.max(1, safePage - Math.floor(maxVisible / 2))
+    let end = Math.min(totalPages, start + maxVisible - 1)
+    if (end - start + 1 < maxVisible) {
+      start = Math.max(1, end - maxVisible + 1)
+    }
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+    return pages
+  }
 
   const openCreate = () => { setEditItem(null); setShowModal(true) }
   const openEdit   = (c) => { setEditItem(c);   setShowModal(true) }
@@ -249,21 +306,101 @@ export default function ColorMaster() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-          </svg>
-          <input id="color-search" className="input-field pl-9" placeholder="Search by name, code or master code…"
-            value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Multi-Filter Section */}
+      <div className="card p-4 space-y-3 bg-white border border-gray-100 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+            {/* 1. Search */}
+            <div className="relative">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+              </svg>
+              <input
+                id="color-search"
+                className="input-field pl-9 pr-8"
+                placeholder="Search by name, code or master code…"
+                value={search}
+                onChange={e => { setSearch(e.target.value); setPage(1) }}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => { setSearch(''); setPage(1) }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5 rounded-full"
+                  title="Clear search"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* 2. Status Filter */}
+            <div>
+              <select
+                id="color-status-filter"
+                className="input-field"
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
+              >
+                <option value="ALL">All Status (Active & Inactive)</option>
+                <option value="ACTIVE">Active Only</option>
+                <option value="INACTIVE">Inactive Only</option>
+              </select>
+            </div>
+
+            {/* 3. Hex Code Filter */}
+            <div>
+              <select
+                id="color-hex-filter"
+                className="input-field"
+                value={hexFilter}
+                onChange={e => { setHexFilter(e.target.value); setPage(1) }}
+              >
+                <option value="ALL">All Hex Values</option>
+                <option value="WITH_HEX">Has Hex Preview Only</option>
+                <option value="WITHOUT_HEX">No Hex Code</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Clear Filters Button */}
+          {isFiltered && (
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors whitespace-nowrap self-start md:self-auto"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Clear Filters
+            </button>
+          )}
         </div>
-        <select id="color-status-filter" className="input-field w-auto min-w-[140px]"
-          value={filterActive} onChange={e => setFilterActive(e.target.value)}>
-          <option value="">All Status</option>
-          <option value="true">Active</option>
-          <option value="false">Inactive</option>
-        </select>
+
+        {/* Filter Summary Stats */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100 gap-2">
+          <span>
+            Showing <strong className="text-gray-900 font-semibold">{filteredColors.length}</strong> of{' '}
+            <strong className="text-gray-900 font-semibold">{colors.length}</strong> total colors
+            {isFiltered && <span className="ml-2 text-blue-600 font-medium">(Filtered)</span>}
+          </span>
+          <div className="flex gap-4">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              {colors.filter(c => c.is_active).length} Active
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+              {colors.filter(c => !c.is_active).length} Inactive
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+              {colors.filter(c => c.hex_code).length} with Hex
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
@@ -284,18 +421,30 @@ export default function ColorMaster() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {colors.length === 0 ? (
+                {paginatedColors.length === 0 ? (
                   <tr>
                     <td colSpan={canEdit ? 6 : 5} className="p-10 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                         </svg>
-                        <span>No colors found.{canEdit && ' Click "Add Color" to get started.'}</span>
+                        <span>
+                          {isFiltered ? 'No colors match the selected filters.' : 'No colors found.'}
+                          {isFiltered ? (
+                            <button
+                              onClick={handleResetFilters}
+                              className="ml-2 text-blue-600 hover:underline font-semibold"
+                            >
+                              Clear filters
+                            </button>
+                          ) : (
+                            canEdit && ' Click "Add Color" to get started.'
+                          )}
+                        </span>
                       </div>
                     </td>
                   </tr>
-                ) : colors.map(c => (
+                ) : paginatedColors.map(c => (
                   <tr key={c.id} className={`hover:bg-gray-50/60 transition-colors ${!c.is_active ? 'opacity-55' : ''}`}>
                     {/* Master Code */}
                     <td className="px-5 py-3 font-mono font-bold text-xs whitespace-nowrap text-purple-700">{c.color_master_code || '-'}</td>
@@ -314,7 +463,7 @@ export default function ColorMaster() {
                         {c.hex_code ? (
                           <>
                             <span
-                              className="w-5 h-5 rounded-full border border-gray-200 inline-block shadow-sm"
+                              className="w-5 h-5 rounded-full border border-gray-200 inline-block shadow-sm shrink-0"
                               style={{ backgroundColor: c.hex_code }}
                             />
                             <span className="text-xs font-mono text-gray-500">{c.hex_code}</span>
@@ -346,11 +495,97 @@ export default function ColorMaster() {
               </tbody>
             </table>
           </div>
-          {colors.length > 0 && (
-            <div className="px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-              <p className="text-xs text-gray-400">{colors.length} {colors.length === 1 ? 'color' : 'colors'} found</p>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3.5 border-t border-gray-100 bg-gray-50/70">
+            {/* Left: Summary & Page Size selector */}
+            <div className="flex items-center gap-4 text-xs text-gray-600">
+              <span>
+                Showing{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1}
+                </strong>{' '}
+                to{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {Math.min(safePage * pageSize, totalItems)}
+                </strong>{' '}
+                of <strong className="text-gray-900 font-semibold">{totalItems}</strong> colors
+              </span>
+
+              <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+                <label htmlFor="color-page-size" className="text-gray-500">Rows:</label>
+                <select
+                  id="color-page-size"
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
             </div>
-          )}
+
+            {/* Right: Page Navigation */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={safePage <= 1}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="First Page"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Previous Page"
+                >
+                  ‹ Prev
+                </button>
+
+                <div className="flex items-center gap-1 mx-1">
+                  {getPageNumbers().map(pageNum => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md transition-colors ${
+                        pageNum === safePage
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Next Page"
+                >
+                  Next ›
+                </button>
+                <button
+                  onClick={() => setPage(totalPages)}
+                  disabled={safePage >= totalPages}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Last Page"
+                >
+                  »
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

@@ -11,15 +11,19 @@ const generateCode = async () => {
 // ─── GET /api/designs ─────────────────────────────────────────────────────────
 const listDesigns = async (req, res) => {
   try {
-    const { search, is_active } = req.query
+    const { search, is_active, category_id } = req.query
     const conditions = [], params = []
 
-    if (is_active !== undefined) {
-      params.push(is_active === 'true')
+    if (is_active !== undefined && is_active !== 'all' && is_active !== '') {
+      params.push(is_active === 'true' || is_active === true)
       conditions.push(`d.is_active = $${params.length}`)
     }
-    if (search) {
-      params.push(`%${search}%`)
+    if (category_id) {
+      params.push(category_id)
+      conditions.push(`d.category_id = $${params.length}`)
+    }
+    if (search && search.trim()) {
+      params.push(`%${search.trim()}%`)
       conditions.push(`(d.design_no ILIKE $${params.length} OR d.design_master_code ILIKE $${params.length} OR c.catg_name ILIKE $${params.length})`)
     }
 

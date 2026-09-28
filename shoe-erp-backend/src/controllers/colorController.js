@@ -17,12 +17,12 @@ const listColors = async (req, res) => {
     const { search, is_active } = req.query
     const conditions = [], params = []
 
-    if (is_active !== undefined) {
-      params.push(is_active === 'true')
+    if (is_active !== undefined && is_active !== 'all' && is_active !== '') {
+      params.push(is_active === 'true' || is_active === true)
       conditions.push(`is_active = $${params.length}`)
     }
-    if (search) {
-      params.push(`%${search}%`)
+    if (search && search.trim()) {
+      params.push(`%${search.trim()}%`)
       conditions.push(`(color_name ILIKE $${params.length} OR color_code ILIKE $${params.length} OR color_master_code ILIKE $${params.length})`)
     }
 
