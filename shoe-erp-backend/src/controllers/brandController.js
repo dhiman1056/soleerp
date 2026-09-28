@@ -15,11 +15,26 @@ const generateCode = async () => {
 // ─── GET /api/brands ──────────────────────────────────────────────────────────
 const listBrands = async (req, res) => {
   try {
-    const { rows } = await query(`
-      SELECT * FROM brand_master
-      WHERE is_active = true
-      ORDER BY brand_code
-    `)
+    const { search, is_active } = req.query
+    let sql = 'SELECT * FROM brand_master WHERE 1=1'
+    const params = []
+
+    if (is_active === 'true' || is_active === true) {
+      sql += ' AND is_active = true'
+    } else if (is_active === 'false' || is_active === false) {
+      sql += ' AND is_active = false'
+    } else if (is_active !== 'all' && req.query.all !== 'true') {
+      sql += ' AND is_active = true'
+    }
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim()}%`)
+      sql += ` AND (brand_name ILIKE $${params.length} OR brand_code ILIKE $${params.length})`
+    }
+
+    sql += ' ORDER BY brand_code'
+
+    const { rows } = await query(sql, params)
     res.json({ success: true, data: rows })
   } catch (err) {
     console.error('[brandController] listBrands:', err.message)

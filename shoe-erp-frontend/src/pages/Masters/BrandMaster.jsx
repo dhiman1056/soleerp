@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   useBrands,
   useCreateBrand,
@@ -161,6 +161,10 @@ export default function BrandMaster() {
   const canEdit  = ['admin', 'manager'].includes(user?.role)
 
   const [search, setSearch]             = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL') // 'ALL', 'ACTIVE', 'INACTIVE'
+  const [discountFilter, setDiscountFilter] = useState('ALL') // 'ALL', 'WITH_DISCOUNT', 'NO_DISCOUNT'
+  const [page, setPage]                 = useState(1)
+  const [pageSize, setPageSize]         = useState(10)
   const [showModal, setShowModal]       = useState(false)
   const [editItem, setEditItem]         = useState(null)
   const [showImport, setShowImport]     = useState(false)
@@ -183,13 +187,67 @@ export default function BrandMaster() {
     }
   ]
 
-  const params = {}
-  if (search.trim()) params.search = search.trim()
-
-  const { data, isLoading, refetch } = useBrands(params)
+  const { data, isLoading, refetch } = useBrands({ all: 'true' })
   const updateMut = useUpdateBrand()
 
-  const brands = Array.isArray(data) ? data : []
+  const rawBrands = Array.isArray(data) ? data : []
+
+  // Multi-Filter logic
+  const filteredBrands = useMemo(() => {
+    return rawBrands.filter((b) => {
+      // 1. Search text filter
+      if (search.trim()) {
+        const q = search.trim().toLowerCase()
+        const matchName = (b.brand_name || '').toLowerCase().includes(q)
+        const matchCode = (b.brand_code || '').toLowerCase().includes(q)
+        if (!matchName && !matchCode) return false
+      }
+
+      // 2. Discount filter
+      if (discountFilter === 'WITH_DISCOUNT') {
+        const d = Number(b.discount || 0)
+        if (d <= 0) return false
+      } else if (discountFilter === 'NO_DISCOUNT') {
+        const d = Number(b.discount || 0)
+        if (d > 0) return false
+      }
+
+      // 3. Status filter
+      if (statusFilter === 'ACTIVE' && !b.is_active) return false
+      if (statusFilter === 'INACTIVE' && b.is_active) return false
+
+      return true
+    })
+  }, [rawBrands, search, discountFilter, statusFilter])
+
+  // Pagination calculation
+  const totalItems = filteredBrands.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const safePage   = Math.min(page, totalPages)
+
+  const paginatedBrands = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return filteredBrands.slice(start, start + pageSize)
+  }, [filteredBrands, safePage, pageSize])
+
+  const isFiltered = search.trim() !== '' || statusFilter !== 'ALL' || discountFilter !== 'ALL'
+
+  const handleResetFilters = () => {
+    setSearch('')
+    setStatusFilter('ALL')
+    setDiscountFilter('ALL')
+    setPage(1)
+  }
+
+  // Helper for pagination page numbers (window of up to 5 around current)
+  const getPageNumbers = () => {
+    const delta = 2
+    const range = []
+    for (let i = Math.max(1, safePage - delta); i <= Math.min(totalPages, safePage + delta); i++) {
+      range.push(i)
+    }
+    return range
+  }
 
   const openCreate = () => { setEditItem(null); setShowModal(true) }
   const openEdit   = (b) => { setEditItem(b);   setShowModal(true) }
@@ -244,20 +302,107 @@ export default function BrandMaster() {
         )}
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Search */}
-        <div className="relative flex-1">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
-          </svg>
-          <input
-            id="brand-search"
-            className="input-field pl-9"
-            placeholder="Search by name or code…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      {/* Multi-Filter Bar */}
+      <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-xs space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
+          {/* 1. Search */}
+          <div className="relative lg:col-span-6">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 11A6 6 0 115 11a6 6 0 0112 0z" />
+            </svg>
+            <input
+              id="brand-search"
+              className="input-field pl-9 pr-8"
+              placeholder="Search by brand name or code…"
+              value={search}
+              onChange={e => {
+                setSearch(e.target.value)
+                setPage(1)
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => { setSearch(''); setPage(1) }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-0.5"
+                title="Clear search"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* 2. Discount Filter */}
+          <div className="lg:col-span-3">
+            <select
+              id="brand-discount-filter"
+              value={discountFilter}
+              onChange={e => {
+                setDiscountFilter(e.target.value)
+                setPage(1)
+              }}
+              className="input-field bg-white"
+            >
+              <option value="ALL">All Discounts</option>
+              <option value="WITH_DISCOUNT">With Discount (&gt; 0%)</option>
+              <option value="NO_DISCOUNT">No Discount (0%)</option>
+            </select>
+          </div>
+
+          {/* 3. Status Filter */}
+          <div className="lg:col-span-3">
+            <select
+              id="brand-status-filter"
+              value={statusFilter}
+              onChange={e => {
+                setStatusFilter(e.target.value)
+                setPage(1)
+              }}
+              className="input-field bg-white"
+            >
+              <option value="ALL">All Status</option>
+              <option value="ACTIVE">Active Only</option>
+              <option value="INACTIVE">Inactive Only</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Filter Summary & Quick Reset */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100 text-xs text-gray-500">
+          <div className="flex items-center gap-2">
+            <span>
+              Showing <strong className="text-gray-800">{filteredBrands.length}</strong> of{' '}
+              <strong className="text-gray-800">{rawBrands.length}</strong> brands
+            </span>
+            {isFiltered && (
+              <button
+                onClick={handleResetFilters}
+                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium ml-2 px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 transition-colors"
+              >
+                ✕ Clear filters
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              {rawBrands.filter(b => b.is_active).length} Active
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+              {rawBrands.filter(b => !b.is_active).length} Inactive
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
+              {rawBrands.filter(b => Number(b.discount || 0) > 0).length} Discounted
+            </span>
+          </div>
         </div>
       </div>
 
@@ -278,18 +423,30 @@ export default function BrandMaster() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {brands.length === 0 ? (
+                {paginatedBrands.length === 0 ? (
                   <tr>
                     <td colSpan={canEdit ? 5 : 4} className="p-10 text-center text-gray-400">
                       <div className="flex flex-col items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-gray-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                         </svg>
-                        <span>No brands found.{canEdit && ' Click "Add Brand" to get started.'}</span>
+                        <span>
+                          {isFiltered ? 'No brands match the selected filters.' : 'No brands found.'}
+                          {isFiltered ? (
+                            <button
+                              onClick={handleResetFilters}
+                              className="ml-2 text-blue-600 hover:underline font-semibold"
+                            >
+                              Clear filters
+                            </button>
+                          ) : (
+                            canEdit && ' Click "Add Brand" to get started.'
+                          )}
+                        </span>
                       </div>
                     </td>
                   </tr>
-                ) : brands.map(b => (
+                ) : paginatedBrands.map(b => (
                   <tr
                     key={b.id}
                     className={`hover:bg-gray-50/60 transition-colors ${!b.is_active ? 'opacity-55' : ''}`}
@@ -302,8 +459,8 @@ export default function BrandMaster() {
                       {b.brand_name}
                     </td>
 
-                    <td className="px-5 py-3">
-                      {b.discount ? `${b.discount}%` : '—'}
+                    <td className="px-5 py-3 font-medium text-gray-700">
+                      {b.discount !== null && b.discount !== undefined && b.discount !== '' ? `${Number(b.discount).toFixed(2)}%` : '0.00%'}
                     </td>
 
                     <td className="px-5 py-3 text-center">
@@ -336,6 +493,97 @@ export default function BrandMaster() {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-5 py-3.5 border-t border-gray-100 bg-gray-50/70">
+            {/* Left: Summary & Page Size selector */}
+            <div className="flex items-center gap-4 text-xs text-gray-600">
+              <span>
+                Showing{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {totalItems === 0 ? 0 : (safePage - 1) * pageSize + 1}
+                </strong>{' '}
+                to{' '}
+                <strong className="text-gray-900 font-semibold">
+                  {Math.min(safePage * pageSize, totalItems)}
+                </strong>{' '}
+                of <strong className="text-gray-900 font-semibold">{totalItems}</strong> brands
+              </span>
+
+              <div className="flex items-center gap-1.5 border-l border-gray-200 pl-4">
+                <label htmlFor="brand-page-size" className="text-gray-500">Rows:</label>
+                <select
+                  id="brand-page-size"
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value))
+                    setPage(1)
+                  }}
+                  className="bg-white border border-gray-200 text-gray-700 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Right: Page Navigation */}
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setPage(1)}
+                  disabled={safePage <= 1}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="First Page"
+                >
+                  «
+                </button>
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Previous Page"
+                >
+                  ‹ Prev
+                </button>
+
+                <div className="flex items-center gap-1 mx-1">
+                  {getPageNumbers().map(pageNum => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`min-w-[28px] h-7 px-2 text-xs font-semibold rounded-md transition-colors ${
+                        pageNum === safePage
+                          ? 'bg-blue-600 text-white shadow-sm'
+                          : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage >= totalPages}
+                  className="px-2.5 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Next Page"
+                >
+                  Next ›
+                </button>
+                <button
+                  onClick={() => setPage(totalPages)}
+                  disabled={safePage >= totalPages}
+                  className="px-2 py-1 text-xs border border-gray-200 bg-white rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+                  title="Last Page"
+                >
+                  »
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
