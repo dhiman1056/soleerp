@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { useCreatePurchase } from '../../hooks/useInventory'
 import { useRawMaterialsQuery } from '../../hooks/useRawMaterials'
+import SearchableSelect from '../../components/common/SearchableSelect'
 
 export default function PurchaseForm({ isOpen, onClose }) {
   const navigate = useNavigate()
@@ -24,6 +25,20 @@ export default function PurchaseForm({ isOpen, onClose }) {
   const watchRate = watch('rate')
   
   const [totalValue, setTotalValue] = useState(0)
+
+  useEffect(() => {
+    register('sku_code', { required: 'Material SKU is required' })
+  }, [register])
+
+  const skuOptions = useMemo(() => {
+    return rawMaterials.map(r => ({
+      value: r.sku_code,
+      label: r.sku_code,
+      subLabel: r.description || null,
+      badge: r.uom || null,
+      searchKey: `${r.sku_code} ${r.description || ''}`
+    }))
+  }, [rawMaterials])
 
   useEffect(() => {
     if (selectedSku) {
@@ -84,13 +99,15 @@ export default function PurchaseForm({ isOpen, onClose }) {
 
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Material SKU</label>
-                <select {...register('sku_code', { required: 'Required' })} className="input-field w-full font-mono text-sm">
-                  <option value="">-- Select Material --</option>
-                  {rawMaterials.map(r => (
-                    <option key={r.sku_code} value={r.sku_code}>{r.sku_code} - {r.description}</option>
-                  ))}
-                </select>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Material SKU *</label>
+                <SearchableSelect
+                  value={selectedSku}
+                  onChange={(val) => setValue('sku_code', val, { shouldValidate: true, shouldDirty: true })}
+                  options={skuOptions}
+                  placeholder="-- Select Material SKU --"
+                  searchPlaceholder="Search material SKU or description..."
+                  error={!!errors.sku_code}
+                />
                 {errors.sku_code && <p className="text-red-500 text-xs mt-1">{errors.sku_code.message}</p>}
               </div>
 

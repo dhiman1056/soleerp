@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
 import { useCreateAdjustment, useStockSummaryQuery } from '../../hooks/useInventory'
+import SearchableSelect from '../../components/common/SearchableSelect'
 
 export default function StockAdjustment({ isOpen, onClose }) {
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm({
@@ -18,6 +19,20 @@ export default function StockAdjustment({ isOpen, onClose }) {
   const watchQty = watch('qty')
   
   const [currentStock, setCurrentStock] = useState(0)
+
+  useEffect(() => {
+    register('sku_code', { required: 'Material SKU is required' })
+  }, [register])
+
+  const skuOptions = useMemo(() => {
+    return stockSummary.map(r => ({
+      value: r.sku_code,
+      label: r.sku_code,
+      subLabel: r.sku_description || null,
+      badge: r.current_qty ? `Stock: ${parseFloat(r.current_qty).toFixed(1)}` : null,
+      searchKey: `${r.sku_code} ${r.sku_description || ''}`
+    }))
+  }, [stockSummary])
 
   useEffect(() => {
     if (selectedSku) {
@@ -73,13 +88,16 @@ export default function StockAdjustment({ isOpen, onClose }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Material SKU</label>
-              <select {...register('sku_code', { required: 'Required' })} className="input-field w-full font-mono text-sm">
-                <option value="">-- Select Material / Product --</option>
-                {stockSummary.map(r => (
-                  <option key={r.sku_code} value={r.sku_code}>{r.sku_code} - {r.sku_description}</option>
-                ))}
-              </select>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Material SKU *</label>
+              <SearchableSelect
+                value={selectedSku}
+                onChange={(val) => setValue('sku_code', val, { shouldValidate: true, shouldDirty: true })}
+                options={skuOptions}
+                placeholder="-- Select Material / Product --"
+                searchPlaceholder="Search material SKU or description..."
+                error={!!errors.sku_code}
+              />
+              {errors.sku_code && <p className="text-red-500 text-xs mt-1">{errors.sku_code.message}</p>}
             </div>
 
             <div className="grid grid-cols-2 gap-3">

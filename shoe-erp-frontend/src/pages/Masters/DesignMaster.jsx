@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
 import ImportModal from '../../components/shared/ImportModal'
+import SearchableSelect from '../../components/common/SearchableSelect'
 
 const EMPTY = { design_no: '', category_id: '' }
 
@@ -118,18 +119,18 @@ function DesignModal({ editItem, onClose }) {
 
           <div>
             <label className="label">Category</label>
-            <select
+            <SearchableSelect
               value={form.category_id}
-              onChange={set('category_id')}
-              className="input-field"
-            >
-              <option value="">— Select Category —</option>
-              {categories.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.catg_name || c.category_name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setForm(f => ({ ...f, category_id: val }))}
+              options={categories.map(c => ({
+                value: String(c.id),
+                label: c.catg_name || c.category_name,
+                subLabel: c.dept_name || null,
+                searchKey: `${c.catg_name || c.category_name} ${c.dept_name || ''}`
+              }))}
+              placeholder="— Select Category —"
+              searchPlaceholder="Search category..."
+            />
           </div>
 
           {/* Auto-code banner */}

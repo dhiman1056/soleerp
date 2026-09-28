@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
 import ImportModal from '../../components/shared/ImportModal'
+import SearchableSelect from '../../components/common/SearchableSelect'
 
 const EMPTY = { hsn_code: '', description: '', gst_id: '' }
 
@@ -134,14 +135,19 @@ function HSNModal({ editItem, onClose }) {
             </div>
             <div>
               <label className="label">GST Rate</label>
-              <select id="hsn_gst" className="input-field" value={form.gst_id} onChange={set('gst_id')}>
-                <option value="">— No GST —</option>
-                {gstList.map(g => (
-                  <option key={g.id} value={g.id}>
-                    {g.description} ({g.gst_rate}%)
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                id="hsn_gst"
+                value={form.gst_id}
+                onChange={(val) => setForm(f => ({ ...f, gst_id: val }))}
+                options={gstList.map(g => ({
+                  value: String(g.id),
+                  label: `${g.description} (${g.gst_rate}%)`,
+                  badge: `${g.gst_rate}%`,
+                  searchKey: `${g.description} ${g.gst_rate}`
+                }))}
+                placeholder="— No GST —"
+                searchPlaceholder="Search GST rate..."
+              />
             </div>
           </div>
 

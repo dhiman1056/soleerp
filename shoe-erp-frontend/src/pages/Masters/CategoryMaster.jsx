@@ -10,6 +10,7 @@ import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
 import ImportModal from '../../components/shared/ImportModal'
+import SearchableSelect from '../../components/common/SearchableSelect'
 
 // ─── Empty form ────────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
@@ -138,18 +139,18 @@ function CategoryModal({ editItem, onClose }) {
           {/* Stock Group */}
           <div>
             <label className="label">Stock Group</label>
-            <select
+            <SearchableSelect
               value={form.dept_id}
-              onChange={set('dept_id')}
-              className="input-field"
-            >
-              <option value="">— Select Stock Group —</option>
-              {departments.map(d => (
-                <option key={d.id} value={d.id}>
-                  {d.sg_code ? `${d.sg_code} — ` : ''}{d.stock_group || d.dept_name}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setForm(f => ({ ...f, dept_id: val }))}
+              options={departments.map(d => ({
+                value: String(d.id),
+                label: d.stock_group || d.dept_name,
+                badge: d.sg_code ? `#${d.sg_code}` : null,
+                searchKey: `${d.stock_group || d.dept_name} ${d.sg_code || ''}`
+              }))}
+              placeholder="— Select Stock Group —"
+              searchPlaceholder="Search stock group..."
+            />
           </div>
 
           {/* Discount */}

@@ -6,11 +6,14 @@ const sizeClass = {
   md: 'max-w-lg',
   lg: 'max-w-2xl',
   xl: 'max-w-4xl',
+  '2xl': 'max-w-5xl',
+  '3xl': 'max-w-6xl',
+  '4xl': 'max-w-7xl',
 }
 
 /**
  * Reusable modal backed by a Portal.
- * Props: isOpen, onClose, title, children, size ('sm'|'md'|'lg'|'xl'), footer
+ * Props: isOpen, onClose, title, children, size ('sm'|'md'|'lg'|'xl'|'2xl'|'3xl'), footer
  */
 export default function Modal({ isOpen, onClose, title, children, size = 'md', footer }) {
   // Close on Escape key

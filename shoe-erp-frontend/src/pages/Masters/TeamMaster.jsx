@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth'
 import Loader from '../../components/common/Loader'
 import toast from 'react-hot-toast'
 import ImportModal from '../../components/shared/ImportModal'
+import SearchableSelect from '../../components/common/SearchableSelect'
 
 const EMPTY = { team_name: '', description: '', division_id: '' }
 
@@ -131,14 +132,21 @@ function TeamModal({ editItem, onClose }) {
 
           {/* Division — required */}
           <Field label="Division" required error={errors.division_id}>
-            <select id="team_division"
-              className={`input-field ${errors.division_id ? 'border-red-400' : ''}`}
-              value={form.division_id} onChange={set('division_id')}>
-              <option value="">— Select Division —</option>
-              {divisions.map(d => (
-                <option key={d.id} value={d.id}>{d.div_name} ({d.div_code})</option>
-              ))}
-            </select>
+            <SearchableSelect
+              id="team_division"
+              value={form.division_id}
+              onChange={(val) => setForm(f => ({ ...f, division_id: val }))}
+              options={divisions.map(d => ({
+                value: String(d.id),
+                label: d.div_name,
+                subLabel: d.div_code,
+                badge: d.location_name || null,
+                searchKey: `${d.div_name} ${d.div_code} ${d.location_name || ''}`
+              }))}
+              placeholder="— Select Division —"
+              searchPlaceholder="Search division..."
+              error={!!errors.division_id}
+            />
           </Field>
 
           {/* Hierarchy preview */}

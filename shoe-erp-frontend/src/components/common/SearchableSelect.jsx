@@ -1,9 +1,11 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 
 /**
  * SearchableSelect
- * A sleek, keyboard-friendly searchable dropdown with live search,
- * clear option, smart positioning, and custom label/badge support.
+ * A high-performance, accessible searchable dropdown with Portal positioning,
+ * live multi-field filtering, keyboard navigation, clear support, and custom badges.
+ * Rendered via createPortal to prevent ANY clipping in modals, tables, or cards.
  */
 export default function SearchableSelect({
   value,
@@ -21,9 +23,10 @@ export default function SearchableSelect({
   const [isOpen, setIsOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
-  const [openUpward, setOpenUpward] = useState(false)
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 220, maxHeight: 280, openUpward: false })
 
   const containerRef = useRef(null)
+  const popoverRef = useRef(null)
   const searchInputRef = useRef(null)
   const listRef = useRef(null)
 
@@ -67,34 +70,64 @@ export default function SearchableSelect({
     setHighlightedIndex(0)
   }, [filteredOptions])
 
-  // Smart positioning (flip upward if near bottom of screen)
+  // Calculate fixed portal coordinates
+  const updatePosition = useCallback(() => {
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const viewportHeight = window.innerHeight
+    const spaceBelow = viewportHeight - rect.bottom
+    const spaceAbove = rect.top
+    const dropdownHeight = 290
+
+    const openUpward = spaceBelow < dropdownHeight && spaceAbove > dropdownHeight
+    const top = openUpward
+      ? Math.max(10, rect.top - dropdownHeight - 4)
+      : rect.bottom + 4
+
+    const availableHeight = openUpward
+      ? Math.min(spaceAbove - 16, 300)
+      : Math.min(spaceBelow - 16, 300)
+
+    setCoords({
+      top,
+      left: rect.left,
+      width: Math.max(rect.width, 220),
+      maxHeight: Math.max(availableHeight, 180),
+      openUpward
+    })
+  }, [])
+
+  // Update position on open, scroll or resize
   useEffect(() => {
-    if (isOpen && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect()
-      const spaceBelow = window.innerHeight - rect.bottom
-      const dropdownHeight = 280
-      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
-        setOpenUpward(true)
-      } else {
-        setOpenUpward(false)
-      }
-
-      // Auto-focus search input
-      const timer = setTimeout(() => {
-        if (searchInputRef.current) {
-          searchInputRef.current.focus()
-        }
-      }, 50)
-      return () => clearTimeout(timer)
-    } else {
+    if (!isOpen) {
       setSearch('')
+      return
     }
-  }, [isOpen])
 
-  // Click outside listener
+    updatePosition()
+    window.addEventListener('scroll', updatePosition, true)
+    window.addEventListener('resize', updatePosition)
+
+    // Autofocus search input
+    const timer = setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus()
+      }
+    }, 40)
+
+    return () => {
+      window.removeEventListener('scroll', updatePosition, true)
+      window.removeEventListener('resize', updatePosition)
+      clearTimeout(timer)
+    }
+  }, [isOpen, updatePosition])
+
+  // Click outside listener (checks both container & portal popover)
   useEffect(() => {
     function handleClickOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
+      const inContainer = containerRef.current && containerRef.current.contains(e.target)
+      const inPopover = popoverRef.current && popoverRef.current.contains(e.target)
+      if (!inContainer && !inPopover) {
         setIsOpen(false)
       }
     }
@@ -166,7 +199,7 @@ export default function SearchableSelect({
       onKeyDown={handleKeyDown}
       id={id ? `${id}-container` : undefined}
     >
-      {/* Hidden input for standard forms */}
+      {/* Hidden input for form integrations */}
       {name && (
         <input
           type="hidden"
@@ -236,16 +269,23 @@ export default function SearchableSelect({
         </div>
       </div>
 
-      {/* Dropdown panel */}
-      {isOpen && !disabled && (
+      {/* Portal-based Dropdown Panel */}
+      {isOpen && !disabled && createPortal(
         <div
-          className={`absolute left-0 right-0 z-50 bg-white rounded-xl shadow-2xl border border-slate-200/90 overflow-hidden ${
-            openUpward ? 'bottom-full mb-1' : 'top-full mt-1'
-          }`}
-          style={{ minWidth: '220px' }}
+          ref={popoverRef}
+          style={{
+            position: 'fixed',
+            top: `${coords.top}px`,
+            left: `${coords.left}px`,
+            width: `${coords.width}px`,
+            maxHeight: `${coords.maxHeight}px`,
+            zIndex: 99999
+          }}
+          className="bg-white rounded-xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-100"
+          onClick={e => e.stopPropagation()}
         >
           {/* Live Search input */}
-          <div className="p-2 border-b border-slate-100 bg-slate-50/60 sticky top-0 z-10">
+          <div className="p-2 border-b border-slate-100 bg-slate-50/70 flex-shrink-0">
             <div className="relative">
               <svg
                 className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
@@ -263,12 +303,12 @@ export default function SearchableSelect({
                 onChange={e => setSearch(e.target.value)}
                 placeholder={searchPlaceholder}
                 className="w-full pl-8 pr-7 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 placeholder-slate-400 transition-colors"
-                onClick={e => e.stopPropagation()}
+                onKeyDown={handleKeyDown}
               />
               {search && (
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); setSearch('') }}
+                  onClick={() => setSearch('')}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
                 >
                   ×
@@ -286,7 +326,7 @@ export default function SearchableSelect({
           {/* Options list */}
           <div
             ref={listRef}
-            className="max-h-60 overflow-y-auto p-1 divide-y divide-slate-50/70"
+            className="overflow-y-auto p-1 divide-y divide-slate-50/70 flex-1 min-h-0"
           >
             {filteredOptions.length === 0 ? (
               <div className="py-6 px-4 text-center">
@@ -305,7 +345,7 @@ export default function SearchableSelect({
                     onMouseEnter={() => setHighlightedIndex(idx)}
                     className={`px-3 py-2 rounded-lg text-xs cursor-pointer flex items-center justify-between gap-2 transition-colors ${
                       isSelected
-                        ? 'bg-indigo-50/80 text-indigo-900 font-semibold'
+                        ? 'bg-indigo-50/90 text-indigo-900 font-semibold'
                         : isHighlighted
                           ? 'bg-slate-100/90 text-slate-900 font-medium'
                           : 'text-slate-700 hover:bg-slate-50'
@@ -339,7 +379,8 @@ export default function SearchableSelect({
               })
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
