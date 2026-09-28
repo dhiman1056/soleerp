@@ -29,6 +29,16 @@ export default function POForm() {
     }))
   }, [suppliers])
 
+  const materialOptions = useMemo(() => {
+    return materials.map(m => ({
+      value: m.sku_code,
+      label: m.sku_code,
+      subLabel: m.description || null,
+      badge: m.uom ? `UOM: ${m.uom}` : null,
+      searchKey: `${m.sku_code} ${m.description || ''} ${m.uom || ''}`
+    }))
+  }, [materials])
+
   const [form, setForm] = useState({
     supplier_id:            '',
     po_date:                new Date().toISOString().split('T')[0],
@@ -155,11 +165,11 @@ export default function POForm() {
             </button>
           </div>
 
-          <div className="p-0 overflow-x-auto">
+          <div className="p-0 overflow-x-auto min-h-[340px] pb-32">
             <table className="w-full text-sm text-left">
               <thead className="bg-white border-b border-gray-200 text-gray-500 text-xs">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Material</th>
+                  <th className="px-4 py-3 font-semibold min-w-[280px]">Material</th>
                   <th className="px-4 py-3 font-semibold w-24">Qty</th>
                   <th className="px-4 py-3 font-semibold w-32">Unit Price (₹)</th>
                   <th className="px-4 py-3 font-semibold w-40">Expected Date</th>
@@ -172,23 +182,16 @@ export default function POForm() {
                   const lineTotal = (Number(line.order_qty) || 0) * (Number(line.unit_price) || 0)
                   return (
                     <tr key={idx}>
-                      <td className="px-4 py-2">
-                        <select
-                          required
-                          className="input-field py-1.5 text-sm"
+                      <td className="px-4 py-2 min-w-[280px]">
+                        <SearchableSelect
                           value={line.sku_code}
-                          onChange={e => handleMaterialChange(idx, e.target.value)}
+                          onChange={val => handleMaterialChange(idx, val)}
+                          options={materialOptions}
+                          placeholder={rmLoading ? 'Loading materials…' : '— Select Material —'}
+                          searchPlaceholder="Search material SKU or name..."
                           disabled={rmLoading}
-                        >
-                          <option value="">
-                            {rmLoading ? 'Loading materials…' : 'Select Material...'}
-                          </option>
-                          {materials.map(m => (
-                            <option key={m.sku_code} value={m.sku_code}>
-                              {m.sku_code} - {m.description}
-                            </option>
-                          ))}
-                        </select>
+                          error={!line.sku_code && false}
+                        />
                       </td>
                       <td className="px-4 py-2">
                         <input
