@@ -32,10 +32,10 @@ export default class ErrorBoundary extends React.Component {
               onClick={() => window.location.reload()} 
               className="btn-primary px-8 py-3 w-full mb-4"
             >
-              Reload Sandbox
+              Reload Application
             </button>
             
-            {process.env.NODE_ENV === 'development' && (
+            {Boolean(import.meta.env?.DEV) && (
                <details className="text-left bg-gray-100 p-4 rounded text-xs overflow-auto max-h-40">
                  <summary className="font-bold text-gray-700 cursor-pointer">View Stack Trace</summary>
                  <pre className="mt-2 text-red-600">{this.state.error?.toString()}</pre>
