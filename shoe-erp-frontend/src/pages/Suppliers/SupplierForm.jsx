@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { useCreateSupplier, useUpdateSupplier } from '../../hooks/useSuppliers'
 import { useBrands } from '../../hooks/useBrands.js'
 import { useStockGroups } from '../../hooks/useDepartments'
+import SearchableSelect from '../../components/common/SearchableSelect'
 import toast from 'react-hot-toast'
 
 // ── Multi-Select Stock Group Picker ──────────────────────────────────────────
@@ -215,6 +216,15 @@ export default function SupplierForm({ supplier, onClose }) {
   const { data: rawStockGroups = [] } = useStockGroups()
   const stockGroups = Array.isArray(rawStockGroups) ? rawStockGroups : []
 
+  const brandOptions = useMemo(() => {
+    return brands.map(b => ({
+      value: String(b.id),
+      label: b.brand_name,
+      badge: b.brand_code ? `#${b.brand_code}` : null,
+      searchKey: `${b.brand_name} ${b.brand_code || ''}`
+    }))
+  }, [brands])
+
   const [activeTab, setActiveTab] = useState('general')
 
   // Parse initial stock groups
@@ -423,7 +433,7 @@ export default function SupplierForm({ supplier, onClose }) {
         </div>
 
         {/* Form Body (Scrollable) */}
-        <form id="supplier-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5">
+        <form id="supplier-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 pb-28 min-h-[380px] space-y-5">
           {/* TAB 1: GENERAL & CLASSIFICATION */}
           {activeTab === 'general' && (
             <div className="space-y-4 animate-in fade-in duration-150">
@@ -486,19 +496,15 @@ export default function SupplierForm({ supplier, onClose }) {
 
                 {/* Brand */}
                 <div>
-                  <label className="text-xs font-semibold text-gray-700">Brand (Optional)</label>
-                  <select
-                    className="input-field mt-1"
+                  <label className="text-xs font-semibold text-gray-700 block mb-1">Brand (Optional)</label>
+                  <SearchableSelect
                     value={form.brand_id}
-                    onChange={e => setForm({ ...form, brand_id: e.target.value })}
-                  >
-                    <option value="">— Select Brand —</option>
-                    {brands.map(b => (
-                      <option key={b.id} value={b.id}>
-                        {b.brand_name} {b.brand_code ? `(${b.brand_code})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={val => setForm(prev => ({ ...prev, brand_id: val }))}
+                    options={brandOptions}
+                    placeholder="— Select Brand —"
+                    searchPlaceholder="Search brand name or code..."
+                    isClearable={true}
+                  />
                 </div>
 
                 {/* Payment Terms */}
